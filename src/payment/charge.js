@@ -31,6 +31,27 @@ module.exports.charge = async request => {
   if (numberVariant > 0) {
     // n% chance to fail with app.loyalty.level=gold
     if (Math.random() < numberVariant) {
+      // Create child span for ButtercupPayment even on failure
+      const externalPaymentSpan = tracer.startSpan('HTTP POST', {
+        attributes: {
+          'http.method': 'POST',
+          'http.url': 'https://api.buttercuppayments.com/v1/charge',
+          'http.target': '/v1/charge',
+          'http.host': 'api.buttercuppayments.com',
+          'http.scheme': 'https',
+          'net.peer.name': 'api.buttercuppayments.com',
+          'net.peer.port': 443,
+          'span.kind': 'client'
+        }
+      }, context.active());
+
+      // Simulate external payment processing time
+      await new Promise(resolve => setTimeout(resolve, 50 + Math.random() * 100));
+
+      externalPaymentSpan.setAttribute('http.status_code', 400);
+      externalPaymentSpan.recordException(new Error('Payment request failed. Invalid token.'));
+      externalPaymentSpan.end();
+
       span.setAttributes({'app.loyalty.level': 'gold' });
       span.end();
 
