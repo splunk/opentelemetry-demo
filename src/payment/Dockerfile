@@ -4,7 +4,7 @@
 
 FROM docker.io/library/node:22-slim AS builder
 
-WORKDIR /usr/src/app/
+WORKDIR /app
 
 COPY ./src/payment/package.json package.json
 COPY ./src/payment/package-lock.json package-lock.json
@@ -15,9 +15,9 @@ RUN npm ci --omit=dev
 
 FROM gcr.io/distroless/nodejs22-debian12:nonroot
 
-WORKDIR /usr/src/app/
+WORKDIR /app
 
-COPY --from=builder /usr/src/app/node_modules/ node_modules/
+COPY --from=builder /app/node_modules/ node_modules/
 
 COPY ./pb/demo.proto demo.proto
 
