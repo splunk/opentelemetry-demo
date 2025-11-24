@@ -19,7 +19,7 @@ a near real-world environment.
 Our goals are threefold:
 
 - Provide a realistic example of a distributed system that can be used to
-  demonstrate OpenTelemetry instrumentation and observability.
+  demonstrate splubnk's  features  as wel as OpenTelemetry instrumentation and observability.
 - Build a base for vendors, tooling authors, and others to extend and
   demonstrate their OpenTelemetry integrations.
 - Create a living example for OpenTelemetry contributors to use for testing new
