@@ -1,6 +1,6 @@
 # Splunk Astronomy Shop Kubernetes Manifest
 # Version: 0.0.1
-# Generated on: 2025-12-04T14:00:22Z
+# Generated on: 2025-12-04T16:15:47Z
 #
 # This manifest combines all service deployments for the Splunk Astronomy Shop
 # Services are defined in services.yaml
@@ -2662,6 +2662,10 @@ spec:
 ---
 
 # === shop-dc-shim ===
+### Expects a deployment of Astronomy Shop Demo in the same cluster
+### Uses checkout service from that demo
+### Or add this at config at the end of an astronomy shop demo deployment yaml
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -2683,7 +2687,7 @@ spec:
     opentelemetry.io/name: shop-dc-shim-db
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: Deployment 
 metadata:
   name: shop-dc-shim-db
   namespace: default
@@ -2785,7 +2789,20 @@ spec:
           ports:
             - containerPort: 8070
               name: http
+          command: ["/usr/bin/dumb-init"]
+          args:
+          - --
+          - /bin/bash
+          - -c
+          - |
+            export OTEL_RESOURCE_ATTRIBUTES="service.name=shop-dc-shim-service,deployment.environment=${ENV_VALUE}-datacenter-b01,service.version=2.1.3,service.namespace=shop-dc-shim"
+            exec /app/start-app-dual.sh    
           env:
+            - name: WORKSHOP_ENV
+              valueFrom:
+                secretKeyRef:
+                  name: workshop-secret
+                  key: env
             - name: SHOP_DC_SHIM_PORT
               value: "8070"
             - name: DB_CONNECTION_STRING
@@ -2802,11 +2819,6 @@ spec:
               value: "http://splunk-otel-collector-agent:4318"
             - name: OTEL_SERVICE_NAME
               value: "shop-dc-shim"
-            - name: WORKSHOP_ENV
-              valueFrom:
-                secretKeyRef:
-                  name: workshop-secret
-                  key: env
             - name: OTEL_JAVAAGENT_ENABLED
               value: "true"
             - name: APPDYNAMICS_AGENT_ACCOUNT_NAME
