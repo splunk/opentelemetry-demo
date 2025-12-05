@@ -1,9 +1,57 @@
 # Splunk Astronomy Shop Kubernetes Manifest
 # Version: 0.0.1
-# Generated on: 2025-12-04T17:02:29Z
+# Generated on: 2025-12-05T08:53:17Z
 #
 # This manifest combines all service deployments for the Splunk Astronomy Shop
 # Services are defined in services.yaml
+---
+
+# === ingress ===
+#ingress format for local/DIAB demo
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: frontend-proxy-ingress
+  annotations:
+    kubernetes.io/ingress.class: traefik
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-proxy
+                port:
+                  number: 8080
+
+# # Ingress format for official demo with AWS domain
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: frontend-proxy
+#   annotations:
+#     cert-manager.io/cluster-issuer: "letsencrypt-prod"
+#     traefik.ingress.kubernetes.io/router.middlewares: default-custom-headers@kubernetescrd
+# spec:
+#   ingressClassName: traefik
+#   tls:
+#   - hosts:
+#     - jrh-instance.splunko11y.com
+#     secretName: splunk-demo-tls
+#   rules:
+#   - host: jrh-instance.splunko11y.com
+#     http:
+#       paths:
+#       - path: /
+#         pathType: Prefix
+#         backend:
+#           service:
+#             name: frontend-proxy
+#             port:
+#               number: 8080
+---
 ---
 
 # === accounting ===
@@ -2548,34 +2596,6 @@ spec:
 
 ---
 
-# === setup-sql ===
-# Kubernetes manifest for SQL Server setup
-# Includes secrets and initialization script for MSSQL
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: mssql-secrets
-type: Opaque
-stringData:
-  SA_PASSWORD: ChangeMe_SuperStrong123!
-  DB_CONNECTION_STRING: Server=tcp:sql-server-fraud.astronomy-shop.svc.cluster.local,1433;Database=FraudDetection;User
-    Id=sa;Password=ChangeMe_SuperStrong123!;Encrypt=True;TrustServerCertificate=True
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: mssql-init-script
-data:
-  init-db.sql: |
-    IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'FraudDetection')
-    BEGIN
-      CREATE DATABASE FraudDetection;
-    END
-    GO
-
----
-
 # === shipping ===
 # Kubernetes manifest for shipping
 # Auto-generated from opentelemetry-demo.yaml
@@ -2907,6 +2927,34 @@ spec:
             limits:
               memory: "128Mi"
               cpu: "100m"
+---
+
+# === sql-server-fraud-setup ===
+# Kubernetes manifest for SQL Server setup
+# Includes secrets and initialization script for MSSQL
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mssql-secrets
+type: Opaque
+stringData:
+  SA_PASSWORD: ChangeMe_SuperStrong123!
+  DB_CONNECTION_STRING: Server=tcp:sql-server-fraud.astronomy-shop.svc.cluster.local,1433;Database=FraudDetection;User
+    Id=sa;Password=ChangeMe_SuperStrong123!;Encrypt=True;TrustServerCertificate=True
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mssql-init-script
+data:
+  init-db.sql: |
+    IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'FraudDetection')
+    BEGIN
+      CREATE DATABASE FraudDetection;
+    END
+    GO
+
 ---
 
 # === sql-server-fraud ===
