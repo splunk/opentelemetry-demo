@@ -303,6 +303,30 @@ public class ShopTransactionService {
         }
     }
 
+    @Scheduled(fixedRate = 10800000) // Run every 3 hours
+    @Transactional
+    public void cleanupOldTransactions() {
+        Span span = tracer.spanBuilder("cleanup_old_transactions").startSpan();
+        
+        try {
+            LocalDateTime cutoffTime = LocalDateTime.now().minusHours(3);
+            int deletedCount = transactionRepository.deleteTransactionsOlderThan(cutoffTime);
+            
+            span.setAttribute("transactions_deleted", deletedCount);
+            
+            if (deletedCount > 0) {
+                log.info("Cleaned up {} transactions older than 3 hours", deletedCount);
+            } else {
+                log.debug("No transactions to clean up (older than 3 hours)");
+            }
+        } catch (Exception e) {
+            span.recordException(e);
+            log.error("Error cleaning up old transactions", e);
+        } finally {
+            span.end();
+        }
+    }
+
 
     @Transactional(readOnly = true)
     public TransactionStats getTransactionStats() {
