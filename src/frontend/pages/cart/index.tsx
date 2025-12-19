@@ -49,15 +49,30 @@ const Cart: NextPage = () => {
       },
     });
 
-    // Simulate: "Oops! Tried to read pricing before the pricing service responded"
-    const error = new Error("Cannot read property 'unitPrice' of undefined - pricing data not yet loaded");
-    error.name = 'TypeError';
+    // Create functions to generate a realistic stack trace for sourcemap mapping
+    // These function names will appear in the stack trace in Splunk RUM
+    function getPricingData() {
+      const pricingResponse: any = undefined; // Simulates missing API response
+      return pricingResponse.unitPrice; // This throws TypeError
+    }
 
-    // Record on span - Splunk RUM will capture the stack trace
-    span.recordException(error);
-    span.setStatus({ code: 2, message: error.message });
+    function calculateCartTotal() {
+      return getPricingData();
+    }
 
-    console.error('[Demo] CartPageError: Simulated pricing race condition -', error.message);
+    function renderCartPricing() {
+      return calculateCartTotal();
+    }
+
+    try {
+      // Trigger the error through the call stack
+      renderCartPricing();
+    } catch (error) {
+      // Record on span - Splunk RUM will capture the full stack trace
+      span.recordException(error);
+      span.setStatus({ code: 2, message: (error as Error).message });
+      console.error('CartPageError: pricing race condition -', (error as Error).message);
+    }
 
     span.end();
   }, [items.length]);
