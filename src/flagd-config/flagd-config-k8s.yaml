@@ -112,11 +112,12 @@ data:
           "state": "ENABLED",
           "variants": {
             "off": 0,
+            "low": 20,
             "medium": 40,
             "high": 60,
             "veryhigh": 90
           },
-          "defaultVariant": "off"
+          "defaultVariant": "low"
         },
         "executeBadQueries": {
           "description": "Percentage of orders that trigger bad database queries (0-100%)",

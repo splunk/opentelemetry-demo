@@ -1,0 +1,731 @@
+name: Build Demo Manifest - ALL versions
+#
+# ⚠️ IMPORTANT: Run this workflow AFTER building and testing images
+# This workflow creates manifests using the EXISTING version tags in the *-k8s.yaml files
+# It does NOT update version tags - it uses whatever versions are already committed
+#
+# Workflow order:
+#   1. Build images with prod-build-images.yml or test-build-images.yml
+#   2. Test the built images
+#   3. Run this workflow to create deployment manifests with those tested versions
+#
+# NOTE: Repository check happens at job level (line 29), not at workflow level
+# GitHub Actions shows workflow inputs before job conditions are evaluated
+# This workflow is designed for splunk/opentelemetry-demo repository only
+
+"on":
+  workflow_dispatch:
+    inputs:
+      manifest_variant:
+        description: 'Manifest variant to build'
+        required: true
+        type: choice
+        options:
+          - All
+          - BASE
+          - Payment Error
+          - dc-shop
+        default: 'All'
+      validate_manifest:
+        description: 'Validate resulting YAML'
+        required: true
+        type: boolean
+        default: true
+      commit_manifest:
+        description: 'Commit the generated manifest and version to repository'
+        required: true
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      manifest_variant:
+        description: 'Manifest variant to build'
+        required: false
+        type: string
+        default: 'All'
+      validate_manifest:
+        description: 'Validate resulting YAML'
+        required: false
+        type: boolean
+        default: true
+      commit_manifest:
+        description: 'Commit the generated manifest and version to repository'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  build-variant-manifest:
+    # Only run in the main splunk/opentelemetry-demo repo, not in forks
+    # TEMPORARY: Commented out for testing in fork - UNCOMMENT BEFORE PR TO PROD
+    if: github.repository == 'splunk/opentelemetry-demo'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Make scripts executable
+        run: |
+          chmod +x .github/scripts/stitch-manifests-base.sh
+          chmod +x .github/scripts/stitch-manifests-payment-error.sh
+          chmod +x .github/scripts/stitch-manifests-dc-shop.sh
+          chmod +x .github/scripts/prepare-base-config.sh
+          chmod +x .github/scripts/prepare-payment-error-config.sh
+          chmod +x .github/scripts/prepare-dc-shop-config.sh
+          chmod +x .github/scripts/get-variant-info.sh
+          chmod +x .github/scripts/show-image-versions.py
+
+      - name: Important Notice - Version Tag Handling
+        run: |
+          echo "### ⚠️ Important: Version Tag Handling" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**This workflow does NOT update version tags in manifests.**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "It uses the **EXISTING** version tags from your \`*-k8s.yaml\` files as-is." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**✅ Correct workflow order:**" >> $GITHUB_STEP_SUMMARY
+          echo "1. Build images with \`prod-build-images.yml\` or \`test-build-images.yml\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. Test the built images" >> $GITHUB_STEP_SUMMARY
+          echo "3. Run **THIS** workflow to create deployment manifests" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The manifest will contain whatever image versions are currently in your service \`*-k8s.yaml\` files." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Ensure single-version mode (remove per-service test versions)
+        run: |
+          # Production builds use SPLUNK-VERSION for all services
+          # Remove .service-versions.yaml (test-only) if it exists
+          if [ -f ".service-versions.yaml" ]; then
+            echo "Removing .service-versions.yaml (test/dev only)"
+            rm .service-versions.yaml
+          fi
+          # Keep .hotfix.yaml if it exists (production hotfixes)
+
+      - name: Read current version
+        id: version
+        run: |
+          # Read the current SPLUNK-VERSION (no bumping)
+          # This version is ONLY used for the manifest filename
+          # The manifests will use whatever versions are in the *-k8s.yaml files
+
+          VERSION=$(cat SPLUNK-VERSION)
+          echo "Using current SPLUNK-VERSION: $VERSION (for filename only)"
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          VARIANT="${{ inputs.manifest_variant }}"
+          echo "variant=$VARIANT" >> $GITHUB_OUTPUT
+
+          echo "### 📋 Manifest Version - $VARIANT" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> **Note:** This version is used ONLY for the manifest filename." >> $GITHUB_STEP_SUMMARY
+          echo "> Image versions inside the manifest use existing tags from \`*-k8s.yaml\` files." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** \`$VERSION\` (from SPLUNK-VERSION file)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Prepare variant configuration
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          VARIANT="${{ inputs.manifest_variant }}"
+          echo "### ⚙️ Preparing $VARIANT Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Run the appropriate configuration preparation script
+          # Note: For "All", we'll prepare each variant as we build it
+          if [[ "$VARIANT" == "All" ]]; then
+            echo "✅ **Preparing ALL variants**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Will create manifests for:" >> $GITHUB_STEP_SUMMARY
+            echo "- BASE (paymentFailure OFF, excludes shop-dc-*)" >> $GITHUB_STEP_SUMMARY
+            echo "- Payment Error (paymentFailure 50%, excludes shop-dc-*)" >> $GITHUB_STEP_SUMMARY
+            echo "- dc-shop (paymentFailure OFF, includes shop-dc-*)" >> $GITHUB_STEP_SUMMARY
+          elif [[ "$VARIANT" == "BASE" ]]; then
+            .github/scripts/prepare-base-config.sh
+            echo "✅ **BASE configuration prepared**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Modifications:**" >> $GITHUB_STEP_SUMMARY
+            echo "- flagd-config: paymentFailure defaultVariant = \`off\`" >> $GITHUB_STEP_SUMMARY
+            echo "- Services: Excluding shop-dc-* services" >> $GITHUB_STEP_SUMMARY
+          elif [[ "$VARIANT" == "Payment Error" ]]; then
+            .github/scripts/prepare-payment-error-config.sh
+            echo "✅ **Payment Error configuration prepared**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Modifications:**" >> $GITHUB_STEP_SUMMARY
+            echo "- flagd-config: paymentFailure defaultVariant = \`50%\`" >> $GITHUB_STEP_SUMMARY
+            echo "- Services: Excluding shop-dc-* services" >> $GITHUB_STEP_SUMMARY
+          elif [[ "$VARIANT" == "dc-shop" ]]; then
+            .github/scripts/prepare-dc-shop-config.sh
+            echo "✅ **dc-shop configuration prepared**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Modifications:**" >> $GITHUB_STEP_SUMMARY
+            echo "- flagd-config: paymentFailure defaultVariant = \`off\`" >> $GITHUB_STEP_SUMMARY
+            echo "- Services: Including ALL services (with shop-dc-* services)" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Build/Stitch Kubernetes manifest
+        id: stitch
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          VARIANT="${{ inputs.manifest_variant }}"
+          VERSION="${{ steps.version.outputs.version }}"
+
+          echo "### 📦 Stitching $VARIANT Manifest(s)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Arrays to collect manifest files and stats (for "All" variant)
+          MANIFEST_FILES=()
+
+          # Function to build a single variant manifest
+          build_variant() {
+            local VAR_NAME="$1"
+            local VAR_SCRIPT=""
+            local VAR_FILE=""
+            local VAR_DESC=""
+
+            case "$VAR_NAME" in
+              "BASE")
+                VAR_SCRIPT=".github/scripts/stitch-manifests-base.sh"
+                VAR_FILE="kubernetes/splunk-astronomy-shop-base-${VERSION}.yaml"
+                VAR_DESC="BASE (no shop-dc services)"
+                ;;
+              "Payment Error")
+                VAR_SCRIPT=".github/scripts/stitch-manifests-payment-error.sh"
+                VAR_FILE="kubernetes/splunk-astronomy-shop-payment-error-${VERSION}.yaml"
+                VAR_DESC="Payment Error (50% payment failures)"
+                ;;
+              "dc-shop")
+                VAR_SCRIPT=".github/scripts/stitch-manifests-dc-shop.sh"
+                VAR_FILE="kubernetes/splunk-astronomy-shop-dc-shop-${VERSION}.yaml"
+                VAR_DESC="dc-shop (includes shop-dc services)"
+                ;;
+            esac
+
+            # Run the stitch script
+            $VAR_SCRIPT prod
+
+            if [ -f "$VAR_FILE" ]; then
+              FILE_SIZE=$(du -h "$VAR_FILE" | cut -f1)
+              LINE_COUNT=$(wc -l < "$VAR_FILE")
+              RESOURCE_COUNT=$(grep -c "^kind: " "$VAR_FILE" || true)
+              NAMESPACE_COUNT=$(grep -c "namespace: astronomy-shop" "$VAR_FILE" || true)
+
+              echo "✅ **$VAR_NAME Manifest created successfully**" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+              echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+              echo "| File | \`$VAR_FILE\` |" >> $GITHUB_STEP_SUMMARY
+              echo "| Size | $FILE_SIZE |" >> $GITHUB_STEP_SUMMARY
+              echo "| Lines | $LINE_COUNT |" >> $GITHUB_STEP_SUMMARY
+              echo "| Resources | $RESOURCE_COUNT |" >> $GITHUB_STEP_SUMMARY
+              echo "| Namespaced | $NAMESPACE_COUNT |" >> $GITHUB_STEP_SUMMARY
+              echo "| Registry | Production (ghcr.io/splunk/opentelemetry-demo) |" >> $GITHUB_STEP_SUMMARY
+              echo "| Variant | **$VAR_DESC** |" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+
+              # Add to manifest files array
+              MANIFEST_FILES+=("$VAR_FILE")
+            else
+              echo "❌ **$VAR_NAME Manifest file not created**" >> $GITHUB_STEP_SUMMARY
+              exit 1
+            fi
+          }
+
+          # Build manifests based on variant selection
+          if [[ "$VARIANT" == "All" ]]; then
+            echo "Building all three variant manifests..." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # Build each variant
+            for VAR_NAME in "BASE" "Payment Error" "dc-shop"; do
+              echo "#### Building $VAR_NAME variant" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+
+              # Prepare configuration for this variant
+              case "$VAR_NAME" in
+                "BASE")
+                  .github/scripts/prepare-base-config.sh
+                  ;;
+                "Payment Error")
+                  .github/scripts/prepare-payment-error-config.sh
+                  ;;
+                "dc-shop")
+                  .github/scripts/prepare-dc-shop-config.sh
+                  ;;
+              esac
+
+              # Build the variant
+              build_variant "$VAR_NAME"
+
+              # Restore flagd-config before next variant
+              git checkout -- src/flagd-config/flagd-config-k8s.yaml || true
+
+              echo "" >> $GITHUB_STEP_SUMMARY
+            done
+          else
+            # Build single variant (config already prepared in earlier step)
+            build_variant "$VARIANT"
+          fi
+
+          # Output manifest files (space-separated for multiple files)
+          MANIFEST_LIST="${MANIFEST_FILES[@]}"
+          echo "manifest_files=$MANIFEST_LIST" >> $GITHUB_OUTPUT
+
+          # Also output first manifest for backward compatibility
+          echo "manifest_file=${MANIFEST_FILES[0]}" >> $GITHUB_OUTPUT
+
+      - name: Restore original flagd-config
+        if: always()
+        run: |
+          # Reset flagd-config to original state
+          git checkout -- src/flagd-config/flagd-config-k8s.yaml || true
+
+      - name: Validate manifest YAML syntax
+        if: ${{ inputs.validate_manifest }}
+        run: |
+          echo "### ✅ Validation Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          MANIFEST_FILES="${{ steps.stitch.outputs.manifest_files }}"
+          VARIANT="${{ inputs.manifest_variant }}"
+
+          # Loop through all manifest files (space-separated)
+          ALL_VALID=true
+          for MANIFEST_FILE in $MANIFEST_FILES; do
+            MANIFEST_NAME=$(basename "$MANIFEST_FILE")
+            echo "#### Validating: \`$MANIFEST_NAME\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # Validate YAML syntax with Python
+            if python3 -c "import yaml; list(yaml.safe_load_all(open('$MANIFEST_FILE')))" 2> /tmp/validation-${MANIFEST_NAME}.log; then
+              echo "✅ **YAML syntax validation passed**" >> $GITHUB_STEP_SUMMARY
+
+              # Count documents
+              DOC_COUNT=$(python3 -c "import yaml; print(len(list(yaml.safe_load_all(open('$MANIFEST_FILE')))))")
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "- **YAML Documents:** $DOC_COUNT" >> $GITHUB_STEP_SUMMARY
+
+              # Show resource breakdown
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Resource Types:**" >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+              grep "^kind: " "$MANIFEST_FILE" | sort | uniq -c | sort -rn >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ **YAML syntax validation failed**" >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+              cat /tmp/validation-${MANIFEST_NAME}.log >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+              ALL_VALID=false
+            fi
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+          done
+
+          if [ "$ALL_VALID" != "true" ]; then
+            exit 1
+          fi
+
+      - name: Show image version breakdown in manifest
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          VARIANT="${{ inputs.manifest_variant }}"
+          echo "### 📦 Image Versions in $VARIANT Manifest" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> **These are the EXISTING versions from your \`*-k8s.yaml\` files.**" >> $GITHUB_STEP_SUMMARY
+          echo "> This workflow did NOT modify any version tags." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "This manifest includes the following service image versions:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Show version breakdown
+          python3 .github/scripts/show-image-versions.py \
+            --base-version "${{ steps.version.outputs.version }}" \
+            --format github >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Show summary
+          echo "**Summary:**" >> $GITHUB_STEP_SUMMARY
+          python3 .github/scripts/show-image-versions.py \
+            --base-version "${{ steps.version.outputs.version }}" \
+            --summary-only >> $GITHUB_STEP_SUMMARY
+
+      - name: Create Pull Request with manifest changes
+        if: ${{ inputs.commit_manifest }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          VERSION="${{ steps.version.outputs.version }}"
+          MANIFEST_FILES="${{ steps.stitch.outputs.manifest_files }}"
+          VARIANT="${{ inputs.manifest_variant }}"
+
+          # Get variant-specific info
+          chmod +x .github/scripts/get-variant-info.sh
+          VARIANT_SLUG=$(.github/scripts/get-variant-info.sh "$VARIANT" "slug")
+
+          BRANCH_NAME="release/manifest-${VARIANT_SLUG}-${VERSION}"
+
+          # Add all manifest files
+          for MANIFEST_FILE in $MANIFEST_FILES; do
+            git add "$MANIFEST_FILE"
+          done
+
+          if git diff --staged --quiet; then
+            echo "### No Changes" >> $GITHUB_STEP_SUMMARY
+            echo "No changes to commit." >> $GITHUB_STEP_SUMMARY
+          else
+            # Create and checkout new branch
+            git checkout -b "$BRANCH_NAME"
+
+            # Build commit message
+            if [[ "$VARIANT" == "All" ]]; then
+              COMMIT_TITLE="Manifests: ${VERSION} (All variants)"
+              PR_TITLE="All Variant Manifests: ${VERSION}"
+
+              # Build commit body for All variants
+              COMMIT_BODY=$(cat <<EOF
+All variant manifests for version ${VERSION}
+
+⚠️ NOTE: These manifests use EXISTING version tags from *-k8s.yaml files
+Version tags were NOT modified by this workflow
+
+- Version: ${VERSION} (from SPLUNK-VERSION)
+- Registry: ghcr.io/splunk/opentelemetry-demo (production)
+- Variants: All (BASE, Payment Error, dc-shop)
+
+Manifests Created:
+$(for MF in $MANIFEST_FILES; do echo "- $(basename $MF)"; done)
+
+All variants preserve existing image versions from source files.
+EOF
+)
+            else
+              FLAGD_SETTING=$(.github/scripts/get-variant-info.sh "$VARIANT" "flagd-setting")
+              EXCLUDED_SERVICES=$(.github/scripts/get-variant-info.sh "$VARIANT" "excludes")
+              INCLUDED_SERVICES=$(.github/scripts/get-variant-info.sh "$VARIANT" "includes")
+
+              # Build service inclusion/exclusion message
+              if [[ "$EXCLUDED_SERVICES" != "none" ]]; then
+                SERVICE_MSG="Excludes: ${EXCLUDED_SERVICES}"
+              elif [[ "$INCLUDED_SERVICES" != "none" ]]; then
+                SERVICE_MSG="Includes: ${INCLUDED_SERVICES}"
+              else
+                SERVICE_MSG="All services"
+              fi
+
+              COMMIT_TITLE="Manifest: ${VERSION} (${VARIANT} variant)"
+              PR_TITLE="${VARIANT} Manifest: ${VERSION}"
+
+              COMMIT_BODY=$(cat <<EOF
+${VARIANT} manifest for version ${VERSION}
+
+⚠️ NOTE: This manifest uses EXISTING version tags from *-k8s.yaml files
+Version tags were NOT modified by this workflow
+
+- Version: ${VERSION} (from SPLUNK-VERSION)
+- Manifest: $(basename ${MANIFEST_FILES})
+- Registry: ghcr.io/splunk/opentelemetry-demo (production)
+- Variant: ${VARIANT}
+
+${VARIANT} Configuration:
+- Services: ${SERVICE_MSG}
+- flagd-config: ${FLAGD_SETTING}
+
+Created:
+- Stitched ${VARIANT} manifest (preserving existing image versions)
+EOF
+)
+            fi
+
+            # Create commit
+            git commit -m "$COMMIT_TITLE" -m "$COMMIT_BODY"
+
+            # Delete remote branch if it exists (from previous failed runs)
+            git push origin --delete "$BRANCH_NAME" 2>/dev/null || true
+
+            # Push branch
+            git push -u origin "$BRANCH_NAME"
+
+            # Create pull request body
+            if [[ "$VARIANT" == "All" ]]; then
+              PR_BODY=$(printf '%s\n' \
+                "## All Variant Manifests: ${VERSION}" \
+                "" \
+                "> ⚠️ **IMPORTANT:** These manifests use EXISTING version tags from \`*-k8s.yaml\` files." \
+                "> The workflow did NOT modify any image version tags." \
+                "> Run this AFTER building and testing images with build workflows." \
+                "" \
+                "**Version:** \`${VERSION}\` (from SPLUNK-VERSION)" \
+                "**Registry:** Production (\`ghcr.io/splunk/opentelemetry-demo\`)" \
+                "**Variants:** All (BASE, Payment Error, dc-shop)" \
+                "" \
+                "### Manifests Created" \
+                "This PR includes all three variant manifests:" \
+                "" \
+                "#### 1. BASE Variant" \
+                "- ❌ Excludes: \`shop-dc-shim, shop-dc-shim-db, shop-dc-loadgenerator\`" \
+                "- ⚙️ flagd-config: \`paymentFailure defaultVariant = off\`" \
+                "- 📄 File: \`kubernetes/splunk-astronomy-shop-base-${VERSION}.yaml\`" \
+                "" \
+                "#### 2. Payment Error Variant" \
+                "- ❌ Excludes: \`shop-dc-shim, shop-dc-shim-db, shop-dc-loadgenerator\`" \
+                "- ⚙️ flagd-config: \`paymentFailure defaultVariant = 50%\`" \
+                "- 📄 File: \`kubernetes/splunk-astronomy-shop-payment-error-${VERSION}.yaml\`" \
+                "" \
+                "#### 3. dc-shop Variant" \
+                "- ✅ Includes: \`shop-dc-shim, shop-dc-shim-db, shop-dc-loadgenerator\`" \
+                "- ⚙️ flagd-config: \`paymentFailure defaultVariant = off\`" \
+                "- 📄 File: \`kubernetes/splunk-astronomy-shop-dc-shop-${VERSION}.yaml\`" \
+                "" \
+                "### Manifest Contents" \
+                "All manifests combine service deployments based on their variant configuration." \
+                "**Image versions are preserved from the source \`*-k8s.yaml\` files.**" \
+                "" \
+                "See the **Image Versions in Manifest** section in the workflow summary for the actual versions included." \
+                "" \
+                "---" \
+                "🤖 Generated automatically by GitHub Actions"
+              )
+            else
+              FLAGD_SETTING=$(.github/scripts/get-variant-info.sh "$VARIANT" "flagd-setting")
+              EXCLUDED_SERVICES=$(.github/scripts/get-variant-info.sh "$VARIANT" "excludes")
+              INCLUDED_SERVICES=$(.github/scripts/get-variant-info.sh "$VARIANT" "includes")
+
+              # Build service inclusion/exclusion line for PR body
+              if [[ "$EXCLUDED_SERVICES" != "none" ]]; then
+                SERVICE_LINE="- ❌ Excludes: \`${EXCLUDED_SERVICES}\`"
+              elif [[ "$INCLUDED_SERVICES" != "none" ]]; then
+                SERVICE_LINE="- ✅ Includes: \`${INCLUDED_SERVICES}\`"
+              else
+                SERVICE_LINE="- ℹ️ Includes all services"
+              fi
+
+              PR_BODY=$(printf '%s\n' \
+                "## ${VARIANT} Manifest: ${VERSION}" \
+                "" \
+                "> ⚠️ **IMPORTANT:** This manifest uses EXISTING version tags from \`*-k8s.yaml\` files." \
+                "> The workflow did NOT modify any image version tags." \
+                "> Run this AFTER building and testing images with build workflows." \
+                "" \
+                "**Version:** \`${VERSION}\` (from SPLUNK-VERSION)" \
+                "**Registry:** Production (\`ghcr.io/splunk/opentelemetry-demo\`)" \
+                "**Variant:** ${VARIANT}" \
+                "" \
+                "### ${VARIANT} Configuration" \
+                "This is the ${VARIANT} variant with the following modifications:" \
+                "${SERVICE_LINE}" \
+                "- ⚙️ flagd-config: \`${FLAGD_SETTING}\`" \
+                "" \
+                "### Manifest Created" \
+                "- ✅ Manifest: \`$(basename ${MANIFEST_FILES})\`" \
+                "" \
+                "### Manifest Contents" \
+                "This manifest combines service deployments based on the variant configuration." \
+                "**Image versions are preserved from the source \`*-k8s.yaml\` files.**" \
+                "" \
+                "See the **Image Versions in Manifest** section in the workflow summary for the actual versions included." \
+                "" \
+                "---" \
+                "🤖 Generated automatically by GitHub Actions"
+              )
+            fi
+
+            gh pr create \
+              --title "$PR_TITLE" \
+              --body "$PR_BODY" \
+              --base main \
+              --head "$BRANCH_NAME"
+
+            PR_URL=$(gh pr view "$BRANCH_NAME" --json url -q .url)
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📬 Pull Request Created ✅" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**PR:** [$PR_TITLE]($PR_URL)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Branch:** \`$BRANCH_NAME\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Changes:**" >> $GITHUB_STEP_SUMMARY
+            for MANIFEST_FILE in $MANIFEST_FILES; do
+              echo "- ✅ Manifest: \`$(basename $MANIFEST_FILE)\`" >> $GITHUB_STEP_SUMMARY
+            done
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "👉 **Review and merge the PR to deploy**" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload manifest as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: astronomy-shop-manifest-${{ steps.version.outputs.variant }}-${{ steps.version.outputs.version }}
+          path: |
+            ${{ steps.stitch.outputs.manifest_files }}
+          retention-days: 90
+
+      - name: Generate deployment command
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          VARIANT="${{ inputs.manifest_variant }}"
+          MANIFEST_FILES="${{ steps.stitch.outputs.manifest_files }}"
+          VERSION="${{ steps.version.outputs.version }}"
+
+          echo "## 🚀 Deploy to Cluster" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "$VARIANT" == "All" ]]; then
+            echo "You have created **all three variant manifests**. Choose which variant to deploy:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Option 1: Deploy from Repository" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "#### Deploy BASE variant (no shop-dc services)" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+            echo "git pull" >> $GITHUB_STEP_SUMMARY
+            echo "kubectl apply -f kubernetes/splunk-astronomy-shop-base-${VERSION}.yaml" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "#### Deploy Payment Error variant (50% payment failures)" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+            echo "git pull" >> $GITHUB_STEP_SUMMARY
+            echo "kubectl apply -f kubernetes/splunk-astronomy-shop-payment-error-${VERSION}.yaml" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "#### Deploy dc-shop variant (with shop-dc services)" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+            echo "git pull" >> $GITHUB_STEP_SUMMARY
+            echo "kubectl apply -f kubernetes/splunk-astronomy-shop-dc-shop-${VERSION}.yaml" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Option 2: Download Artifact" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "1. Download artifact: \`astronomy-shop-manifest-All-${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+            echo "2. Extract all three YAML files" >> $GITHUB_STEP_SUMMARY
+            echo "3. Deploy the variant you want: \`kubectl apply -f <variant-file>.yaml\`" >> $GITHUB_STEP_SUMMARY
+          else
+            MANIFEST_FILE="${{ steps.stitch.outputs.manifest_file }}"
+            MANIFEST_FILENAME=$(basename "$MANIFEST_FILE")
+            echo "### Option 1: Deploy from Repository" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+            echo "# Pull latest changes" >> $GITHUB_STEP_SUMMARY
+            echo "git pull" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "# Deploy to cluster" >> $GITHUB_STEP_SUMMARY
+            echo "kubectl apply -f $MANIFEST_FILE" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "# Verify deployment" >> $GITHUB_STEP_SUMMARY
+            echo "kubectl get all -n astronomy-shop" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Option 2: Download Artifact" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "1. Download artifact: \`astronomy-shop-manifest-${{ steps.version.outputs.variant }}-${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "2. Extract the YAML file" >> $GITHUB_STEP_SUMMARY
+            echo "3. Deploy: \`kubectl apply -f $MANIFEST_FILENAME\`" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 Monitor Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "# Watch pods come up" >> $GITHUB_STEP_SUMMARY
+          echo "kubectl get pods -n astronomy-shop -w" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Check pod status" >> $GITHUB_STEP_SUMMARY
+          echo "kubectl get pods -n astronomy-shop" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# View logs for a service" >> $GITHUB_STEP_SUMMARY
+          echo "kubectl logs -n astronomy-shop deployment/<service-name>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Check services" >> $GITHUB_STEP_SUMMARY
+          echo "kubectl get svc -n astronomy-shop" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Summary
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          VARIANT="${{ inputs.manifest_variant }}"
+          MANIFEST_FILES="${{ steps.stitch.outputs.manifest_files }}"
+          VERSION="${{ steps.version.outputs.version }}"
+
+          if [[ "$VARIANT" == "All" ]]; then
+            echo "### ✨ All Variant Manifests Complete!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| **Version** | \`${VERSION}\` (from SPLUNK-VERSION) |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Variants** | **All** (BASE, Payment Error, dc-shop) |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Manifests Created** | 3 |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Registry** | Production (ghcr.io/splunk/opentelemetry-demo) |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Validated** | ${{ inputs.validate_manifest }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Committed** | ${{ inputs.commit_manifest }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Artifact Retention** | 90 days |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Manifests Created:**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "1. **BASE Variant**" >> $GITHUB_STEP_SUMMARY
+            echo "   - 📄 \`kubernetes/splunk-astronomy-shop-base-${VERSION}.yaml\`" >> $GITHUB_STEP_SUMMARY
+            echo "   - ❌ Excludes: shop-dc-shim, shop-dc-shim-db, shop-dc-loadgenerator" >> $GITHUB_STEP_SUMMARY
+            echo "   - ⚙️ paymentFailure defaultVariant = off" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "2. **Payment Error Variant**" >> $GITHUB_STEP_SUMMARY
+            echo "   - 📄 \`kubernetes/splunk-astronomy-shop-payment-error-${VERSION}.yaml\`" >> $GITHUB_STEP_SUMMARY
+            echo "   - ❌ Excludes: shop-dc-shim, shop-dc-shim-db, shop-dc-loadgenerator" >> $GITHUB_STEP_SUMMARY
+            echo "   - ⚙️ paymentFailure defaultVariant = 50%" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "3. **dc-shop Variant**" >> $GITHUB_STEP_SUMMARY
+            echo "   - 📄 \`kubernetes/splunk-astronomy-shop-dc-shop-${VERSION}.yaml\`" >> $GITHUB_STEP_SUMMARY
+            echo "   - ✅ Includes: shop-dc-shim, shop-dc-shim-db, shop-dc-loadgenerator" >> $GITHUB_STEP_SUMMARY
+            echo "   - ⚙️ paymentFailure defaultVariant = off" >> $GITHUB_STEP_SUMMARY
+          else
+            MANIFEST_FILE="${{ steps.stitch.outputs.manifest_file }}"
+
+            # Get variant-specific info
+            chmod +x .github/scripts/get-variant-info.sh
+            FLAGD_SETTING=$(.github/scripts/get-variant-info.sh "$VARIANT" "flagd-setting")
+            EXCLUDED_SERVICES=$(.github/scripts/get-variant-info.sh "$VARIANT" "excludes")
+            INCLUDED_SERVICES=$(.github/scripts/get-variant-info.sh "$VARIANT" "includes")
+
+            echo "### ✨ $VARIANT Manifest Complete!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| **Version** | \`${VERSION}\` (from SPLUNK-VERSION) |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Manifest File** | \`$MANIFEST_FILE\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Variant** | **$VARIANT** |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Registry** | Production (ghcr.io/splunk/opentelemetry-demo) |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Validated** | ${{ inputs.validate_manifest }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Committed** | ${{ inputs.commit_manifest }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Artifact Retention** | 90 days |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**$VARIANT Modifications:**" >> $GITHUB_STEP_SUMMARY
+            if [[ "$EXCLUDED_SERVICES" != "none" ]]; then
+              echo "- ❌ Excludes: $EXCLUDED_SERVICES" >> $GITHUB_STEP_SUMMARY
+            elif [[ "$INCLUDED_SERVICES" != "none" ]]; then
+              echo "- ✅ Includes: $INCLUDED_SERVICES" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- ℹ️ All services included" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "- ⚙️ $FLAGD_SETTING" >> $GITHUB_STEP_SUMMARY
+          fi
