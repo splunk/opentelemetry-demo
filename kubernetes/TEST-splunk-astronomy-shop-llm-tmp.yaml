@@ -1,6 +1,6 @@
 # Splunk Astronomy Shop Kubernetes Manifest
 # Version: llm-tmp
-# Generated on: 2026-01-09T16:57:10Z
+# Generated on: 2026-01-12T10:37:38Z
 #
 # This manifest combines all service deployments for the Splunk Astronomy Shop
 # Services are defined in services.yaml
