@@ -23,7 +23,10 @@ const request = async <T>({
   },
 }: IRequestParams): Promise<T> => {
   const proxyURL = await getFrontendProxyURL();
-  const requestURL = `${proxyURL}${url}?${new URLSearchParams(queryParams).toString()}`;
+  // Normalize URL: remove trailing slash from proxyURL and ensure url starts with /
+  const normalizedProxyURL = proxyURL.replace(/\/$/, '');
+  const normalizedPath = url.startsWith('/') ? url : `/${url}`;
+  const requestURL = `${normalizedProxyURL}${normalizedPath}?${new URLSearchParams(queryParams).toString()}`;
   const requestBody = body ? JSON.stringify(body) : undefined;
   const response = await fetch(requestURL, {
     method,

@@ -69,3 +69,4 @@ src/payment/*.bak
 dev-repo.yaml
 src/frontend copy/
 src/frontend copy/*
+src/react-native-app/.env

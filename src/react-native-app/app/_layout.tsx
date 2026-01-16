@@ -13,6 +13,7 @@ import Toast from "react-native-toast-message";
 import { useFonts } from "expo-font";
 import { useEffect, useMemo } from "react";
 import { useTracer } from "@/hooks/useTracer";
+import { useSplunkRum } from "@/hooks/useSplunkRum";
 import CartProvider from "@/providers/Cart.provider";
 
 const queryClient = new QueryClient();
@@ -23,10 +24,11 @@ export default function RootLayout() {
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
   const { loaded: tracerLoaded } = useTracer();
+  const { loaded: rumLoaded } = useSplunkRum();
 
   const loaded = useMemo<boolean>(
-    () => fontsLoaded && tracerLoaded,
-    [fontsLoaded, tracerLoaded],
+    () => fontsLoaded && tracerLoaded && rumLoaded,
+    [fontsLoaded, tracerLoaded, rumLoaded],
   );
   useEffect(() => {
     if (loaded) {
@@ -44,8 +46,14 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <CartProvider>
             {/*
-              TODO Once https://github.com/open-telemetry/opentelemetry-js-contrib/pull/2359 is available it can
-              be used here to provide telemetry for navigation between tabs
+              Splunk RUM is now initialized via useSplunkRum hook above.
+
+              Note: Expo Router automatically handles navigation internally. For additional custom
+              navigation telemetry, the @splunk/otel-react-native package supports React Navigation
+              instrumentation via OtelReactNavigationInstrumentation.
+
+              Original TODO: Once https://github.com/open-telemetry/opentelemetry-js-contrib/pull/2359
+              is available it can be used to provide additional telemetry for navigation between tabs.
               */}
             <Stack>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
