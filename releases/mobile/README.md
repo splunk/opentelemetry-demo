@@ -11,3 +11,10 @@ This directory contains packaged mobile app builds for iOS and Android.
 - **Size**:  37M
 - **Contents**: iOS .ipa + Android .apk
 
+
+### Version 1.1.0
+- **File**: [`astronomy-shop-mobile-1.1.0.zip`](./astronomy-shop-mobile-1.1.0.zip)
+- **Built**: 2026-01-19 12:21:53
+- **Size**:  37M
+- **Contents**: iOS .ipa + Android .apk
+
