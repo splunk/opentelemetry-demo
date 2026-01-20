@@ -88,6 +88,24 @@ const CartProvider = ({ children }: IProps) => {
             ...order,
             currencyCode: selectedCurrency,
           });
+        },
+        // Add order result details to the span
+        (result: OrderResult, span) => {
+          span.setAttribute('order.id', result.orderId);
+          span.setAttribute('order.tracking_id', result.shippingTrackingId);
+          span.setAttribute('order.items_count', result.items.length);
+
+          if (result.shippingCost) {
+            span.setAttribute('order.shipping_cost', result.shippingCost.units || 0);
+            span.setAttribute('order.currency', result.shippingCost.currencyCode || 'USD');
+          }
+
+          console.log('✅ PlaceOrder completed:', {
+            orderId: result.orderId,
+            trackingId: result.shippingTrackingId,
+            itemsCount: result.items.length,
+            shippingCost: result.shippingCost
+          });
         }
       );
     },

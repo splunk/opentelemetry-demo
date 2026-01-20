@@ -5,9 +5,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { StyleSheet, ScrollView } from "react-native";
 import { RegionSelector } from "@/components/RegionSelector";
 import { RumTestButton } from "@/components/RumTestButton";
-
-// Build version - update this when creating new builds
-const BUILD_VERSION = "1.1.0";
+import { APP_VERSION } from "@/constants/AppVersion";
 
 export default function Settings() {
   return (
@@ -18,7 +16,7 @@ export default function Settings() {
           <ThemedText style={styles.sectionTitle}>App Information</ThemedText>
           <ThemedView style={styles.infoRow}>
             <ThemedText style={styles.infoLabel}>Version:</ThemedText>
-            <ThemedText style={styles.infoValue}>{BUILD_VERSION}</ThemedText>
+            <ThemedText style={styles.infoValue}>{APP_VERSION}</ThemedText>
           </ThemedView>
         </ThemedView>
 

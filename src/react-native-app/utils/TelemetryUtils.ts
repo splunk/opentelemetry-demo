@@ -66,16 +66,33 @@ export async function createWorkflowSpan(
  *   await executeWithWorkflowSpan('AddToCart', { 'product.id': '123' }, async () => {
  *     await addItemToCart(item);
  *   });
+ *
+ * With result attributes:
+ *   await executeWithWorkflowSpan(
+ *     'PlaceOrder',
+ *     { 'workflow.name': 'PlaceOrder' },
+ *     async () => placeOrderAPI(),
+ *     (result, span) => {
+ *       span.setAttribute('order.id', result.orderId);
+ *     }
+ *   );
  */
 export async function executeWithWorkflowSpan<T>(
   workflowName: string,
   attributes: Record<string, string | number>,
-  fn: () => Promise<T>
+  fn: () => Promise<T>,
+  onResult?: (result: T, span: any) => void
 ): Promise<T> {
   const span = await createWorkflowSpan(workflowName, attributes);
 
   try {
     const result = await fn();
+
+    // Allow caller to add result-specific attributes to the span
+    if (span && onResult) {
+      onResult(result, span);
+    }
+
     return result;
   } catch (error) {
     if (span) {
@@ -87,6 +104,15 @@ export async function executeWithWorkflowSpan<T>(
   } finally {
     if (span) {
       span.end();
+
+      // Force flush to ensure span is exported to native SDK immediately
+      // Fire and forget - don't await to avoid blocking the return
+      const provider = SplunkRum.provider;
+      if (provider) {
+        provider.forceFlush().catch((error) => {
+          console.warn('Failed to flush span:', error);
+        });
+      }
     }
   }
 }

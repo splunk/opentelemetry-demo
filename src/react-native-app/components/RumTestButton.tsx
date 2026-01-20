@@ -4,19 +4,34 @@ import { Pressable, StyleSheet } from "react-native";
 import { ThemedText } from "./ThemedText";
 import { trace } from "@opentelemetry/api";
 import Toast from "react-native-toast-message";
+import { SplunkRum } from "@splunk/otel-react-native";
 
 export function RumTestButton() {
   const handlePress = () => {
-    console.log("Creating test RUM span...");
+    console.log("Creating test RUM span using Splunk RUM provider...");
 
-    const tracer = trace.getTracer("test-tracer");
+    // Use the Splunk RUM provider directly (same way AppStart spans work)
+    const provider = SplunkRum.provider;
+    if (!provider) {
+      console.error("Splunk RUM provider not initialized!");
+      Toast.show({
+        type: "error",
+        position: "bottom",
+        text1: "RUM Not Initialized",
+        text2: "Provider is null",
+        visibilityTime: 2000,
+      });
+      return;
+    }
+
+    const tracer = provider.getTracer("test-tracer");
     const span = tracer.startSpan("test-button-click");
 
     span.setAttribute("component", "test");
     span.setAttribute("action", "button.click");
     span.setAttribute("test.id", "rum-test-button");
 
-    console.log("Test span created:", span);
+    console.log("Test span created with provider:", span);
 
     // Show toast notification
     Toast.show({
@@ -27,11 +42,22 @@ export function RumTestButton() {
       visibilityTime: 2000,
     });
 
-    // End span after a short delay to simulate work
-    setTimeout(() => {
+    // End span after a delay to simulate work (1 second for visible duration)
+    setTimeout(async () => {
       span.end();
-      console.log("Test span ended");
-    }, 100);
+      console.log("Test span ended, waiting before flush...");
+
+      // Wait a moment to ensure span is fully ended before flushing
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Try to manually force a flush of the span processors
+      try {
+        await provider.forceFlush();
+        console.log("Provider force flush called");
+      } catch (error) {
+        console.log("Force flush error (might not be supported):", error);
+      }
+    }, 1000);
   };
 
   return (

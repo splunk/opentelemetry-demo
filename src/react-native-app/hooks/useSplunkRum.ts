@@ -5,95 +5,16 @@ import { SplunkRum, startNavigationTracking } from "@splunk/otel-react-native";
 import { getSplunkGlobalAttributes } from "../utils/UserAttributes";
 import { getRegionConfig, getAppName } from "../utils/RegionSettings";
 import { useNavigationContainerRef } from "expo-router";
+import { APP_VERSION } from "../constants/AppVersion";
 
 export interface SplunkRumResult {
   loaded: boolean;
   rum: ReturnType<typeof SplunkRum.init> | null;
+  provider: any; // Expose the tracer provider for direct span creation
 }
 
-// Intercept fetch to log RUM beacon requests
-const originalFetch = global.fetch;
-global.fetch = async (...args) => {
-  const [url, options] = args;
-  const urlString = typeof url === 'string' ? url : url.toString();
-
-  // Log all requests to RUM beacon
-  if (urlString.includes('rum-ingest') || urlString.includes('signalfx')) {
-    console.log('📡 [RUM FETCH] Sending spans to beacon:', urlString);
-    console.log('📡 [RUM FETCH] Request method:', options?.method || 'GET');
-    console.log('📡 [RUM FETCH] Request headers:', options?.headers);
-
-    if (options?.body) {
-      try {
-        const bodyText = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
-        console.log('📡 [RUM FETCH] Request body preview:', bodyText.substring(0, 500));
-      } catch (e) {
-        console.log('📡 [RUM FETCH] Request body:', options.body);
-      }
-    }
-  }
-
-  try {
-    const response = await originalFetch(...args);
-
-    // Log response for RUM requests
-    if (urlString.includes('rum-ingest') || urlString.includes('signalfx')) {
-      console.log('✅ [RUM FETCH] Response status:', response.status, response.statusText);
-      console.log('✅ [RUM FETCH] Response headers:', Object.fromEntries(response.headers.entries()));
-    }
-
-    return response;
-  } catch (error) {
-    // Log errors for RUM requests
-    if (urlString.includes('rum-ingest') || urlString.includes('signalfx')) {
-      console.error('❌ [RUM FETCH] Request failed:', error);
-    }
-    throw error;
-  }
-};
-
-// Also intercept XMLHttpRequest in case the SDK uses that
-const OriginalXHR = global.XMLHttpRequest;
-if (OriginalXHR) {
-  global.XMLHttpRequest = class extends OriginalXHR {
-    open(method: string, url: string | URL, ...rest: any[]) {
-      const urlString = typeof url === 'string' ? url : url.toString();
-      if (urlString.includes('rum-ingest') || urlString.includes('signalfx')) {
-        console.log('📡 [RUM XHR] Opening request to:', urlString);
-        console.log('📡 [RUM XHR] Method:', method);
-      }
-      // @ts-ignore
-      return super.open(method, url, ...rest);
-    }
-
-    send(body?: Document | XMLHttpRequestBodyInit | null) {
-      // @ts-ignore
-      const url = this._url || this.responseURL;
-      if (url && (url.includes('rum-ingest') || url.includes('signalfx'))) {
-        console.log('📡 [RUM XHR] Sending request');
-        if (body) {
-          try {
-            const bodyText = typeof body === 'string' ? body : JSON.stringify(body);
-            console.log('📡 [RUM XHR] Body preview:', bodyText.substring(0, 500));
-          } catch (e) {
-            console.log('📡 [RUM XHR] Body:', body);
-          }
-        }
-
-        // Log response when done
-        this.addEventListener('loadend', () => {
-          console.log('✅ [RUM XHR] Response status:', this.status, this.statusText);
-          console.log('✅ [RUM XHR] Response:', this.responseText?.substring(0, 200));
-        });
-
-        this.addEventListener('error', (e) => {
-          console.error('❌ [RUM XHR] Request failed:', e);
-        });
-      }
-      return super.send(body);
-    }
-  };
-}
+// NOTE: Removed fetch/XHR interceptors to avoid interfering with
+// Splunk RUM SDK's automatic network instrumentation
 
 const initializeSplunkRum = async () => {
   try {
@@ -134,7 +55,10 @@ const initializeSplunkRum = async () => {
       rumAccessToken: regionConfig.rumToken,
       applicationName: appName,
       deploymentEnvironment: regionConfig.rumEnv || "development",
-      globalAttributes,
+      globalAttributes: {
+        ...globalAttributes,
+        'app.version': APP_VERSION,
+      },
       debug: true, // Enable debug logging to see RUM data being sent
       // Configure batch span processor for faster/immediate sending
       // Use correct parameter names from SDK source:
@@ -160,12 +84,15 @@ export const useSplunkRum = (): SplunkRumResult => {
   const [rum, setRum] = useState<ReturnType<typeof SplunkRum.init> | null>(
     null
   );
+  const [provider, setProvider] = useState<any>(null);
   const navigationRef = useNavigationContainerRef();
 
   useEffect(() => {
     if (!loaded) {
       initializeSplunkRum().then((rumInstance) => {
         setRum(rumInstance);
+        // Expose the provider from SplunkRum for direct span creation
+        setProvider(SplunkRum.provider);
         setLoaded(true);
       });
     }
@@ -182,5 +109,6 @@ export const useSplunkRum = (): SplunkRumResult => {
   return {
     loaded,
     rum,
+    provider,
   };
 };
