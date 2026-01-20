@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import ApiGateway from "@/gateways/Api.gateway";
 import { CartItem, OrderResult, PlaceOrderRequest } from "@/protos/demo";
 import { IProductCart } from "@/types/Cart";
+import { executeWithWorkflowSpan } from "@/utils/TelemetryUtils";
 
 interface IContext {
   cart: IProductCart;
@@ -54,8 +55,21 @@ const CartProvider = ({ children }: IProps) => {
   );
 
   const addItem = useCallback(
-    (item: CartItem) =>
-      addCartMutation.mutateAsync({ ...item, currencyCode: selectedCurrency }),
+    async (item: CartItem) => {
+      return executeWithWorkflowSpan(
+        'AddToCart',
+        {
+          'product.id': item.productId,
+          'product.quantity': item.quantity,
+        },
+        async () => {
+          return await addCartMutation.mutateAsync({
+            ...item,
+            currencyCode: selectedCurrency
+          });
+        }
+      );
+    },
     [addCartMutation, selectedCurrency],
   );
   const emptyCart = useCallback(
@@ -63,11 +77,20 @@ const CartProvider = ({ children }: IProps) => {
     [emptyCartMutation],
   );
   const placeOrder = useCallback(
-    (order: PlaceOrderRequest) =>
-      placeOrderMutation.mutateAsync({
-        ...order,
-        currencyCode: selectedCurrency,
-      }),
+    async (order: PlaceOrderRequest) => {
+      return executeWithWorkflowSpan(
+        'PlaceOrder',
+        {
+          'workflow.name': 'PlaceOrder',
+        },
+        async () => {
+          return await placeOrderMutation.mutateAsync({
+            ...order,
+            currencyCode: selectedCurrency,
+          });
+        }
+      );
+    },
     [placeOrderMutation, selectedCurrency],
   );
 
