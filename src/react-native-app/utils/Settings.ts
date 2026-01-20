@@ -6,18 +6,14 @@ import getLocalhost from "@/utils/Localhost";
 const FRONTEND_PROXY_URL_SETTING = 'frontend_proxy_url';
 
 export const getFrontendProxyURL = async (): Promise<string> => {
-  // Priority 1: User-configured URL from settings screen
-  const proxyURL = await AsyncStorage.getItem(FRONTEND_PROXY_URL_SETTING);
-  if (proxyURL) {
-    return proxyURL;
+  // Priority 1: Region-specific environment variable
+  const { getRegionConfig } = require('./RegionSettings');
+  const regionConfig = await getRegionConfig();
+  if (regionConfig.frontendProxyUrl) {
+    return regionConfig.frontendProxyUrl;
   }
 
-  // Priority 2: Environment variable with full URL
-  if (process.env.EXPO_PUBLIC_FRONTEND_PROXY_URL) {
-    return process.env.EXPO_PUBLIC_FRONTEND_PROXY_URL;
-  }
-
-  // Priority 3: Localhost with port (for local development)
+  // Priority 2: Localhost with port (for local development)
   const localhost = await getLocalhost();
   return `http://${localhost}:${process.env.EXPO_PUBLIC_FRONTEND_PROXY_PORT}`;
 };

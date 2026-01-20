@@ -1,36 +1,77 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useState } from "react";
-import { SplunkRum } from "@splunk/otel-react-native";
-
-const SPLUNK_RUM_REALM = process.env.EXPO_PUBLIC_SPLUNK_RUM_REALM;
-const SPLUNK_RUM_TOKEN = process.env.EXPO_PUBLIC_SPLUNK_RUM_TOKEN;
-const SPLUNK_APP_NAME = process.env.EXPO_PUBLIC_SPLUNK_APP_NAME;
-const SPLUNK_RUM_ENV = process.env.EXPO_PUBLIC_SPLUNK_RUM_ENV;
+import { SplunkRum, startNavigationTracking } from "@splunk/otel-react-native";
+import { getSplunkGlobalAttributes } from "../utils/UserAttributes";
+import { getRegionConfig, getAppName } from "../utils/RegionSettings";
+import { useNavigationContainerRef } from "expo-router";
+import { APP_VERSION } from "../constants/AppVersion";
 
 export interface SplunkRumResult {
   loaded: boolean;
   rum: ReturnType<typeof SplunkRum.init> | null;
+  provider: any; // Expose the tracer provider for direct span creation
 }
 
-const initializeSplunkRum = () => {
-  // Skip initialization if required environment variables are not set
-  if (!SPLUNK_RUM_REALM || !SPLUNK_RUM_TOKEN || !SPLUNK_APP_NAME) {
-    console.warn(
-      "Splunk RUM not initialized: missing required environment variables (EXPO_PUBLIC_SPLUNK_RUM_REALM, EXPO_PUBLIC_SPLUNK_RUM_TOKEN, EXPO_PUBLIC_SPLUNK_APP_NAME)"
-    );
-    return null;
-  }
+// NOTE: Removed fetch/XHR interceptors to avoid interfering with
+// Splunk RUM SDK's automatic network instrumentation
 
+const initializeSplunkRum = async () => {
   try {
-    const rum = SplunkRum.init({
-      realm: SPLUNK_RUM_REALM,
-      rumAccessToken: SPLUNK_RUM_TOKEN,
-      applicationName: SPLUNK_APP_NAME,
-      deploymentEnvironment: SPLUNK_RUM_ENV || "development",
+    // Get region-specific configuration based on toggle
+    const regionConfig = await getRegionConfig();
+    const appName = getAppName();
+
+    // Determine which region toggle is selected
+    const regionName = regionConfig.realm === 'eu0' ? 'EU' : 'US';
+    console.log(`🌍 Selected Region: ${regionName} (realm: ${regionConfig.realm})`);
+
+    // Validate required configuration
+    if (!regionConfig.realm || !regionConfig.rumToken || !appName) {
+      console.warn(
+        "Splunk RUM not initialized: missing required configuration",
+        {
+          realm: regionConfig.realm || 'missing',
+          token: regionConfig.rumToken ? 'present' : 'missing',
+          appName: appName || 'missing'
+        }
+      );
+      return null;
+    }
+
+    // Generate global attributes based on session
+    const globalAttributes = await getSplunkGlobalAttributes();
+
+    console.log("Initializing Splunk RUM with configuration:", {
+      region: regionName,
+      realm: regionConfig.realm,
+      appName,
+      deploymentEnvironment: regionConfig.rumEnv,
+      globalAttributes
     });
 
-    console.log("Splunk RUM initialized successfully");
+    const rumConfig = {
+      realm: regionConfig.realm,
+      rumAccessToken: regionConfig.rumToken,
+      applicationName: appName,
+      deploymentEnvironment: regionConfig.rumEnv || "development",
+      globalAttributes: {
+        ...globalAttributes,
+        'app.version': APP_VERSION,
+      },
+      debug: true, // Enable debug logging to see RUM data being sent
+      // Configure batch span processor for faster/immediate sending
+      // Use correct parameter names from SDK source:
+      bufferSize: 1, // Send spans immediately (batch size of 1)
+      bufferTimeout: 500, // Flush every 500ms instead of default 3000ms
+    };
+
+    console.log("Splunk RUM Configuration:", JSON.stringify(rumConfig, null, 2));
+
+    const rum = SplunkRum.init(rumConfig);
+
+    console.log(`Splunk RUM initialized successfully for ${regionConfig.realm} region`);
+    console.log(`RUM Beacon URL: https://rum-ingest.${regionConfig.realm}.signalfx.com/v1/rum`);
     return rum;
   } catch (error) {
     console.error("Failed to initialize Splunk RUM:", error);
@@ -43,17 +84,31 @@ export const useSplunkRum = (): SplunkRumResult => {
   const [rum, setRum] = useState<ReturnType<typeof SplunkRum.init> | null>(
     null
   );
+  const [provider, setProvider] = useState<any>(null);
+  const navigationRef = useNavigationContainerRef();
 
   useEffect(() => {
     if (!loaded) {
-      const rumInstance = initializeSplunkRum();
-      setRum(rumInstance);
-      setLoaded(true);
+      initializeSplunkRum().then((rumInstance) => {
+        setRum(rumInstance);
+        // Expose the provider from SplunkRum for direct span creation
+        setProvider(SplunkRum.provider);
+        setLoaded(true);
+      });
     }
   }, [loaded]);
+
+  // Start navigation tracking once RUM is loaded and navigation ref is ready
+  useEffect(() => {
+    if (loaded && navigationRef) {
+      console.log("Starting React Navigation tracking for RUM");
+      startNavigationTracking(navigationRef);
+    }
+  }, [loaded, navigationRef]);
 
   return {
     loaded,
     rum,
+    provider,
   };
 };
