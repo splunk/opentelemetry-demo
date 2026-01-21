@@ -28,7 +28,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: fraud-detection
-        image: ghcr.io/splunk/opentelemetry-demo/otel-fraud-detection:1.4.0
+        image: ghcr.io/hagen-p/opentelemetry-demo-splunk/otel-fraud-detection:dep-test
         imagePullPolicy: Always
         env:
         - name: OTEL_SERVICE_NAME
