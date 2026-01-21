@@ -4,8 +4,17 @@ This directory contains packaged mobile app builds for iOS and Android.
 
 ## Available Versions
 
+### Version 1.3.0
+- **Release**: [v1.3.0](https://github.com/hagen-p/opentelemetry-demo-splunk/releases/tag/v1.3.0)
+- **File**: [`astronomy-shop-saucelabs-v1.3.0.zip`](https://github.com/hagen-p/opentelemetry-demo-splunk/releases/download/v1.3.0/astronomy-shop-saucelabs-v1.3.0.zip)
+- **Built**: 2026-01-21 11:53:34
+- **Size**:  40M
+- **Contents**: iOS .zip + Android .apk
+
+
 ### Version 1.2.9
-- **File**: [`astronomy-shop-saucelabs-v1.2.9.zip`](./astronomy-shop-saucelabs-v1.2.9.zip)
+- **File**: [`astronomy-shop-saucelabs-v1.2.9.zip`](https://github.com/hagen-p/opentelemetry-demo-splunk/releases/download/v1.2.9/astronomy-shop-saucelabs-v1.2.9.zip)
+- **Release**: [v1.2.9](https://github.com/hagen-p/opentelemetry-demo-splunk/releases/tag/v1.2.9)
 - **Built**: 2026-01-21 11:38:37
 - **Size**:  40M
 - **Contents**: iOS .zip + Android .apk

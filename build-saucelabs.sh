@@ -246,6 +246,82 @@ mv "$TEMP_README" "$README_FILE"
 
 print_info "Updated README.md with version ${VERSION}"
 
+# Step 9: Create GitHub Release
+echo ""
+echo "Step 9: Creating GitHub Release..."
+
+# Detect the GitHub repository (use fork remote)
+GH_REPO=$(git remote get-url fork 2>/dev/null | sed 's/.*github.com[:/]\(.*\)\.git/\1/' || git remote get-url origin | sed 's/.*github.com[:/]\(.*\)\.git/\1/')
+
+if [ -z "$GH_REPO" ]; then
+    print_warning "Could not detect GitHub repository, skipping release creation"
+else
+    # Create release with gh cli
+    RELEASE_TAG="v${VERSION}"
+    RELEASE_NOTES="## Mobile App Release v${VERSION}
+
+### What's New
+- Splunk RUM integration and mobile app enhancements
+- Improved build script with automatic README and release updates
+- Updated dependencies for better compatibility
+
+### Package Contents
+- **iOS**: Signed .app packaged as .zip (${IOS_ZIP_SIZE})
+- **Android**: Release APK (${ANDROID_APK_SIZE})
+- **Total Size**: ${FINAL_ZIP_SIZE} (compressed)
+
+### Installation
+1. Download \`${PACKAGE_NAME}\`
+2. Extract the archive
+3. For iOS: Install to device or simulator
+4. For Android: Install the APK to device or emulator
+
+### Built
+- **Date**: ${BUILD_DATE}
+- **iOS SDK**: iphoneos (ARM64)
+- **Android SDK**: Release
+
+### Requirements
+- iOS 13.4 or later
+- Android 6.0 (API 23) or later"
+
+    # Check if release already exists
+    if gh release view "$RELEASE_TAG" --repo "$GH_REPO" >/dev/null 2>&1; then
+        print_warning "Release ${RELEASE_TAG} already exists, deleting and recreating..."
+        gh release delete "$RELEASE_TAG" --repo "$GH_REPO" --yes >/dev/null 2>&1
+    fi
+
+    # Create the release
+    if gh release create "$RELEASE_TAG" \
+        --repo "$GH_REPO" \
+        --title "Mobile App ${RELEASE_TAG}" \
+        --notes "$RELEASE_NOTES" \
+        "${RELEASE_DIR}/${PACKAGE_NAME}" >/dev/null 2>&1; then
+
+        print_info "Created GitHub Release ${RELEASE_TAG}"
+
+        # Update README with GitHub release URL
+        RELEASE_URL="https://github.com/${GH_REPO}/releases/download/${RELEASE_TAG}/${PACKAGE_NAME}"
+        RELEASE_PAGE="https://github.com/${GH_REPO}/releases/tag/${RELEASE_TAG}"
+
+        # Update the README entry to point to GitHub release
+        sed -i.bak "s|### Version ${VERSION}|### Version ${VERSION}|" "$README_FILE"
+        sed -i.bak "s|\[\`${PACKAGE_NAME}\`\](.*)|[\`${PACKAGE_NAME}\`](${RELEASE_URL})|" "$README_FILE"
+
+        # Add release page link if not present
+        if ! grep -q "Release.*${RELEASE_TAG}" "$README_FILE"; then
+            sed -i.bak "/### Version ${VERSION}/a\\
+- **Release**: [${RELEASE_TAG}](${RELEASE_PAGE})" "$README_FILE"
+        fi
+
+        rm -f "${README_FILE}.bak"
+        print_info "Updated README.md with GitHub Release links"
+    else
+        print_error "Failed to create GitHub Release"
+        print_warning "You can create it manually: gh release create ${RELEASE_TAG} --repo ${GH_REPO}"
+    fi
+fi
+
 echo ""
 echo "=========================================="
 echo "✓ Build completed successfully!"
@@ -268,6 +344,9 @@ echo "  ✓ Built iOS device version (ARM64)"
 echo "  ✓ Built Android release APK"
 echo "  ✓ Created Sauce Labs package"
 echo "  ✓ Updated README.md with version entry"
+if [ ! -z "$GH_REPO" ] && gh release view "v${VERSION}" --repo "$GH_REPO" >/dev/null 2>&1; then
+    echo "  ✓ Created GitHub Release v${VERSION}"
+fi
 echo ""
 echo "Upload to Sauce Labs:"
 echo "  - Extract the zip and upload individual files, or"
