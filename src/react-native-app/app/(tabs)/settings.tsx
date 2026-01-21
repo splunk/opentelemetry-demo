@@ -5,6 +5,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { StyleSheet, ScrollView } from "react-native";
 import { RegionSelector } from "@/components/RegionSelector";
 import { RumTestButton } from "@/components/RumTestButton";
+import { ErrorTestButtons } from "@/components/ErrorTestButtons";
 import { APP_VERSION } from "@/constants/AppVersion";
 
 export default function Settings() {
@@ -24,6 +25,15 @@ export default function Settings() {
         <ThemedView style={styles.section}>
           <ThemedText style={styles.sectionTitle}>Splunk Configuration</ThemedText>
           <RegionSelector />
+        </ThemedView>
+
+        {/* Error Testing */}
+        <ThemedView style={styles.section}>
+          <ThemedText style={styles.sectionTitle}>Error Testing</ThemedText>
+          <ThemedText style={styles.hint}>
+            Test error tracking with Splunk RUM
+          </ThemedText>
+          <ErrorTestButtons />
         </ThemedView>
 
         {/* RUM Testing */}
