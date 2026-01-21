@@ -48,8 +48,10 @@ fi
 VERSION=$1
 validate_version "$VERSION"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="${SCRIPT_DIR}/.env"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_DIR="${REPO_ROOT}/src/react-native-app"
+ENV_FILE="${APP_DIR}/.env"
+RELEASE_DIR="${REPO_ROOT}/releases/mobile"
 
 echo "=========================================="
 echo "Building Sauce Labs Package v${VERSION}"
@@ -85,16 +87,19 @@ fi
 # Step 2: Clean previous builds
 echo ""
 echo "Step 2: Cleaning previous builds..."
-rm -rf "${SCRIPT_DIR}/ios/build"
-rm -rf "${SCRIPT_DIR}/saucelabs-package"
-rm -f "${SCRIPT_DIR}"/astronomy-shop-saucelabs-v*.zip
+rm -rf "${APP_DIR}/ios/build/Build"
+rm -rf "${APP_DIR}/saucelabs-package"
 print_info "Cleaned previous builds"
+
+# Create releases directory if it doesn't exist
+mkdir -p "$RELEASE_DIR"
+print_info "Ensured releases/mobile directory exists"
 
 # Step 3: Build iOS device version
 echo ""
 echo "Step 3: Building iOS device version..."
 echo "This may take several minutes..."
-cd "$SCRIPT_DIR"
+cd "$APP_DIR"
 
 xcodebuild -workspace ios/reactnativeapp.xcworkspace \
     -scheme reactnativeapp \
@@ -120,13 +125,14 @@ echo ""
 echo "Step 4: Building Android release APK..."
 echo "This may take several minutes..."
 
-cd "${SCRIPT_DIR}/android"
+cd "${APP_DIR}/android"
 ./gradlew clean > /dev/null 2>&1
 ./gradlew assembleRelease > /dev/null 2>&1
+GRADLE_EXIT_CODE=$?
 
-cd "$SCRIPT_DIR"
+cd "$APP_DIR"
 
-if [ $? -eq 0 ]; then
+if [ $GRADLE_EXIT_CODE -eq 0 ]; then
     print_info "Android build completed"
 else
     print_error "Android build failed"
@@ -139,8 +145,8 @@ fi
 echo ""
 echo "Step 5: Verifying build artifacts..."
 
-IOS_APP="${SCRIPT_DIR}/ios/build/Build/Products/Release-iphoneos/reactnativeapp.app"
-ANDROID_APK="${SCRIPT_DIR}/android/app/build/outputs/apk/release/app-release.apk"
+IOS_APP="${APP_DIR}/ios/build/Build/Products/Release-iphoneos/reactnativeapp.app"
+ANDROID_APK="${APP_DIR}/android/app/build/outputs/apk/release/app-release.apk"
 
 if [ ! -d "$IOS_APP" ]; then
     print_error "iOS .app file not found at: $IOS_APP"
@@ -163,17 +169,17 @@ print_info "Android build found: app-release.apk"
 echo ""
 echo "Step 6: Creating Sauce Labs package structure..."
 
-mkdir -p "${SCRIPT_DIR}/saucelabs-package/ios"
-mkdir -p "${SCRIPT_DIR}/saucelabs-package/android"
+mkdir -p "${APP_DIR}/saucelabs-package/ios"
+mkdir -p "${APP_DIR}/saucelabs-package/android"
 
 # Zip iOS app
-cd "${SCRIPT_DIR}/ios/build/Build/Products/Release-iphoneos"
-zip -r "${SCRIPT_DIR}/saucelabs-package/ios/astronomy-shop-ios.zip" reactnativeapp.app > /dev/null 2>&1
-cd "$SCRIPT_DIR"
+cd "${APP_DIR}/ios/build/Build/Products/Release-iphoneos"
+zip -r "${APP_DIR}/saucelabs-package/ios/astronomy-shop-ios.zip" reactnativeapp.app > /dev/null 2>&1
+cd "$APP_DIR"
 print_info "Created iOS zip package"
 
 # Copy Android APK
-cp "$ANDROID_APK" "${SCRIPT_DIR}/saucelabs-package/android/astronomy-shop.apk"
+cp "$ANDROID_APK" "${APP_DIR}/saucelabs-package/android/astronomy-shop.apk"
 print_info "Copied Android APK"
 
 # Step 7: Create final zip package
@@ -182,13 +188,13 @@ echo "Step 7: Creating final Sauce Labs package..."
 
 PACKAGE_NAME="astronomy-shop-saucelabs-v${VERSION}.zip"
 
-cd "$SCRIPT_DIR"
-zip -r "${PACKAGE_NAME}" saucelabs-package/ > /dev/null 2>&1
+cd "$APP_DIR"
+zip -r "${RELEASE_DIR}/${PACKAGE_NAME}" saucelabs-package/ > /dev/null 2>&1
 
 # Get file sizes
-FINAL_ZIP_SIZE=$(du -h "${SCRIPT_DIR}/${PACKAGE_NAME}" | cut -f1)
-IOS_ZIP_SIZE=$(du -h "${SCRIPT_DIR}/saucelabs-package/ios/astronomy-shop-ios.zip" | cut -f1)
-ANDROID_APK_SIZE=$(du -h "${SCRIPT_DIR}/saucelabs-package/android/astronomy-shop.apk" | cut -f1)
+FINAL_ZIP_SIZE=$(du -h "${RELEASE_DIR}/${PACKAGE_NAME}" | cut -f1)
+IOS_ZIP_SIZE=$(du -h "${APP_DIR}/saucelabs-package/ios/astronomy-shop-ios.zip" | cut -f1)
+ANDROID_APK_SIZE=$(du -h "${APP_DIR}/saucelabs-package/android/astronomy-shop.apk" | cut -f1)
 
 print_info "Created final package: ${PACKAGE_NAME} (${FINAL_ZIP_SIZE})"
 
@@ -209,7 +215,7 @@ echo "      └─ android/"
 echo "          └─ astronomy-shop.apk (${ANDROID_APK_SIZE})"
 echo ""
 echo "Final package: ${PACKAGE_NAME} (${FINAL_ZIP_SIZE})"
-echo "Location: ${SCRIPT_DIR}/${PACKAGE_NAME}"
+echo "Location: ${RELEASE_DIR}/${PACKAGE_NAME}"
 echo ""
 echo "Changes made:"
 echo "  ✓ Updated .env with EXPO_PUBLIC_APP_VERSION=${VERSION}"
