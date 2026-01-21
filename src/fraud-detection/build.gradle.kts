@@ -17,7 +17,7 @@ version = "1.0"
 
 
 val grpcVersion = "1.76.0"
-val protobufVersion = "4.33.0"
+val protobufVersion = "4.33.1"
 
 
 repositories {
@@ -32,14 +32,14 @@ dependencies {
     implementation("com.google.protobuf:protobuf-java-util:${protobufVersion}")
     testImplementation(kotlin("test"))
     implementation(kotlin("script-runtime"))
-    implementation("org.apache.kafka:kafka-clients:4.1.0")
-    implementation("com.google.api.grpc:proto-google-common-protos:2.62.0")
+    implementation("org.apache.kafka:kafka-clients:4.1.1")
+    implementation("com.google.api.grpc:proto-google-common-protos:2.63.2")
     implementation("io.grpc:grpc-protobuf:${grpcVersion}")
     implementation("io.grpc:grpc-stub:${grpcVersion}")
     implementation("io.grpc:grpc-netty:${grpcVersion}")
     implementation("io.grpc:grpc-services:${grpcVersion}")
-    implementation("io.opentelemetry:opentelemetry-api:1.55.0")
-    implementation("io.opentelemetry:opentelemetry-sdk:1.55.0")
+    implementation("io.opentelemetry:opentelemetry-api:1.56.0")
+    implementation("io.opentelemetry:opentelemetry-sdk:1.56.0")
     implementation("io.opentelemetry:opentelemetry-extension-annotations:1.18.0")
     implementation("org.apache.logging.log4j:log4j-core:2.25.2")
     implementation("org.slf4j:slf4j-api:2.0.17")
