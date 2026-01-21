@@ -201,6 +201,51 @@ print_info "Created final package: ${PACKAGE_NAME} (${FINAL_ZIP_SIZE})"
 # Clean up backup
 rm -f "${ENV_FILE}.backup"
 
+# Step 8: Update README.md with latest version
+echo ""
+echo "Step 8: Updating README.md..."
+
+README_FILE="${RELEASE_DIR}/README.md"
+BUILD_DATE=$(date '+%Y-%m-%d %H:%M:%S')
+
+# Create or update README
+if [ ! -f "$README_FILE" ]; then
+    cat > "$README_FILE" <<EOF
+# Mobile App Releases
+
+This directory contains packaged mobile app builds for iOS and Android.
+
+## Available Versions
+
+EOF
+fi
+
+# Create temporary file with new version entry
+TEMP_README="${README_FILE}.tmp"
+
+# Read the README and insert the new version at the top
+{
+    # Copy everything up to and including "## Available Versions"
+    sed -n '1,/## Available Versions/p' "$README_FILE"
+
+    # Add empty line and new version entry
+    echo ""
+    echo "### Version ${VERSION}"
+    echo "- **File**: [\`${PACKAGE_NAME}\`](./${PACKAGE_NAME})"
+    echo "- **Built**: ${BUILD_DATE}"
+    echo "- **Size**: ${FINAL_ZIP_SIZE}"
+    echo "- **Contents**: iOS .zip + Android .apk"
+    echo ""
+
+    # Copy the rest of the file (existing versions)
+    sed -n '/## Available Versions/,$p' "$README_FILE" | tail -n +2
+} > "$TEMP_README"
+
+# Replace original README with updated version
+mv "$TEMP_README" "$README_FILE"
+
+print_info "Updated README.md with version ${VERSION}"
+
 echo ""
 echo "=========================================="
 echo "✓ Build completed successfully!"
@@ -222,6 +267,7 @@ echo "  ✓ Updated .env with EXPO_PUBLIC_APP_VERSION=${VERSION}"
 echo "  ✓ Built iOS device version (ARM64)"
 echo "  ✓ Built Android release APK"
 echo "  ✓ Created Sauce Labs package"
+echo "  ✓ Updated README.md with version entry"
 echo ""
 echo "Upload to Sauce Labs:"
 echo "  - Extract the zip and upload individual files, or"
