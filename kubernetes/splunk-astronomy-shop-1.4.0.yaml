@@ -1,22 +1,34 @@
 # Splunk Astronomy Shop Kubernetes Manifest
 # Version: 1.4.0
-# Generated on: 2025-12-17T15:32:47Z
+# Generated on: 2026-01-21T15:03:19Z
 #
 # This manifest combines all service deployments for the Splunk Astronomy Shop
 # Services are defined in services.yaml
 ---
 
 # === ingress ===
-#ingress format for local/DIAB demo
+#ingress format for astronomy-shop.splunko11y.com with TLS
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: frontend-proxy-ingress
   annotations:
     kubernetes.io/ingress.class: traefik
+    # Force redirect HTTP to HTTPS
+    traefik.ingress.kubernetes.io/redirect-entry-point: https
+    traefik.ingress.kubernetes.io/redirect-permanent: "true"
+    # Or for newer Traefik versions:
+    # traefik.ingress.kubernetes.io/router.middlewares: default-redirect-https@kubernetescrd
 spec:
+  tls:
+  - hosts:
+    - astronomy-shop.splunko11y.com
+    # Note: secretName only needed if using cert-manager for SSL certs
+    # If AWS LB handles SSL termination, Traefik will still accept HTTPS on 443
+    # secretName: astronomy-shop-tls
   rules:
-    - http:
+    - host: astronomy-shop.splunko11y.com
+      http:
         paths:
           - path: /
             pathType: Prefix
@@ -185,7 +197,18 @@ spec:
         ports:
         - containerPort: 8080
           name: service
+        command: ["/bin/sh"]
+        args:
+        - -c
+        - |
+          export OTEL_RESOURCE_ATTRIBUTES="service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version=1.4.0,deployment.environment=${DEPLOYMENT_ENVIRONMENT}"
+          exec ./build/install/opentelemetry-demo-ad/bin/Ad
         env:
+        - name: DEPLOYMENT_ENVIRONMENT
+          valueFrom:
+            secretKeyRef:
+              name: workshop-secret
+              key: env
         - name: OTEL_SERVICE_NAME
           valueFrom:
             fieldRef:
@@ -207,8 +230,6 @@ spec:
           value: '8013'
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
           value: http://$(OTEL_COLLECTOR_NAME):4318
-        - name: OTEL_RESOURCE_ATTRIBUTES
-          value: service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version=1.4.0
         - name: SPLUNK_PROFILER_LOGS_ENDPOINT
           value: http://$(OTEL_COLLECTOR_NAME):4318/v1/logs
         - name: SPLUNK_PROFILER_ENABLED
@@ -249,6 +270,9 @@ data:
     const customUserAgent = 'Mozilla/5.0 (X11; Linux x86_64; Splunk RUM_LoadGen) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36';
     console.log('DEBUG: Using User Agent:', customUserAgent);
 
+    // Global browser instance for reuse across cycles
+    let globalBrowser = null;
+
     async function launchBrowser() {
       console.log('🔹 Starting headless browser...');
       const browser = await puppeteer.launch({
@@ -269,11 +293,20 @@ data:
           '--disable-backgrounding-occluded-windows',
           '--disable-renderer-backgrounding',
           '--memory-pressure-off',
+          '--aggressive-cache-discard',
           `--user-agent=${customUserAgent}`
         ]
       });
       console.log('✅ Browser started.');
       return browser;
+    }
+
+    async function ensureBrowser() {
+      if (!globalBrowser || !globalBrowser.isConnected()) {
+        console.log('🔄 Launching new global browser instance...');
+        globalBrowser = await launchBrowser();
+      }
+      return globalBrowser;
     }
 
     function buildBaseUrl() {
@@ -289,6 +322,33 @@ data:
 
       // Otherwise, prepend https://
       return `https://${raw.replace(/\/+$/, '')}/`;
+    }
+
+    function getProductIds() {
+      const envProductIds = (process.env.PRODUCT_IDS || '').trim();
+      if (envProductIds) {
+        return envProductIds.split(',').map(id => id.trim()).filter(id => id);
+      }
+      // Hardcoded product IDs if env variable is not set or empty
+      return [
+        'OLJCESPC7Z', // National Park Foundation Explorascope
+        '66VCHSJNUP', // Starsense Explorer Refractor Telescope
+        '1YMWWN1N4O', // Eclipsmart Travel Refractor Telescope
+        'L9ECAV7KIM', // Lens Cleaning Kit
+        '2ZYFJ3GM2N', // Roof Binoculars
+        '0PUK6V6EV0', // Solar System Color Imager
+        'LS4PSXUNUM', // Red Flashlight
+        '9SIQT8TOJO', // Optical Tube Assembly
+        '6E92ZMYYFZ', // Solar Filter
+        'HQTGWGPNH4'  // The Comet Book
+      ];
+    }
+
+    function getRandomProducts() {
+      const allProducts = getProductIds();
+      const numProducts = Math.floor(Math.random() * 3) + 1; // Random number between 1 and 3
+      const shuffled = allProducts.sort(() => Math.random() - 0.5);
+      return shuffled.slice(0, numProducts);
     }
 
     function delay(ms) { return new Promise(res => setTimeout(res, ms)); }
@@ -308,7 +368,7 @@ data:
     }
 
     async function runOnce() {
-      const browser = await launchBrowser();
+      const browser = await ensureBrowser();
       let page;
       try {
         page = await browser.newPage();
@@ -316,81 +376,103 @@ data:
         page.setDefaultTimeout && page.setDefaultTimeout(30000);
 
         const base = buildBaseUrl();
-        const url  = new URL('product/66VCHSJNUP', base).toString();
+        const productsToOrder = getRandomProducts();
+        console.log(`🛒 Ordering ${productsToOrder.length} product(s): ${productsToOrder.join(', ')}`);
 
-        console.log(`🌐 Navigating to ${url}`);
-        await page.goto(url, { waitUntil: 'domcontentloaded' });
+        // Loop through each product and add to cart
+        for (const productId of productsToOrder) {
+          const url = new URL(`product/${productId}`, base).toString();
+          console.log(`🌐 Navigating to ${url}`);
+          await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-        console.log('🖱️ Clicking quick prompts...');
+          console.log('🖱️ Clicking quick prompts...');
 
-        // Click "Can you summarize the product reviews?"
-        {
-            console.log('🔍 Examining product reviews...');
-            const targetPage = page;
-            const timeout = 5000;
-            await puppeteer.Locator.race([
-                targetPage.locator('::-p-aria(Can you summarize the product reviews?)'),
-                targetPage.locator("[data-cy='QuickPromptSummarize']"),
-                targetPage.locator('::-p-xpath(//*[@data-cy=\\"QuickPromptSummarize\\"])'),
-                targetPage.locator(":scope >>> [data-cy='QuickPromptSummarize']"),
-                targetPage.locator('::-p-text(Can you summarize)')
-            ])
-                .setTimeout(timeout)
-                .click({
-                  offset: {
-                    x: 129,
-                    y: 15,
-                  },
-                });
+          // Click "Can you summarize the product reviews?"
+          {
+              console.log('🔍 Examining product reviews...');
+              const targetPage = page;
+              const timeout = 5000;
+              await puppeteer.Locator.race([
+                  targetPage.locator('::-p-aria(Can you summarize the product reviews?)'),
+                  targetPage.locator("[data-cy='QuickPromptSummarize']"),
+                  targetPage.locator('::-p-xpath(//*[@data-cy=\\"QuickPromptSummarize\\"])'),
+                  targetPage.locator(":scope >>> [data-cy='QuickPromptSummarize']"),
+                  targetPage.locator('::-p-text(Can you summarize)')
+              ])
+                  .setTimeout(timeout)
+                  .click({
+                    offset: {
+                      x: 129,
+                      y: 15,
+                    },
+                  });
+              console.log('⏳ Waiting for AI response...');
+              await delay(500); // Let request start
+              await page.waitForSelector("[data-cy='AIAnswer']", { timeout: 15000, visible: true }).catch(() => {
+                console.log('⚠️ AI response timeout, continuing...');
+              });
+              await delay(1500); // Allow response to fully render
+          }
+
+          // Click "Were there any negative reviews?"
+          {
+              const targetPage = page;
+              const timeout = 5000;
+              await puppeteer.Locator.race([
+                  targetPage.locator('::-p-aria(Were there any negative reviews?)'),
+                  targetPage.locator("[data-cy='QuickPromptNegative']"),
+                  targetPage.locator('::-p-xpath(//*[@data-cy=\\"QuickPromptNegative\\"])'),
+                  targetPage.locator(":scope >>> [data-cy='QuickPromptNegative']"),
+                  targetPage.locator('::-p-text(Were there any)')
+              ])
+                  .setTimeout(timeout)
+                  .click({
+                    offset: {
+                      x: 171.6640625,
+                      y: 25,
+                    },
+                  });
+              console.log('⏳ Waiting for AI response...');
+              await delay(500); // Let request start
+              await page.waitForSelector("[data-cy='AIAnswer']", { timeout: 15000, visible: true }).catch(() => {
+                console.log('⚠️ AI response timeout, continuing...');
+              });
+              await delay(1500); // Allow response to fully render
+          }
+
+          // Click "What age(s) is this recommended for?"
+          {
+              const targetPage = page;
+              const timeout = 5000;
+              await puppeteer.Locator.race([
+                  targetPage.locator('::-p-aria(What age\\(s\\) is this recommended for?)'),
+                  targetPage.locator("[data-cy='QuickPromptAges']"),
+                  targetPage.locator('::-p-xpath(//*[@data-cy=\\"QuickPromptAges\\"])'),
+                  targetPage.locator(":scope >>> [data-cy='QuickPromptAges']"),
+                  targetPage.locator('::-p-text(What age\\(s\\) is)')
+              ])
+                  .setTimeout(timeout)
+                  .click({
+                    offset: {
+                      x: 148.0390625,
+                      y: 19,
+                    },
+                  });
+              console.log('⏳ Waiting for AI response...');
+              await delay(500); // Let request start
+              await page.waitForSelector("[data-cy='AIAnswer']", { timeout: 15000, visible: true }).catch(() => {
+                console.log('⚠️ AI response timeout, continuing...');
+              });
+              await delay(1500); // Allow response to fully render
+          }
+
+          const addSel = "[data-cy='product-add-to-cart']";
+          await page.waitForSelector(addSel);
+          console.log(`🖱️ Clicking "Add To Cart" for product ${productId}`);
+          await page.click(addSel);
         }
 
-        // Click "Were there any negative reviews?"
-        {
-            const targetPage = page;
-            const timeout = 5000;
-            await puppeteer.Locator.race([
-                targetPage.locator('::-p-aria(Were there any negative reviews?)'),
-                targetPage.locator("[data-cy='QuickPromptNegative']"),
-                targetPage.locator('::-p-xpath(//*[@data-cy=\\"QuickPromptNegative\\"])'),
-                targetPage.locator(":scope >>> [data-cy='QuickPromptNegative']"),
-                targetPage.locator('::-p-text(Were there any)')
-            ])
-                .setTimeout(timeout)
-                .click({
-                  offset: {
-                    x: 171.6640625,
-                    y: 25,
-                  },
-                });
-        }
-
-        // Click "What age(s) is this recommended for?"
-        {
-            const targetPage = page;
-            const timeout = 5000;
-            await puppeteer.Locator.race([
-                targetPage.locator('::-p-aria(What age\\(s\\) is this recommended for?)'),
-                targetPage.locator("[data-cy='QuickPromptAges']"),
-                targetPage.locator('::-p-xpath(//*[@data-cy=\\"QuickPromptAges\\"])'),
-                targetPage.locator(":scope >>> [data-cy='QuickPromptAges']"),
-                targetPage.locator('::-p-text(What age\\(s\\) is)')
-            ])
-                .setTimeout(timeout)
-                .click({
-                  offset: {
-                    x: 148.0390625,
-                    y: 19,
-                  },
-                });
-        }
-
-
-
-        const addSel = "[data-cy='product-add-to-cart']";
-        await page.waitForSelector(addSel);
-        console.log('🖱️ Clicking "Add To Cart"');
-        await page.click(addSel);
-
+        // Place order after all products are added to cart
         const placeSel = "[data-cy='checkout-place-order']";
         await page.waitForSelector(placeSel);
         console.log('🖱️ Clicking "Place Order"');
@@ -399,24 +481,23 @@ data:
         await waitForText(page, 'Your order is complete!');
         console.log('🎉 Order completed message detected.');
       } finally {
-        console.log('🧹 Closing browser...');
+        console.log('🧹 Cleaning up page resources...');
         try {
           if (page) {
             page.removeAllListeners();
             await page.close({ runBeforeUnload: true }).catch(()=>{});
           }
-        } catch {}
-        try {
-          await browser.close();
         } catch (e) {
-          // last-resort: nuke the child process if close() fails
-          try { browser.process()?.kill('SIGKILL'); } catch {}
+          console.error('⚠️ Error closing page:', e.message);
         }
-        console.log('✅ Browser closed cleanly.');
+        console.log('✅ Page closed cleanly. Browser will be reused for next cycle.');
       }
     }
 
     (async function mainLoop() {
+      const cycleDelayMs = parseInt(process.env.CYCLE_DELAY_MS || '5000', 10);
+      console.log(`⚙️ Cycle delay: ${cycleDelayMs}ms`);
+
       let cycle = 1;
       while (true) {
         console.log(`=== Starting load generation cycle #${cycle} ===`);
@@ -427,7 +508,7 @@ data:
           console.error(`❌ Cycle #${cycle} failed:`, e && e.stack ? e.stack : e);
         }
         cycle += 1;
-        await delay(5000); // wait 5 seconds before next cycle
+        await delay(cycleDelayMs);
       }
     })();
 ---
@@ -454,6 +535,8 @@ spec:
         env:
         - name: RUM_FRONTEND_IP
           value: "http://frontend-proxy:8080"
+        - name: CYCLE_DELAY_MS
+          value: "1000"
         volumeMounts:
         - name: puppeteer
           subPath: local-file
@@ -1120,7 +1203,7 @@ data:
             "10%": 0.1,
             "off": 0
           },
-          "defaultVariant": "off"
+          "defaultVariant": "50%"
         },
         "paymentUnreachable": {
           "description": "Payment service is unavailable",
@@ -3155,7 +3238,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       initContainers:
         - name: wait-for-shop-dc-shim
-          image: curlimages/curl:8.17.0
+          image: curlimages/curl:1.4.0
           command: ['sh', '-c']
           args:
             - |
