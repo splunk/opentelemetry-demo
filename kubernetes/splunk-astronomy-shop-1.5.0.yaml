@@ -1,6 +1,6 @@
 # Splunk Astronomy Shop Kubernetes Manifest
 # Version: 1.5.0
-# Generated on: 2026-01-21T15:07:55Z
+# Generated on: 2026-01-22T15:42:19Z
 #
 # This manifest combines all service deployments for the Splunk Astronomy Shop
 # Services are defined in services.yaml
@@ -3076,14 +3076,14 @@ spec:
                   name: workshop-secret
                   key: env
             - name: TPM
-              value: "25"  # Transactions Per Minute - scales both request frequency and processing load
+              value: "10"  # Transactions Per Minute - scales both request frequency and processing load
             # Memory optimization - uncomment to reduce memory usage
             # - name: AUDIT_LOG_ENABLED
             #   value: "false"  # Disable audit log generation
-            # - name: TRANSACTION_RETENTION_MINUTES
-            #   value: "30"  # Clean up transactions after 30 minutes (default: 120)
-            # - name: TRANSACTION_CLEANUP_INTERVAL_MS
-            #   value: "1800000"  # Run cleanup every 30 minutes (default: 7200000)
+            - name: TRANSACTION_RETENTION_MINUTES
+              value: "30"  # Clean up transactions after 30 minutes (default: 120)
+            - name: TRANSACTION_CLEANUP_INTERVAL_MS
+              value: "1800000"  # Run cleanup every 30 minutes (default: 7200000)
             - name: SHOP_DC_SHIM_PORT
               value: "8070"
             - name: DB_CONNECTION_STRING
@@ -3136,6 +3136,7 @@ spec:
             periodSeconds: 30
             timeoutSeconds: 10
             failureThreshold: 5
+
 ---
 
 # === shop-dc-shim-db ===
@@ -3266,12 +3267,13 @@ spec:
           image: ghcr.io/splunk/opentelemetry-demo/otel-shop-dc-loadgenerator:1.5.0
           env:
             - name: TPM
-              value: "25"  # Transactions Per Minute - adjust to control load (e.g., 5, 10, 25, 50)
+              value: "10"  # Transactions Per Minute - adjust to control load (e.g., 5, 10, 25, 50)
           args: ["--url", "http://shop-dc-shim:8070", "--mode", "continuous", "--duration", "0"]
           resources:
             limits:
               memory: "128Mi"
               cpu: "100m"
+
 ---
 
 # === sql-server-fraud-setup ===
