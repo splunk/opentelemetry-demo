@@ -50,7 +50,7 @@ spec:
           image: ghcr.io/splunk/opentelemetry-demo/otel-shop-dc-loadgenerator:1.5.0
           env:
             - name: TPM
-              value: "25"  # Transactions Per Minute - adjust to control load (e.g., 5, 10, 25, 50)
+              value: "10"  # Transactions Per Minute - adjust to control load (e.g., 5, 10, 25, 50)
           args: ["--url", "http://shop-dc-shim:8070", "--mode", "continuous", "--duration", "0"]
           resources:
             limits:
