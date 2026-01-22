@@ -49,16 +49,6 @@ public class ShopTransactionService {
     @Value("${app.load.baseline-tpm:25}")
     private int baselineTpm;
 
-    private double loadMultiplier = 1.0;
-
-    @PostConstruct
-    public void init() {
-        // Calculate load multiplier based on TPM
-        this.loadMultiplier = (double) tpm / baselineTpm;
-        log.info("Shop DC Shim Load Scaling initialized: TPM={}, Baseline={}, Load Multiplier={:.2f}x",
-                tpm, baselineTpm, loadMultiplier);
-        log.info("Processing durations will be scaled: Purchase={}ms, Validation={}ms, StatusCheck={}ms",
-                (int)(170 * loadMultiplier), (int)(150 * loadMultiplier), (int)(550 * loadMultiplier));
     @Value("${app.memory.audit-log-enabled:true}")
     private boolean auditLogEnabled;
 
@@ -77,15 +67,24 @@ public class ShopTransactionService {
     @Value("${app.memory.stale-transaction-interval-ms:600000}")
     private long staleTransactionIntervalMs;
 
+    private double loadMultiplier = 1.0;
+
     @PostConstruct
     public void init() {
-        log.info("=== Shop DC Shim Memory Configuration ===");
-        log.info("Audit Log: {} (interval={}ms, retention={}min)",
+        // Calculate load multiplier based on TPM
+        this.loadMultiplier = (double) tpm / baselineTpm;
+
+        log.info("=== Shop DC Shim Configuration ===");
+        log.info("Load Scaling: TPM={}, Baseline={}, Load Multiplier={:.2f}x", tpm, baselineTpm, loadMultiplier);
+        log.info("Processing durations: Purchase={}ms, Validation={}ms, StatusCheck={}ms",
+                (int)(170 * loadMultiplier), (int)(150 * loadMultiplier), (int)(550 * loadMultiplier));
+        log.info("Memory Optimization:");
+        log.info("  - Audit Log: {} (interval={}ms, retention={}min)",
                 auditLogEnabled ? "ENABLED" : "DISABLED", auditLogIntervalMs, auditRetentionMinutes);
-        log.info("Transaction Cleanup: interval={}ms, retention={}min",
+        log.info("  - Transaction Cleanup: interval={}ms, retention={}min",
                 transactionCleanupIntervalMs, transactionRetentionMinutes);
-        log.info("Stale Transaction Check: interval={}ms", staleTransactionIntervalMs);
-        log.info("=========================================");
+        log.info("  - Stale Transaction Check: interval={}ms", staleTransactionIntervalMs);
+        log.info("================================");
     }
 
     @Transactional
