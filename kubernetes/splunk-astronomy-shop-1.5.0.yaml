@@ -3077,6 +3077,13 @@ spec:
                   key: env
             - name: TPM
               value: "25"  # Transactions Per Minute - scales both request frequency and processing load
+            # Memory optimization - uncomment to reduce memory usage
+            # - name: AUDIT_LOG_ENABLED
+            #   value: "false"  # Disable audit log generation
+            # - name: TRANSACTION_RETENTION_MINUTES
+            #   value: "30"  # Clean up transactions after 30 minutes (default: 120)
+            # - name: TRANSACTION_CLEANUP_INTERVAL_MS
+            #   value: "1800000"  # Run cleanup every 30 minutes (default: 7200000)
             - name: SHOP_DC_SHIM_PORT
               value: "8070"
             - name: DB_CONNECTION_STRING

@@ -59,6 +59,33 @@ public class ShopTransactionService {
                 tpm, baselineTpm, loadMultiplier);
         log.info("Processing durations will be scaled: Purchase={}ms, Validation={}ms, StatusCheck={}ms",
                 (int)(170 * loadMultiplier), (int)(150 * loadMultiplier), (int)(550 * loadMultiplier));
+    @Value("${app.memory.audit-log-enabled:true}")
+    private boolean auditLogEnabled;
+
+    @Value("${app.memory.audit-log-interval-ms:300000}")
+    private long auditLogIntervalMs;
+
+    @Value("${app.memory.audit-retention-minutes:60}")
+    private int auditRetentionMinutes;
+
+    @Value("${app.memory.transaction-cleanup-interval-ms:7200000}")
+    private long transactionCleanupIntervalMs;
+
+    @Value("${app.memory.transaction-retention-minutes:120}")
+    private int transactionRetentionMinutes;
+
+    @Value("${app.memory.stale-transaction-interval-ms:600000}")
+    private long staleTransactionIntervalMs;
+
+    @PostConstruct
+    public void init() {
+        log.info("=== Shop DC Shim Memory Configuration ===");
+        log.info("Audit Log: {} (interval={}ms, retention={}min)",
+                auditLogEnabled ? "ENABLED" : "DISABLED", auditLogIntervalMs, auditRetentionMinutes);
+        log.info("Transaction Cleanup: interval={}ms, retention={}min",
+                transactionCleanupIntervalMs, transactionRetentionMinutes);
+        log.info("Stale Transaction Check: interval={}ms", staleTransactionIntervalMs);
+        log.info("=========================================");
     }
 
     @Transactional
@@ -227,11 +254,11 @@ public class ShopTransactionService {
         return transactionRepository.findByStoreLocationAndCreatedAtAfter(storeLocation, since);
     }
 
-    @Scheduled(fixedRate = 600000) // Run 10 minutes
+    @Scheduled(fixedRateString = "${app.memory.stale-transaction-interval-ms:600000}")
     @Transactional
     public void processStaleTransactions() {
         Span span = tracer.spanBuilder("process_stale_transactions").startSpan();
-        
+
         try {
             LocalDateTime cutoffTime = LocalDateTime.now().minusMinutes(10);
             
@@ -277,11 +304,16 @@ public class ShopTransactionService {
         }
     }
 
-    // Were doign this to create a pagelatch contention with inserts 
+    // Were doign this to create a pagelatch contention with inserts
     // clean them up if theyre older than 1 hour
-    @Scheduled(fixedRate = 300000)
+    // Can be disabled via AUDIT_LOG_ENABLED=false
+    @Scheduled(fixedRateString = "${app.memory.audit-log-interval-ms:300000}")
     @Transactional
     public void syncComplianceAuditLog() {
+        if (!auditLogEnabled) {
+            return;
+        }
+
         try {
             int recordCount = 29 + new java.util.Random().nextInt(53); // Random between 29 and 53
             log.info("Starting compliance audit sync - spawning {} concurrent write threads", recordCount);
@@ -313,33 +345,38 @@ public class ShopTransactionService {
         }
     }
 
-    @Scheduled(fixedRate = 600000)
+    @Scheduled(fixedRateString = "${app.memory.audit-log-interval-ms:300000}")
     @Transactional
     public void cleanupOldAuditRecords() {
+        if (!auditLogEnabled) {
+            return;
+        }
+
         try {
-            log.debug("Cleaning up audit records older than 1 hour");
-            transactionRepository.deleteInternalAuditRecordsOlderThan(LocalDateTime.now().minusHours(1));
+            LocalDateTime cutoff = LocalDateTime.now().minusMinutes(auditRetentionMinutes);
+            log.debug("Cleaning up audit records older than {} minutes", auditRetentionMinutes);
+            transactionRepository.deleteInternalAuditRecordsOlderThan(cutoff);
         } catch (Exception e) {
             log.warn("Audit cleanup error: {}", e.getMessage());
         }
     }
 
-    @Scheduled(fixedRate = 7200000) // Run every 2 hours
+    @Scheduled(fixedRateString = "${app.memory.transaction-cleanup-interval-ms:7200000}")
     @Transactional
     public void cleanupOldTransactions() {
-        log.info("Starting scheduled cleanup of transactions older than 2 hours");
+        log.info("Starting scheduled cleanup of transactions older than {} minutes", transactionRetentionMinutes);
         Span span = tracer.spanBuilder("cleanup_old_transactions").startSpan();
-        
+
         try {
-            LocalDateTime cutoffTime = LocalDateTime.now().minusHours(2);
+            LocalDateTime cutoffTime = LocalDateTime.now().minusMinutes(transactionRetentionMinutes);
             int deletedCount = transactionRepository.deleteTransactionsOlderThan(cutoffTime);
-            
+
             span.setAttribute("transactions_deleted", deletedCount);
-            
+
             if (deletedCount > 0) {
-                log.info("Cleaned up {} transactions older than 2 hours", deletedCount);
+                log.info("Cleaned up {} transactions older than {} minutes", deletedCount, transactionRetentionMinutes);
             } else {
-                log.info("No transactions to clean up (older than 2 hours)");
+                log.info("No transactions to clean up (older than {} minutes)", transactionRetentionMinutes);
             }
         } catch (Exception e) {
             span.recordException(e);

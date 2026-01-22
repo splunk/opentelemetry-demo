@@ -96,6 +96,16 @@ This service follows traditional enterprise N-Tier architecture:
   - TPM=5: 20% load (34ms + 30ms + 110ms processing) - **80% reduction**
   - TPM=10: 40% load (68ms + 60ms + 220ms processing) - 60% reduction
   - Set the same TPM value for both load generator and service for coordinated scaling
+**Memory Optimization (Optional):**
+- `AUDIT_LOG_ENABLED`: Enable/disable audit log generation (default: true)
+  - Audit logs create intentional DB contention for demo purposes
+  - Set to `false` in memory-constrained environments
+  - Reduces ~8,000-15,000 DB writes per day
+- `AUDIT_LOG_INTERVAL_MS`: Audit log generation interval (default: 300000 = 5 minutes)
+- `AUDIT_RETENTION_MINUTES`: How long to keep audit records (default: 60 minutes)
+- `TRANSACTION_RETENTION_MINUTES`: How long to keep real transactions (default: 120 minutes)
+- `TRANSACTION_CLEANUP_INTERVAL_MS`: Transaction cleanup interval (default: 7200000 = 2 hours)
+- `STALE_TRANSACTION_INTERVAL_MS`: Stale transaction check interval (default: 600000 = 10 minutes)
 
 **Service Configuration:**
 - `SHOP_DC_SHIM_PORT`: Service port (default: 8070)
@@ -165,6 +175,43 @@ Set the same TPM value for both components:
     - name: TPM
       value: "5"
 ```
+## Memory Optimization
+
+The service includes several configurable options to reduce memory usage:
+
+### Recommended Settings for Memory-Constrained Environments
+
+```yaml
+env:
+  - name: AUDIT_LOG_ENABLED
+    value: "false"  # Disable audit log spam
+  - name: TRANSACTION_RETENTION_MINUTES
+    value: "30"  # Clean up after 30 minutes instead of 2 hours
+  - name: TRANSACTION_CLEANUP_INTERVAL_MS
+    value: "1800000"  # Run cleanup every 30 minutes
+```
+
+### Memory Impact
+
+| Configuration | DB Records/Hour | Memory Impact |
+|---------------|-----------------|---------------|
+| **Default** | ~3,000 transactions + 4,200 audit = 7,200 | High |
+| **No Audit** | ~3,000 transactions only | Medium |
+| **No Audit + 30min retention** | ~1,500 transactions max | **Low** |
+
+### What Gets Reduced
+
+**Audit Log Disabled (`AUDIT_LOG_ENABLED=false`):**
+- ❌ No audit log generation (saves ~8,000-15,000 DB writes/day)
+- ❌ No concurrent thread spawning for DB contention
+- ✅ Maintains all real transaction functionality
+
+**Faster Cleanup (30 min retention):**
+- ✅ Database stays small (fewer rows = faster queries)
+- ✅ Less memory for JPA/Hibernate caching
+- ✅ Reduced pressure on SQL Server
+
+**Note:** Default settings maintain current behavior for backward compatibility.
 
 ### Startup Script
 The service uses `start-app-dual.sh` which matches enterprise Ansible deployment patterns:
