@@ -70,6 +70,8 @@ spec:
                 secretKeyRef:
                   name: workshop-secret
                   key: env
+            - name: TPM
+              value: "25"  # Transactions Per Minute - scales both request frequency and processing load
             - name: SHOP_DC_SHIM_PORT
               value: "8070"
             - name: DB_CONNECTION_STRING

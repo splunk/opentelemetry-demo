@@ -13,11 +13,13 @@ import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.annotation.PostConstruct;
 import javax.sql.DataSource;
 
 import java.math.BigDecimal;
@@ -41,6 +43,24 @@ public class ShopTransactionService {
     private final ObjectMapper objectMapper;
     private final DataSource dataSource;
 
+    @Value("${app.load.tpm:25}")
+    private int tpm;
+
+    @Value("${app.load.baseline-tpm:25}")
+    private int baselineTpm;
+
+    private double loadMultiplier = 1.0;
+
+    @PostConstruct
+    public void init() {
+        // Calculate load multiplier based on TPM
+        this.loadMultiplier = (double) tpm / baselineTpm;
+        log.info("Shop DC Shim Load Scaling initialized: TPM={}, Baseline={}, Load Multiplier={:.2f}x",
+                tpm, baselineTpm, loadMultiplier);
+        log.info("Processing durations will be scaled: Purchase={}ms, Validation={}ms, StatusCheck={}ms",
+                (int)(170 * loadMultiplier), (int)(150 * loadMultiplier), (int)(550 * loadMultiplier));
+    }
+
     @Transactional
     public String initiateShopPurchase(ShopPurchaseRequest request) {
         Span span = tracer.spanBuilder("initiate_shop_purchase")
@@ -56,11 +76,11 @@ public class ShopTransactionService {
             String transactionId = UUID.randomUUID().toString();
             String localOrderId = generateLocalOrderId(request.getStoreLocation(), request.getTerminalId());
 
-            log.info("Initiating shop purchase - Transaction ID: {}, Local Order: {}, Store: {}, Terminal: {}", 
+            log.info("Initiating shop purchase - Transaction ID: {}, Local Order: {}, Store: {}, Terminal: {}",
                     transactionId, localOrderId, request.getStoreLocation(), request.getTerminalId());
-            
-            // Initial validation processing
-            processTransactionData(request, transactionId, 170);
+
+            // Initial validation processing (scaled by TPM)
+            processTransactionData(request, transactionId, (int)(170 * loadMultiplier));
             // Create local transaction record
             ShopTransaction transaction = new ShopTransaction();
             transaction.setTransactionId(transactionId);
@@ -178,10 +198,10 @@ public class ShopTransactionService {
 
     private void performLocalValidation(ShopTransaction transaction, ShopPurchaseRequest request) {
         log.info("Starting local validation for transaction {}", transaction.getTransactionId());
-        
 
-        processTransactionData(request, transaction.getTransactionId(), 150);
-        
+        // Local validation processing (scaled by TPM)
+        processTransactionData(request, transaction.getTransactionId(), (int)(150 * loadMultiplier));
+
         log.info("Local validation completed for transaction {}", transaction.getTransactionId());
     }
 
@@ -196,7 +216,8 @@ public class ShopTransactionService {
 
     @Transactional(readOnly = true)
     public ShopTransaction getTransactionStatus(String transactionId) {
-        performStatusCheckProcessing(transactionId, 550);
+        // Status check processing (scaled by TPM)
+        performStatusCheckProcessing(transactionId, (int)(550 * loadMultiplier));
         return transactionRepository.findByTransactionId(transactionId)
                 .orElseThrow(() -> new RuntimeException("Transaction not found: " + transactionId));
     }

@@ -88,6 +88,15 @@ This service follows traditional enterprise N-Tier architecture:
 
 ### Environment Variables
 
+**Load Scaling Configuration:**
+- `TPM`: Transactions Per Minute (default: 25)
+  - **Controls both request frequency AND processing intensity**
+  - Scales CPU/memory-intensive operations proportionally
+  - TPM=25: 100% baseline load (170ms + 150ms + 550ms processing)
+  - TPM=5: 20% load (34ms + 30ms + 110ms processing) - **80% reduction**
+  - TPM=10: 40% load (68ms + 60ms + 220ms processing) - 60% reduction
+  - Set the same TPM value for both load generator and service for coordinated scaling
+
 **Service Configuration:**
 - `SHOP_DC_SHIM_PORT`: Service port (default: 8070)
 - `DB_CONNECTION_STRING`: SQL Server connection string (jdbc:sqlserver://...)
@@ -107,6 +116,55 @@ This service follows traditional enterprise N-Tier architecture:
 - `OTEL_EXPORTER_OTLP_ENDPOINT`: OTLP collector endpoint
 - `OTEL_RESOURCE_ATTRIBUTES`: Resource attributes
 - `SPLUNK_PROFILER_ENABLED`: Enable profiler
+
+### TPM-Based Load Scaling
+
+The service implements intelligent load scaling based on the `TPM` (Transactions Per Minute) environment variable:
+
+#### How It Works
+
+1. **Load Generator** reads TPM and controls request frequency
+   - TPM=25: Sends 1 request every 2.4 seconds
+   - TPM=5: Sends 1 request every 12 seconds
+
+2. **DC-Shim Service** reads TPM and scales processing intensity
+   - Calculates load multiplier: `TPM / 25` (baseline)
+   - Applies multiplier to all CPU/memory-intensive operations
+   - Example at TPM=5: `5 / 25 = 0.2x` (20% of baseline processing)
+
+#### Processing Durations by TPM
+
+| TPM | Multiplier | Purchase Init | Validation | Status Check | Total/Request |
+|-----|------------|---------------|------------|--------------|---------------|
+| **25** (baseline) | 1.0x | 170ms | 150ms | 550ms | 870ms |
+| **10** | 0.4x | 68ms | 60ms | 220ms | 348ms |
+| **5** | 0.2x | 34ms | 30ms | 110ms | 174ms |
+| **1** | 0.04x | 7ms | 6ms | 22ms | 35ms |
+
+#### Combined Load Reduction
+
+When you set `TPM=5` for both load generator AND service:
+- **80% fewer requests** (25 → 5 per minute)
+- **80% less processing per request** (870ms → 174ms)
+- **Combined: ~96% total load reduction** (0.2 × 0.2 = 0.04 or 4% of baseline)
+
+#### Kubernetes Configuration
+
+Set the same TPM value for both components:
+
+```yaml
+# Load Generator
+- name: load-generator
+  env:
+    - name: TPM
+      value: "5"
+
+# DC-Shim Service
+- name: shop-dc-shim
+  env:
+    - name: TPM
+      value: "5"
+```
 
 ### Startup Script
 The service uses `start-app-dual.sh` which matches enterprise Ansible deployment patterns:
