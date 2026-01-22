@@ -70,6 +70,8 @@ spec:
                 secretKeyRef:
                   name: workshop-secret
                   key: env
+            - name: TPM
+              value: "25"  # Transactions Per Minute - scales both request frequency and processing load
             # Memory optimization - uncomment to reduce memory usage
             # - name: AUDIT_LOG_ENABLED
             #   value: "false"  # Disable audit log generation

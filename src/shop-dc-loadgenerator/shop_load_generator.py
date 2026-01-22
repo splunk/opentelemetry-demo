@@ -509,21 +509,25 @@ class ShopLoadGenerator:
 def main():
     """Main function to run the load generator"""
     import argparse
-    
+    import os
+
+    # Get TPM from environment variable with fallback to command line arg
+    default_tpm = int(os.getenv("TPM", "10"))
+
     parser = argparse.ArgumentParser(description="Shop Datacenter Load Generator")
-    parser.add_argument("--url", default="http://localhost:8070", 
+    parser.add_argument("--url", default="http://localhost:8070",
                        help="Shop service URL (default: http://localhost:8070)")
     parser.add_argument("--mode", choices=["continuous", "burst", "single"], default="continuous",
                        help="Load generation mode (default: continuous)")
-    parser.add_argument("--tpm", type=int, default=10, 
-                       help="Transactions per minute for continuous mode (default: 10)")
-    parser.add_argument("--duration", type=int, default=6000, 
+    parser.add_argument("--tpm", type=int, default=default_tpm,
+                       help=f"Transactions per minute for continuous mode (default: {default_tpm}, override with TPM env var)")
+    parser.add_argument("--duration", type=int, default=6000,
                        help="Duration in minutes for continuous mode (default: 6000)")
-    parser.add_argument("--concurrent", type=int, default=20, 
+    parser.add_argument("--concurrent", type=int, default=20,
                        help="Concurrent transactions for burst mode (default: 20)")
-    parser.add_argument("--total", type=int, default=100, 
+    parser.add_argument("--total", type=int, default=100,
                        help="Total transactions for burst mode (default: 100)")
-    
+
     args = parser.parse_args()
     
     generator = ShopLoadGenerator(args.url)
