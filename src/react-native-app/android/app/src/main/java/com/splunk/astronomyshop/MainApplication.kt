@@ -1,4 +1,4 @@
-package io.opentelemetry.reactnativeapp
+package com.splunk.astronomyshop
 
 import android.app.Application
 import android.content.res.Configuration
