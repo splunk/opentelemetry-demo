@@ -57,32 +57,152 @@ echo "=========================================="
 echo "Building Sauce Labs Package v${VERSION}"
 echo "=========================================="
 
-# Step 1: Update .env file with new version
+# Step 1: Update version in all relevant files
 echo ""
-echo "Step 1: Updating .env file with version ${VERSION}..."
+echo "Step 1: Updating version ${VERSION} across all configuration files..."
+
+# Define file paths
+APP_JSON="${APP_DIR}/app.json"
+PACKAGE_JSON="${APP_DIR}/package.json"
+IOS_PLIST="${APP_DIR}/ios/reactnativeapp/Info.plist"
+ANDROID_GRADLE="${APP_DIR}/android/app/build.gradle"
+
+# Check if required files exist
 if [ ! -f "$ENV_FILE" ]; then
     print_error ".env file not found at: $ENV_FILE"
     exit 1
 fi
 
-# Backup original .env
-cp "$ENV_FILE" "${ENV_FILE}.backup"
-print_info "Backed up .env file"
+if [ ! -f "$APP_JSON" ]; then
+    print_error "app.json file not found at: $APP_JSON"
+    exit 1
+fi
 
-# Update or add EXPO_PUBLIC_APP_VERSION
+if [ ! -f "$PACKAGE_JSON" ]; then
+    print_error "package.json file not found at: $PACKAGE_JSON"
+    exit 1
+fi
+
+# Backup original files
+cp "$ENV_FILE" "${ENV_FILE}.backup"
+cp "$APP_JSON" "${APP_JSON}.backup"
+cp "$PACKAGE_JSON" "${PACKAGE_JSON}.backup"
+if [ -f "$IOS_PLIST" ]; then
+    cp "$IOS_PLIST" "${IOS_PLIST}.backup"
+fi
+if [ -f "$ANDROID_GRADLE" ]; then
+    cp "$ANDROID_GRADLE" "${ANDROID_GRADLE}.backup"
+fi
+print_info "Backed up configuration files"
+
+# 1. Update .env file
 if grep -q "^EXPO_PUBLIC_APP_VERSION=" "$ENV_FILE"; then
-    # Version line exists, update it (macOS compatible)
     if [[ "$OSTYPE" == "darwin"* ]]; then
         sed -i '' "s/^EXPO_PUBLIC_APP_VERSION=.*/EXPO_PUBLIC_APP_VERSION=${VERSION}/" "$ENV_FILE"
     else
         sed -i "s/^EXPO_PUBLIC_APP_VERSION=.*/EXPO_PUBLIC_APP_VERSION=${VERSION}/" "$ENV_FILE"
     fi
-    print_info "Updated EXPO_PUBLIC_APP_VERSION=${VERSION} in .env"
+    print_info "Updated .env: EXPO_PUBLIC_APP_VERSION=${VERSION}"
 else
-    # Version line doesn't exist, add it
     echo "EXPO_PUBLIC_APP_VERSION=${VERSION}" >> "$ENV_FILE"
-    print_info "Added EXPO_PUBLIC_APP_VERSION=${VERSION} to .env"
+    print_info "Added to .env: EXPO_PUBLIC_APP_VERSION=${VERSION}"
 fi
+
+# 2. Update app.json
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"${VERSION}\"/" "$APP_JSON"
+else
+    sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"${VERSION}\"/" "$APP_JSON"
+fi
+print_info "Updated app.json: version=${VERSION}"
+
+# 3. Update package.json
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"${VERSION}\"/" "$PACKAGE_JSON"
+else
+    sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"${VERSION}\"/" "$PACKAGE_JSON"
+fi
+print_info "Updated package.json: version=${VERSION}"
+
+# 4. Update iOS Info.plist (if exists)
+if [ -f "$IOS_PLIST" ]; then
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # Use PlistBuddy on macOS for reliable plist editing
+        /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VERSION}" "$IOS_PLIST" 2>/dev/null
+        if [ $? -ne 0 ]; then
+            # If key doesn't exist, add it
+            /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string ${VERSION}" "$IOS_PLIST"
+        fi
+    else
+        # Fallback for non-macOS systems: use perl for multi-line replacement
+        perl -i -pe "BEGIN{undef $/;} s|<key>CFBundleShortVersionString</key>\s*<string>[^<]*</string>|<key>CFBundleShortVersionString</key>\n\t<string>${VERSION}</string>|sg" "$IOS_PLIST"
+    fi
+    print_info "Updated iOS Info.plist: CFBundleShortVersionString=${VERSION}"
+fi
+
+# 5. Update Android build.gradle (if exists)
+if [ -f "$ANDROID_GRADLE" ]; then
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s/versionName \"[^\"]*\"/versionName \"${VERSION}\"/" "$ANDROID_GRADLE"
+    else
+        sed -i "s/versionName \"[^\"]*\"/versionName \"${VERSION}\"/" "$ANDROID_GRADLE"
+    fi
+    print_info "Updated Android build.gradle: versionName=${VERSION}"
+fi
+
+# Verify all versions were updated correctly
+echo ""
+echo "Verifying version updates..."
+VERIFICATION_FAILED=0
+
+# Verify .env
+if ! grep -q "^EXPO_PUBLIC_APP_VERSION=${VERSION}$" "$ENV_FILE"; then
+    print_error ".env verification failed - version not set to ${VERSION}"
+    VERIFICATION_FAILED=1
+fi
+
+# Verify app.json
+if ! grep -q "\"version\": \"${VERSION}\"" "$APP_JSON"; then
+    print_error "app.json verification failed - version not set to ${VERSION}"
+    VERIFICATION_FAILED=1
+fi
+
+# Verify package.json
+if ! grep -q "\"version\": \"${VERSION}\"" "$PACKAGE_JSON"; then
+    print_error "package.json verification failed - version not set to ${VERSION}"
+    VERIFICATION_FAILED=1
+fi
+
+# Verify iOS Info.plist
+if [ -f "$IOS_PLIST" ]; then
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        PLIST_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$IOS_PLIST" 2>/dev/null)
+        if [ "$PLIST_VERSION" != "$VERSION" ]; then
+            print_error "iOS Info.plist verification failed - version is ${PLIST_VERSION}, expected ${VERSION}"
+            VERIFICATION_FAILED=1
+        fi
+    fi
+fi
+
+# Verify Android build.gradle
+if [ -f "$ANDROID_GRADLE" ]; then
+    if ! grep -q "versionName \"${VERSION}\"" "$ANDROID_GRADLE"; then
+        print_error "Android build.gradle verification failed - version not set to ${VERSION}"
+        VERIFICATION_FAILED=1
+    fi
+fi
+
+if [ $VERIFICATION_FAILED -eq 1 ]; then
+    print_error "Version verification failed - restoring backups"
+    mv "${ENV_FILE}.backup" "$ENV_FILE"
+    mv "${APP_JSON}.backup" "$APP_JSON"
+    mv "${PACKAGE_JSON}.backup" "$PACKAGE_JSON"
+    [ -f "${IOS_PLIST}.backup" ] && mv "${IOS_PLIST}.backup" "$IOS_PLIST"
+    [ -f "${ANDROID_GRADLE}.backup" ] && mv "${ANDROID_GRADLE}.backup" "$ANDROID_GRADLE"
+    exit 1
+fi
+
+print_info "All version updates verified successfully"
 
 # Step 2: Clean previous builds
 echo ""
@@ -115,8 +235,12 @@ if [ $? -eq 0 ]; then
     print_info "iOS build completed"
 else
     print_error "iOS build failed"
-    print_warning "Restoring original .env..."
+    print_warning "Restoring original files..."
     mv "${ENV_FILE}.backup" "$ENV_FILE"
+    mv "${APP_JSON}.backup" "$APP_JSON"
+    mv "${PACKAGE_JSON}.backup" "$PACKAGE_JSON"
+    [ -f "${IOS_PLIST}.backup" ] && mv "${IOS_PLIST}.backup" "$IOS_PLIST"
+    [ -f "${ANDROID_GRADLE}.backup" ] && mv "${ANDROID_GRADLE}.backup" "$ANDROID_GRADLE"
     exit 1
 fi
 
@@ -136,8 +260,12 @@ if [ $GRADLE_EXIT_CODE -eq 0 ]; then
     print_info "Android build completed"
 else
     print_error "Android build failed"
-    print_warning "Restoring original .env..."
+    print_warning "Restoring original files..."
     mv "${ENV_FILE}.backup" "$ENV_FILE"
+    mv "${APP_JSON}.backup" "$APP_JSON"
+    mv "${PACKAGE_JSON}.backup" "$PACKAGE_JSON"
+    [ -f "${IOS_PLIST}.backup" ] && mv "${IOS_PLIST}.backup" "$IOS_PLIST"
+    [ -f "${ANDROID_GRADLE}.backup" ] && mv "${ANDROID_GRADLE}.backup" "$ANDROID_GRADLE"
     exit 1
 fi
 
@@ -150,15 +278,23 @@ ANDROID_APK="${APP_DIR}/android/app/build/outputs/apk/release/app-release.apk"
 
 if [ ! -d "$IOS_APP" ]; then
     print_error "iOS .app file not found at: $IOS_APP"
-    print_warning "Restoring original .env..."
+    print_warning "Restoring original files..."
     mv "${ENV_FILE}.backup" "$ENV_FILE"
+    mv "${APP_JSON}.backup" "$APP_JSON"
+    mv "${PACKAGE_JSON}.backup" "$PACKAGE_JSON"
+    [ -f "${IOS_PLIST}.backup" ] && mv "${IOS_PLIST}.backup" "$IOS_PLIST"
+    [ -f "${ANDROID_GRADLE}.backup" ] && mv "${ANDROID_GRADLE}.backup" "$ANDROID_GRADLE"
     exit 1
 fi
 
 if [ ! -f "$ANDROID_APK" ]; then
     print_error "Android .apk file not found at: $ANDROID_APK"
-    print_warning "Restoring original .env..."
+    print_warning "Restoring original files..."
     mv "${ENV_FILE}.backup" "$ENV_FILE"
+    mv "${APP_JSON}.backup" "$APP_JSON"
+    mv "${PACKAGE_JSON}.backup" "$PACKAGE_JSON"
+    [ -f "${IOS_PLIST}.backup" ] && mv "${IOS_PLIST}.backup" "$IOS_PLIST"
+    [ -f "${ANDROID_GRADLE}.backup" ] && mv "${ANDROID_GRADLE}.backup" "$ANDROID_GRADLE"
     exit 1
 fi
 
@@ -172,11 +308,14 @@ echo "Step 6: Creating Sauce Labs package structure..."
 mkdir -p "${APP_DIR}/saucelabs-package/ios"
 mkdir -p "${APP_DIR}/saucelabs-package/android"
 
-# Zip iOS app
-cd "${APP_DIR}/ios/build/Build/Products/Release-iphoneos"
-zip -r "${APP_DIR}/saucelabs-package/ios/astronomy-shop-ios.zip" reactnativeapp.app > /dev/null 2>&1
+# Create IPA with proper Payload structure
+mkdir -p "${APP_DIR}/saucelabs-package/ios/Payload"
+cp -R "${APP_DIR}/ios/build/Build/Products/Release-iphoneos/reactnativeapp.app" "${APP_DIR}/saucelabs-package/ios/Payload/"
+cd "${APP_DIR}/saucelabs-package/ios"
+zip -r "astronomy-shop-ios.ipa" Payload > /dev/null 2>&1
+rm -rf Payload
 cd "$APP_DIR"
-print_info "Created iOS zip package"
+print_info "Created iOS IPA package with Payload structure"
 
 # Copy Android APK
 cp "$ANDROID_APK" "${APP_DIR}/saucelabs-package/android/astronomy-shop.apk"
@@ -193,13 +332,17 @@ zip -r "${RELEASE_DIR}/${PACKAGE_NAME}" saucelabs-package/ > /dev/null 2>&1
 
 # Get file sizes
 FINAL_ZIP_SIZE=$(du -h "${RELEASE_DIR}/${PACKAGE_NAME}" | cut -f1)
-IOS_ZIP_SIZE=$(du -h "${APP_DIR}/saucelabs-package/ios/astronomy-shop-ios.zip" | cut -f1)
+IOS_IPA_SIZE=$(du -h "${APP_DIR}/saucelabs-package/ios/astronomy-shop-ios.ipa" | cut -f1)
 ANDROID_APK_SIZE=$(du -h "${APP_DIR}/saucelabs-package/android/astronomy-shop.apk" | cut -f1)
 
 print_info "Created final package: ${PACKAGE_NAME} (${FINAL_ZIP_SIZE})"
 
-# Clean up backup
+# Clean up backup files
 rm -f "${ENV_FILE}.backup"
+rm -f "${APP_JSON}.backup"
+rm -f "${PACKAGE_JSON}.backup"
+rm -f "${IOS_PLIST}.backup"
+rm -f "${ANDROID_GRADLE}.backup"
 
 # Step 8: Update README.md with latest version
 echo ""
@@ -266,7 +409,7 @@ else
 - Updated dependencies for better compatibility
 
 ### Package Contents
-- **iOS**: Signed .app packaged as .zip (${IOS_ZIP_SIZE})
+- **iOS**: Signed .app packaged as .ipa (${IOS_IPA_SIZE})
 - **Android**: Release APK (${ANDROID_APK_SIZE})
 - **Total Size**: ${FINAL_ZIP_SIZE} (compressed)
 
@@ -331,7 +474,7 @@ echo ""
 echo "Package contents:"
 echo "  └─ saucelabs-package/"
 echo "      ├─ ios/"
-echo "      │   └─ astronomy-shop-ios.zip (${IOS_ZIP_SIZE})"
+echo "      │   └─ astronomy-shop-ios.ipa (${IOS_IPA_SIZE})"
 echo "      └─ android/"
 echo "          └─ astronomy-shop.apk (${ANDROID_APK_SIZE})"
 echo ""
@@ -339,7 +482,12 @@ echo "Final package: ${PACKAGE_NAME} (${FINAL_ZIP_SIZE})"
 echo "Location: ${RELEASE_DIR}/${PACKAGE_NAME}"
 echo ""
 echo "Changes made:"
-echo "  ✓ Updated .env with EXPO_PUBLIC_APP_VERSION=${VERSION}"
+echo "  ✓ Updated .env: EXPO_PUBLIC_APP_VERSION=${VERSION}"
+echo "  ✓ Updated app.json: version=${VERSION}"
+echo "  ✓ Updated package.json: version=${VERSION}"
+echo "  ✓ Updated iOS Info.plist: CFBundleShortVersionString=${VERSION}"
+echo "  ✓ Updated Android build.gradle: versionName=${VERSION}"
+echo "  ✓ Verified all version updates"
 echo "  ✓ Built iOS device version (ARM64)"
 echo "  ✓ Built Android release APK"
 echo "  ✓ Created Sauce Labs package"

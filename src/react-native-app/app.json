@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Astronomy Shop App",
+    "name": "Splunk Astronomy Shop",
     "slug": "astronomyshopapp",
-    "version": "1.0.0",
+    "version": "1.3.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
@@ -14,14 +14,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "io.opentelemetry.reactnativeapp"
+      "bundleIdentifier": "com.splunk.astronomyshop"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "io.opentelemetry.reactnativeapp"
+      "package": "com.splunk.astronomyshop"
     },
     "web": {
       "bundler": "metro",
