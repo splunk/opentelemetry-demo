@@ -117,9 +117,9 @@ for svc in config.get('services', []):
         if [ -n "$REGISTRY_URL" ] && [ "$SHOULD_REPLACE" = "true" ]; then
             # Replace registry URLs, image tags, and version numbers
             # Pattern matches: ghcr.io/{org}/{repo} and replaces with ${REGISTRY_URL}
-            # Preserves: /otel-{service} part but replaces :{tag} with :${SERVICE_VERSION}
+            # Version replacement ONLY applies to images from ${REGISTRY_URL}, preserving third-party images
             sed -e "s|ghcr.io/[^/]*/[^/]*|${REGISTRY_URL}|g" \
-                -e "/image:/s|:[0-9][0-9.][^[:space:]]*|:${SERVICE_VERSION}|" \
+                -e "s|\(${REGISTRY_URL}/[^:]*\):[0-9][0-9.][^[:space:]]*|\1:${SERVICE_VERSION}|" \
                 -e "s|app.kubernetes.io/version: [0-9][0-9.]*|app.kubernetes.io/version: ${SERVICE_VERSION}|g" \
                 -e "s|service.version=[0-9][0-9.]*|service.version=${SERVICE_VERSION}|g" \
                 "$MANIFEST_FILE" >> "$OUTPUT_FILE"
