@@ -134,7 +134,7 @@ data:
           // Explicitly wait for /api/data request to complete
           console.log('⏳ Waiting for ad service (/api/data) to complete...');
           await page.waitForResponse(
-            response => response.url().includes('/api/data') && response.status() === 200,
+            response => response.url().includes('/api/data') && (response.status() === 200 || response.status() === 304),
             { timeout: 5000 }
           ).catch(() => {
             console.log('⚠️ /api/data did not complete in 5s, continuing anyway...');
