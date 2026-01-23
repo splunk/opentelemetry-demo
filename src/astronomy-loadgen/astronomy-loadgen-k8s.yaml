@@ -126,7 +126,10 @@ data:
         for (const productId of productsToOrder) {
           const url = new URL(`product/${productId}`, base).toString();
           console.log(`🌐 Navigating to ${url}`);
-          await page.goto(url, { waitUntil: 'domcontentloaded' });
+          await page.goto(url, {
+            waitUntil: 'networkidle2',  // Wait until no more than 2 connections for 500ms
+            timeout: 60000               // 60 second timeout for page load
+          });
 
           console.log('🖱️ Clicking quick prompts...');
 
