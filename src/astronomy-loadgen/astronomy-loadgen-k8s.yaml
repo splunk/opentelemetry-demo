@@ -118,6 +118,14 @@ data:
         page.setDefaultNavigationTimeout(45000);
         page.setDefaultTimeout && page.setDefaultTimeout(30000);
 
+        // Log all responses for debugging
+        page.on('response', response => {
+          const url = response.url();
+          if (url.includes('api')) {
+            console.log(`[DEBUG] API Response: ${url} (${response.status()})`);
+          }
+        });
+
         const base = buildBaseUrl();
         const productsToOrder = getRandomProducts();
         console.log(`🛒 Ordering ${productsToOrder.length} product(s): ${productsToOrder.join(', ')}`);
