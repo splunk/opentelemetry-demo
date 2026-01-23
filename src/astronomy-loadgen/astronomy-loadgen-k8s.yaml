@@ -134,13 +134,8 @@ data:
         for (const productId of productsToOrder) {
           const url = new URL(`product/${productId}`, base).toString();
           console.log(`🌐 Navigating to ${url}`);
-          await page.goto(url, {
-            waitUntil: 'networkidle2',  // Wait until no more than 2 connections for 500ms
-            timeout: 60000               // 60 second timeout for page load
-          });
 
-          // Explicitly wait for /api/data request to complete
-          console.log('⏳ Waiting for ad service (/api/data) to complete...');
+          // Set up /api/data response listener BEFORE navigation
           const apiDataPromise = page.waitForResponse(
             response => {
               const url = response.url();
@@ -151,10 +146,19 @@ data:
               }
               return matches;
             },
-            { timeout: 10000 }
+            { timeout: 15000 }
           );
+
+          // Navigate to page
+          await page.goto(url, {
+            waitUntil: 'networkidle2',  // Wait until no more than 2 connections for 500ms
+            timeout: 60000               // 60 second timeout for page load
+          });
+
+          // Now wait for /api/data to complete (may have already completed during goto)
+          console.log('⏳ Ensuring ad service (/api/data) completed...');
           await apiDataPromise.catch(() => {
-            console.log('⚠️ /api/data did not complete in 10s, continuing anyway...');
+            console.log('⚠️ /api/data did not complete in 15s, continuing anyway...');
           });
 
           // Small delay to ensure any follow-up requests finish
