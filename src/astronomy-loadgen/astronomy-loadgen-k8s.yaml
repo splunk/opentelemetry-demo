@@ -133,11 +133,20 @@ data:
 
           // Explicitly wait for /api/data request to complete
           console.log('⏳ Waiting for ad service (/api/data) to complete...');
-          await page.waitForResponse(
-            response => response.url().includes('/api/data') && (response.status() === 200 || response.status() === 304),
-            { timeout: 5000 }
-          ).catch(() => {
-            console.log('⚠️ /api/data did not complete in 5s, continuing anyway...');
+          const apiDataPromise = page.waitForResponse(
+            response => {
+              const url = response.url();
+              const status = response.status();
+              const matches = url.includes('/api/data') && (status === 200 || status === 304);
+              if (matches) {
+                console.log(`✅ /api/data response received: ${status}`);
+              }
+              return matches;
+            },
+            { timeout: 10000 }
+          );
+          await apiDataPromise.catch(() => {
+            console.log('⚠️ /api/data did not complete in 10s, continuing anyway...');
           });
 
           // Small delay to ensure any follow-up requests finish
