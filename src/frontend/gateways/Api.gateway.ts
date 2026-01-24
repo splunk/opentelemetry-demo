@@ -106,6 +106,7 @@ const Apis = () => ({
       queryParams: {
         contextKeys,
       },
+      timeout: 3000, // 3 second timeout for ad service
     });
   },
 });

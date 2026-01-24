@@ -7,6 +7,7 @@ interface IRequestParams {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   queryParams?: Record<string, any>;
   headers?: Record<string, string>;
+  timeout?: number; // Timeout in milliseconds
 }
 
 const request = async <T>({
@@ -17,12 +18,20 @@ const request = async <T>({
   headers = {
     'content-type': 'application/json',
   },
+  timeout,
 }: IRequestParams): Promise<T> => {
-  const response = await fetch(`${url}?${new URLSearchParams(queryParams).toString()}`, {
+  const fetchOptions: RequestInit = {
     method,
     body: body ? JSON.stringify(body) : undefined,
     headers,
-  });
+  };
+
+  // Add timeout if specified
+  if (timeout) {
+    fetchOptions.signal = AbortSignal.timeout(timeout);
+  }
+
+  const response = await fetch(`${url}?${new URLSearchParams(queryParams).toString()}`, fetchOptions);
 
   const responseText = await response.text();
 
