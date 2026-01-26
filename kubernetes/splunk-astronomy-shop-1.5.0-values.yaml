@@ -214,9 +214,11 @@ agent:
               # This happens when users navigate away before response completes
               - set(status.code, STATUS_CODE_UNSET) where attributes["response_flags"] == "DC"
               - set(attributes["error"], "false") where attributes["response_flags"] == "DC"
+              - set(name, Concat([name, " (user navigated away)"], "")) where attributes["response_flags"] == "DC"
               # Also handle egress cancellations (proxy cancels outbound when client disconnects)
               - set(status.code, STATUS_CODE_UNSET) where attributes["canceled"] == "true"
               - set(attributes["error"], "false") where attributes["canceled"] == "true"
+              - set(name, Concat([name, " (backend interaction terminated - client disconnect)"], "")) where attributes["canceled"] == "true"
 
     service:
       pipelines:
