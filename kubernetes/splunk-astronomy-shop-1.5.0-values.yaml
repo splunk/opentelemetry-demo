@@ -218,7 +218,7 @@ agent:
               # Also handle egress cancellations (proxy cancels outbound when client disconnects)
               - set(status.code, STATUS_CODE_UNSET) where attributes["canceled"] == "true"
               - set(attributes["error"], "false") where attributes["canceled"] == "true"
-              - set(name, Concat([name, " (backend interaction terminated - client disconnect)"], "")) where attributes["canceled"] == "true"
+              - set(name, Concat([name, " (backend interaction terminated due to client disconnect)"], "")) where attributes["canceled"] == "true"
 
     service:
       pipelines:
