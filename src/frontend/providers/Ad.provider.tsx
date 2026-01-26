@@ -33,18 +33,19 @@ const AdProvider = ({ children, productIds, contextKeys }: IProps) => {
       if (contextKeys.length === 0) {
         return [];
       } else {
-        return ApiGateway.listAds(contextKeys);
+        try {
+          return await ApiGateway.listAds(contextKeys);
+        } catch (error) {
+          // Silently handle errors - ads are non-critical
+          console.log('Ads service unavailable, continuing without ads');
+          return []; // Return empty array on error
+        }
       }
     },
     refetchOnWindowFocus: false,
     retry: false, // Don't retry on failure
     staleTime: 60000, // Cache for 1 minute
     gcTime: 300000, // Keep in cache for 5 minutes
-    // Silently handle errors - ads are non-critical
-    onError: () => {
-      // Ads failed to load, but page still works
-      console.log('Ads service unavailable, continuing without ads');
-    },
   });
   const { data: recommendedProductList = [] } = useQuery({
     queryKey: ['recommendations', productIds, 'selectedCurrency', selectedCurrency],
