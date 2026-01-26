@@ -67,7 +67,8 @@ jobs:
 
       - name: Run build script
         env:
-          GITHUB_REPO: ${{ github.repository }}
+          # GITHUB_REPOSITORY is automatically set by GitHub Actions
+          # to the repo where this workflow is running (fork or origin)
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ./build-saucelabs.sh "${{ inputs.version }}"
@@ -90,7 +91,8 @@ jobs:
           git add src/react-native-app/android/app/build.gradle
           git add releases/mobile/README.md
           git commit -m "chore: Release mobile app v${{ inputs.version }}" || echo "No changes to commit"
-          git push origin main || echo "Nothing to push"
+          # Push to the current branch in the current repository
+          git push || echo "Nothing to push"
 
       - name: Create release summary
         run: |

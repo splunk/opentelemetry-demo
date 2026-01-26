@@ -393,16 +393,20 @@ print_info "Updated README.md with version ${VERSION}"
 echo ""
 echo "Step 9: Creating GitHub Release..."
 
-# Detect the GitHub repository
-# Use GITHUB_REPO env var if set (for CI), otherwise auto-detect
-if [ -n "$GITHUB_REPO" ]; then
-    GH_REPO="$GITHUB_REPO"
-    print_info "Using repository from GITHUB_REPO env: ${GH_REPO}"
+# Detect the GitHub repository intelligently
+# Priority:
+# 1. GITHUB_REPOSITORY env var (set by GitHub Actions - will be origin/fork automatically)
+# 2. Auto-detect from current git remote's upstream tracking
+if [ -n "$GITHUB_REPOSITORY" ]; then
+    # Running in GitHub Actions - use the repo where the action is running
+    GH_REPO="$GITHUB_REPOSITORY"
+    print_info "Using repository from GitHub Actions: ${GH_REPO}"
 else
-    # Auto-detect from git remotes (prefer origin, fall back to fork)
-    GH_REPO=$(git remote get-url origin 2>/dev/null | sed 's/.*github.com[:/]\(.*\)\.git/\1/' || git remote get-url fork 2>/dev/null | sed 's/.*github.com[:/]\(.*\)\.git/\1/')
+    # Running locally - detect from git remote URL
+    # Use 'origin' remote (the repo you cloned from)
+    GH_REPO=$(git remote get-url origin 2>/dev/null | sed 's/.*github.com[:/]\(.*\)\.git/\1/' | sed 's/\.git$//')
     if [ -n "$GH_REPO" ]; then
-        print_info "Auto-detected repository: ${GH_REPO}"
+        print_info "Auto-detected repository from 'origin' remote: ${GH_REPO}"
     fi
 fi
 
