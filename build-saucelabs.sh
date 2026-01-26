@@ -393,8 +393,18 @@ print_info "Updated README.md with version ${VERSION}"
 echo ""
 echo "Step 9: Creating GitHub Release..."
 
-# Detect the GitHub repository (use fork remote)
-GH_REPO=$(git remote get-url fork 2>/dev/null | sed 's/.*github.com[:/]\(.*\)\.git/\1/' || git remote get-url origin | sed 's/.*github.com[:/]\(.*\)\.git/\1/')
+# Detect the GitHub repository
+# Use GITHUB_REPO env var if set (for CI), otherwise auto-detect
+if [ -n "$GITHUB_REPO" ]; then
+    GH_REPO="$GITHUB_REPO"
+    print_info "Using repository from GITHUB_REPO env: ${GH_REPO}"
+else
+    # Auto-detect from git remotes (prefer origin, fall back to fork)
+    GH_REPO=$(git remote get-url origin 2>/dev/null | sed 's/.*github.com[:/]\(.*\)\.git/\1/' || git remote get-url fork 2>/dev/null | sed 's/.*github.com[:/]\(.*\)\.git/\1/')
+    if [ -n "$GH_REPO" ]; then
+        print_info "Auto-detected repository: ${GH_REPO}"
+    fi
+fi
 
 if [ -z "$GH_REPO" ]; then
     print_warning "Could not detect GitHub repository, skipping release creation"
