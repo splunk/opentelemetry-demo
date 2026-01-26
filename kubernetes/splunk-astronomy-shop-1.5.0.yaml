@@ -1,6 +1,6 @@
 # Splunk Astronomy Shop Kubernetes Manifest
 # Version: 1.5.0
-# Generated on: 2026-01-22T15:42:19Z
+# Generated on: 2026-01-26T09:58:17Z
 #
 # This manifest combines all service deployments for the Splunk Astronomy Shop
 # Services are defined in services.yaml
@@ -268,7 +268,10 @@ data:
     const { Console } = require('console');
     const puppeteer = require('puppeteer');
     const customUserAgent = 'Mozilla/5.0 (X11; Linux x86_64; Splunk RUM_LoadGen) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36';
-    console.log('DEBUG: Using User Agent:', customUserAgent);
+
+    // Debug logging flag (set via DEBUG_LOGGING env var)
+    const debugEnabled = process.env.DEBUG_LOGGING === 'true';
+    if (debugEnabled) console.log('DEBUG: Using User Agent:', customUserAgent);
 
     // Global browser instance for reuse across cycles
     let globalBrowser = null;
@@ -375,6 +378,16 @@ data:
         page.setDefaultNavigationTimeout(45000);
         page.setDefaultTimeout && page.setDefaultTimeout(30000);
 
+        // Log all responses for debugging (when DEBUG_LOGGING=true)
+        if (debugEnabled) {
+          page.on('response', response => {
+            const url = response.url();
+            if (url.includes('api')) {
+              console.log(`[DEBUG] API Response: ${url} (${response.status()})`);
+            }
+          });
+        }
+
         const base = buildBaseUrl();
         const productsToOrder = getRandomProducts();
         console.log(`🛒 Ordering ${productsToOrder.length} product(s): ${productsToOrder.join(', ')}`);
@@ -383,7 +396,36 @@ data:
         for (const productId of productsToOrder) {
           const url = new URL(`product/${productId}`, base).toString();
           console.log(`🌐 Navigating to ${url}`);
-          await page.goto(url, { waitUntil: 'domcontentloaded' });
+
+          // Set up /api/data response listener BEFORE navigation
+          const apiDataPromise = page.waitForResponse(
+            response => {
+              const url = response.url();
+              const status = response.status();
+              const matches = url.includes('/api/data') && (status === 200 || status === 304);
+              if (matches) {
+                console.log(`✅ /api/data response received: ${status}`);
+              }
+              return matches;
+            },
+            { timeout: 15000 }
+          );
+
+          // Navigate to page
+          await page.goto(url, {
+            waitUntil: 'networkidle2',  // Wait until no more than 2 connections for 500ms
+            timeout: 60000               // 60 second timeout for page load
+          });
+
+          // Now wait for /api/data to complete (may have already completed during goto)
+          console.log('⏳ Ensuring ad service (/api/data) completed...');
+          await apiDataPromise.catch(() => {
+            console.log('⚠️ /api/data did not complete in 15s, continuing anyway...');
+          });
+
+          // Small delay to ensure any follow-up requests finish
+          await delay(500);
+          console.log('✅ Page fully loaded with all API calls complete');
 
           console.log('🖱️ Clicking quick prompts...');
 
@@ -537,6 +579,8 @@ spec:
           value: "http://frontend-proxy:8080"
         - name: CYCLE_DELAY_MS
           value: "1000"
+        - name: DEBUG_LOGGING
+          value: ""  # Set to "true" to enable debug logging
         volumeMounts:
         - name: puppeteer
           subPath: local-file
@@ -3248,7 +3292,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       initContainers:
         - name: wait-for-shop-dc-shim
-          image: curlimages/curl:1.5.0
+          image: curlimages/curl:8.1.2
           command: ['sh', '-c']
           args:
             - |
