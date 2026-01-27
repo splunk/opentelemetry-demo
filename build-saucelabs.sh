@@ -393,8 +393,22 @@ print_info "Updated README.md with version ${VERSION}"
 echo ""
 echo "Step 9: Creating GitHub Release..."
 
-# Detect the GitHub repository (use fork remote)
-GH_REPO=$(git remote get-url fork 2>/dev/null | sed 's/.*github.com[:/]\(.*\)\.git/\1/' || git remote get-url origin | sed 's/.*github.com[:/]\(.*\)\.git/\1/')
+# Detect the GitHub repository intelligently
+# Priority:
+# 1. GITHUB_REPOSITORY env var (set by GitHub Actions - will be origin/fork automatically)
+# 2. Auto-detect from current git remote's upstream tracking
+if [ -n "$GITHUB_REPOSITORY" ]; then
+    # Running in GitHub Actions - use the repo where the action is running
+    GH_REPO="$GITHUB_REPOSITORY"
+    print_info "Using repository from GitHub Actions: ${GH_REPO}"
+else
+    # Running locally - detect from git remote URL
+    # Use 'origin' remote (the repo you cloned from)
+    GH_REPO=$(git remote get-url origin 2>/dev/null | sed 's/.*github.com[:/]\(.*\)\.git/\1/' | sed 's/\.git$//')
+    if [ -n "$GH_REPO" ]; then
+        print_info "Auto-detected repository from 'origin' remote: ${GH_REPO}"
+    fi
+fi
 
 if [ -z "$GH_REPO" ]; then
     print_warning "Could not detect GitHub repository, skipping release creation"

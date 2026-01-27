@@ -1,0 +1,110 @@
+name: Mobile App Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 1.2.3)'
+        required: true
+        type: string
+
+permissions:
+  contents: write  # Needed to create releases
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate version format
+        run: |
+          VERSION="${{ inputs.version }}"
+          if [[ ! $VERSION =~ ^[0-9]{1,2}(\.[0-9]{1,3}){0,4}$ ]]; then
+            echo "::error::Invalid version format: $VERSION"
+            echo "Version must be in format: x.xx.xxx (e.g., 1, 1.2, 1.2.3)"
+            exit 1
+          fi
+          echo "✓ Version format valid: $VERSION"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: src/react-native-app/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd src/react-native-app
+          npm ci
+
+      - name: Setup Ruby (for CocoaPods)
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: false
+
+      - name: Install CocoaPods
+        run: |
+          sudo gem install cocoapods
+          cd src/react-native-app/ios
+          pod install
+
+      - name: Setup Java (for Android build)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Make build script executable
+        run: chmod +x build-saucelabs.sh
+
+      - name: Run build script
+        env:
+          # GITHUB_REPOSITORY is automatically set by GitHub Actions
+          # to the repo where this workflow is running (fork or origin)
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./build-saucelabs.sh "${{ inputs.version }}"
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-release-v${{ inputs.version }}
+          path: releases/mobile/astronomy-shop-saucelabs-v${{ inputs.version }}.zip
+          retention-days: 90
+
+      - name: Commit version changes
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add src/react-native-app/.env
+          git add src/react-native-app/app.json
+          git add src/react-native-app/package.json
+          git add src/react-native-app/ios/reactnativeapp/Info.plist
+          git add src/react-native-app/android/app/build.gradle
+          git add releases/mobile/README.md
+          git commit -m "chore: Release mobile app v${{ inputs.version }}" || echo "No changes to commit"
+          # Push to the current branch in the current repository
+          git push || echo "Nothing to push"
+
+      - name: Create release summary
+        run: |
+          echo "## Mobile App Release v${{ inputs.version }} 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Build Status" >> $GITHUB_STEP_SUMMARY
+          echo "✅ iOS build completed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Android build completed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ GitHub release created" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Package Details" >> $GITHUB_STEP_SUMMARY
+          PACKAGE_SIZE=$(du -h releases/mobile/astronomy-shop-saucelabs-v${{ inputs.version }}.zip | cut -f1)
+          echo "- **Package**: astronomy-shop-saucelabs-v${{ inputs.version }}.zip" >> $GITHUB_STEP_SUMMARY
+          echo "- **Size**: $PACKAGE_SIZE" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release**: [View Release](https://github.com/${{ github.repository }}/releases/tag/v${{ inputs.version }})" >> $GITHUB_STEP_SUMMARY
