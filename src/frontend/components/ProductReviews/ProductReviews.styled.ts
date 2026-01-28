@@ -253,3 +253,25 @@ export const AIMessage = styled.p`
   line-height: 1.5;
   color: ${({ theme }) => theme.colors.otelGray};
 `;
+
+export const ShowMoreButton = styled.button`
+  padding: 12px 24px;
+  margin-top: 24px;
+  border: 2px solid ${({ theme }) => theme.colors.otelBlue};
+  border-radius: 6px;
+  background: ${({ theme }) => theme.colors.white};
+  color: ${({ theme }) => theme.colors.otelBlue};
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.otelBlue};
+    color: ${({ theme }) => theme.colors.white};
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+`;
