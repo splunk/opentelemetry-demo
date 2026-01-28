@@ -82,6 +82,7 @@ const ProductDetail: NextPage = () => {
               </S.ProductPrice>
               <S.Text>Quantity</S.Text>
               <Select
+                id="product-quantity"
                 data-cy={CypressFields.ProductQuantity}
                 onChange={event => setQuantity(+event.target.value)}
                 value={quantity}
@@ -92,7 +93,7 @@ const ProductDetail: NextPage = () => {
                   </option>
                 ))}
               </Select>
-              <S.AddToCart data-cy={CypressFields.ProductAddToCart} onClick={onAddItem}>
+              <S.AddToCart id="btn-add-to-cart" data-cy={CypressFields.ProductAddToCart} onClick={onAddItem}>
                 <Image src="/icons/Cart.svg" height="15" width="15" alt="cart" /> Add To Cart
               </S.AddToCart>
             </S.Details>

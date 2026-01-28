@@ -73,6 +73,7 @@ const Home: NextPage = () => {
         </S.Container>
         {/* Hidden demo error button - click or use Ctrl/Cmd+Shift+E */}
         <button
+          id="btn-demo-error"
           onClick={triggerDemoError}
           style={{
             position: 'fixed',

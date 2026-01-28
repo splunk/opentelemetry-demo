@@ -3,7 +3,12 @@
 
 import styled, { css } from 'styled-components';
 
-const Button = styled.button<{ $type?: 'primary' | 'secondary' | 'link' }>`
+interface ButtonProps {
+  id: string;
+  $type?: 'primary' | 'secondary' | 'link';
+}
+
+const Button = styled.button<ButtonProps>`
   background-color: #5262a8;
   color: white;
   display: inline-block;

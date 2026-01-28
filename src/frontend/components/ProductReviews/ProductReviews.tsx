@@ -90,6 +90,7 @@ const ProductReviews = () => {
                     data-cy="AskAIInput"
                 />
                 <S.AskAIButton
+                    id="btn-ask-ai"
                     type="button"
                     onClick={() => handleAskAI()}
                     disabled={aiLoading || !aiQuestion.trim()}
@@ -102,6 +103,7 @@ const ProductReviews = () => {
 
             <S.AskAIControls>
                 <S.QuickPromptButton
+                    id="btn-quick-prompt-summarize"
                     type="button"
                     onClick={() => handleQuickPrompt('Can you summarize the product reviews?')}
                     data-cy="QuickPromptSummarize"
@@ -110,6 +112,7 @@ const ProductReviews = () => {
                 </S.QuickPromptButton>
 
                 <S.QuickPromptButton
+                    id="btn-quick-prompt-ages"
                     type="button"
                     onClick={() => handleQuickPrompt('What age(s) is this recommended for?')}
                     data-cy="QuickPromptAges"
@@ -118,6 +121,7 @@ const ProductReviews = () => {
                 </S.QuickPromptButton>
 
                 <S.QuickPromptButton
+                    id="btn-quick-prompt-negative"
                     type="button"
                     onClick={() => handleQuickPrompt('Were there any negative reviews?')}
                     data-cy="QuickPromptNegative"
