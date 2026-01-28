@@ -56,7 +56,7 @@ const CartDropdown = ({ productList, isOpen, onClose }: IProps) => {
         </S.ItemList>
       </S.ContentWrapper>
       <Link href="/cart">
-        <S.CartButton data-cy={CypressFields.CartGoToShopping}>Go to Shopping Cart</S.CartButton>
+        <S.CartButton id="btn-go-to-shopping-cart" data-cy={CypressFields.CartGoToShopping}>Go to Shopping Cart</S.CartButton>
       </Link>
     </S.CartDropdown>
   ) : null;

@@ -64,6 +64,7 @@ const CheckoutForm = ({ onSubmit }: IProps) => {
 
   return (
     <S.CheckoutForm
+      id="checkout-form"
       onSubmit={(event: { preventDefault: () => void; }) => {
         event.preventDefault();
         onSubmit({
@@ -191,9 +192,9 @@ const CheckoutForm = ({ onSubmit }: IProps) => {
 
       <S.SubmitContainer>
         <Link href="/">
-          <S.CartButton $type="secondary">Continue Shopping</S.CartButton>
+          <S.CartButton id="btn-checkout-continue-shopping" $type="secondary">Continue Shopping</S.CartButton>
         </Link>
-        <S.CartButton data-cy={CypressFields.CheckoutPlaceOrder} type="submit">Place Order</S.CartButton>
+        <S.CartButton id="btn-place-order" data-cy={CypressFields.CheckoutPlaceOrder} type="submit">Place Order</S.CartButton>
       </S.SubmitContainer>
     </S.CheckoutForm>
   );

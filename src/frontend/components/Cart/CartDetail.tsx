@@ -67,7 +67,7 @@ const CartDetail = () => {
       <div>
         <S.Header>
           <S.CarTitle>Shopping Cart</S.CarTitle>
-          <S.EmptyCartButton onClick={emptyCart} $type="link">
+          <S.EmptyCartButton id="btn-empty-cart" onClick={emptyCart} $type="link">
             Empty Cart
           </S.EmptyCartButton>
         </S.Header>

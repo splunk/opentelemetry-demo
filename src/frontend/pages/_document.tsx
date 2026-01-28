@@ -58,67 +58,68 @@ export default class MyDocument extends Document<{ envString: string }> {
             href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300;1,400;1,500;1,600;1,700;1,800&display=swap"
             rel="stylesheet"
           />
-          {/* eslint-disable @next/next/no-sync-scripts */}
           {/* Inject window.ENV first */}
-          <script dangerouslySetInnerHTML={{ __html: this.props.envString }}></script>
-          {/* Load Splunk scripts */}
-          <script src="https://cdn.signalfx.com/o11y-gdi-rum/latest/splunk-otel-web.js"></script>
-          <script src="https://cdn.signalfx.com/o11y-gdi-rum/latest/splunk-otel-web-session-recorder.js"></script>
-
+          <script
+              crossOrigin="anonymous"
+              dangerouslySetInnerHTML={{ __html: this.props.envString }}>
+          </script>
           {/* Load user attributes generator - must load before RUM initialization */}
           <script src="/global-attributes.js"></script>
-
-          {/* Inline Splunk RUM initialization directly in raw HTML head */}
-          <script dangerouslySetInnerHTML={{
-            __html: `
-              (function initializeSplunkRUM() {
-                const rumAccessToken = window.ENV.SPLUNK_RUM_TOKEN;
-                const applicationName = window.ENV.SPLUNK_APP_NAME;
-                const deploymentEnvironment = window.ENV.SPLUNK_ENV;
-                const realm = window.ENV.SPLUNK_RUM_REALM;
-
-                if (typeof SplunkRum !== 'undefined') {
-                  // Get global attributes from the function defined earlier
-                  const globalAttributes = getSplunkGlobalAttributes();
-
+          <script
+              src="https://cdn.signalfx.com/o11y-gdi-rum/next/splunk-otel-web.js"
+              crossOrigin="anonymous"
+          />
+          <script
+              id="splunk-rum-init"
+              dangerouslySetInnerHTML={{
+                __html: `
                   SplunkRum.init({
-                    realm: realm,
-                    rumAccessToken: rumAccessToken,
-                    applicationName: applicationName,
-                    deploymentEnvironment: deploymentEnvironment,
+                    realm: window.ENV.SPLUNK_RUM_REALM,
+                    rumAccessToken: window.ENV.SPLUNK_RUM_TOKEN,
+                    applicationName: window.ENV.SPLUNK_APP_NAME,
+                    deploymentEnvironment: window.ENV.SPLUNK_ENV,
+                    globalAttributes: getSplunkGlobalAttributes(),
                     version: '2.0.5',
-                    globalAttributes: globalAttributes,
-                    environment: '',
                     // Digital Experience Analytics configuration
                     user: {
                       trackingMode: 'anonymousTracking'
                     },
-                    // Privacy controls
-                    maskAllText: true,
-                    sensitivityRules: [
-                      { rule: 'mask', selector: 'p' },
-                      { rule: 'unmask', selector: 'p.item-label' },
-                      { rule: 'exclude', selector: '#user-profile' }
-                    ]
+                    privacy: {
+                      "maskAllText": false
+                    },
+                    instrumentations: {
+                      "frustrationSignals": {
+                        "rageClick": true
+                      }
+                    },
+                    _experimental_dataAttributesToCapture: [
+                      "data-cy",
+                    ],
+                    _experimental_spaMetrics: true
                   });
-
+                  
                   // Initialize tracer for custom spans and expose globally
-                  const Provider = SplunkRum.provider;
-                  var tracer = Provider.getTracer('appModuleLoader');
+                  const tracer = SplunkRum.provider.getTracer('appModuleLoader');
                   window.tracer = tracer; // Make tracer available globally for custom spans
-
-                  if (typeof SplunkSessionRecorder !== 'undefined') {
+                `,
+              }}
+          />
+          <script
+              src="https://cdn.signalfx.com/o11y-gdi-rum/next/splunk-otel-web-session-recorder.js"
+              crossOrigin="anonymous"
+          />
+          <script
+              id="splunk-session-recorder-init"
+              dangerouslySetInnerHTML={{
+                __html: `
                     SplunkSessionRecorder.init({
-                      realm: realm,
-                      rumAccessToken: rumAccessToken
+                        realm: window.ENV.SPLUNK_RUM_REALM,
+                        rumAccessToken: window.ENV.SPLUNK_RUM_TOKEN,
+                        maskAllText: false
                     });
-                  }
-                } else {
-                  setTimeout(initializeSplunkRUM, 100);
-                }
-              })();
-            `
-          }} />
+                `,
+              }}
+          />
         </Head>
         <body>
           <Main />

@@ -90,6 +90,7 @@ const ProductReviews = () => {
                     data-cy="AskAIInput"
                 />
                 <S.AskAIButton
+                    id="btn-ask-ai"
                     type="button"
                     onClick={() => handleAskAI()}
                     disabled={aiLoading || !aiQuestion.trim()}
@@ -102,6 +103,7 @@ const ProductReviews = () => {
 
             <S.AskAIControls>
                 <S.QuickPromptButton
+                    id="btn-quick-prompt-summarize"
                     type="button"
                     onClick={() => handleQuickPrompt('Can you summarize the product reviews?')}
                     data-cy="QuickPromptSummarize"
@@ -110,6 +112,7 @@ const ProductReviews = () => {
                 </S.QuickPromptButton>
 
                 <S.QuickPromptButton
+                    id="btn-quick-prompt-ages"
                     type="button"
                     onClick={() => handleQuickPrompt('What age(s) is this recommended for?')}
                     data-cy="QuickPromptAges"
@@ -118,6 +121,7 @@ const ProductReviews = () => {
                 </S.QuickPromptButton>
 
                 <S.QuickPromptButton
+                    id="btn-quick-prompt-negative"
                     type="button"
                     onClick={() => handleQuickPrompt('Were there any negative reviews?')}
                     data-cy="QuickPromptNegative"
@@ -191,19 +195,34 @@ const ProductReviews = () => {
                 )}
 
           {Array.isArray(productReviews) && productReviews.length > 0 && (
-            <S.ReviewsGrid as="ul">
-              {productReviews.map((review, idx) => (
-                <S.ReviewCard as="li" key={`${review.username}-${review.score}-${idx}`}>
-                  <S.ReviewHeader>
-                    <S.ReviewerName>{review.username}</S.ReviewerName>
-                    <StarRating value={Number(review.score) || 0} />
-                  </S.ReviewHeader>
-                  <S.ReviewBody>
-                    {review.description || 'No description provided.'}
-                  </S.ReviewBody>
-                </S.ReviewCard>
-              ))}
-            </S.ReviewsGrid>
+            <>
+              <S.ReviewsGrid as="ul">
+                {productReviews.map((review, idx) => (
+                  <S.ReviewCard as="li" key={`${review.username}-${review.score}-${idx}`}>
+                    <S.ReviewHeader>
+                      <S.ReviewerName>{review.username}</S.ReviewerName>
+                      <StarRating value={Number(review.score) || 0} />
+                    </S.ReviewHeader>
+                    <S.ReviewBody>
+                      {review.description || 'No description provided.'}
+                    </S.ReviewBody>
+                  </S.ReviewCard>
+                ))}
+              </S.ReviewsGrid>
+
+              {/* Intentionally non-functional button for rage click testing */}
+              {/* This button appears clickable but does nothing - used to test user frustration metrics and rage click detection in RUM */}
+              <S.ShowMoreButton
+                id="btn-show-all-reviews"
+                type="button"
+                onClick={() => {
+                  // Intentionally empty - no action for rage click testing
+                }}
+                data-cy="ShowAllReviews"
+              >
+                Show All Reviews
+              </S.ShowMoreButton>
+            </>
           )}
         </>
       )}

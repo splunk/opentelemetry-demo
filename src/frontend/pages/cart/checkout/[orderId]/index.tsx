@@ -111,7 +111,7 @@ const Checkout: NextPage = () => {
 
             <S.ButtonContainer>
               <Link href="/">
-                <Button type="submit">Continue Shopping</Button>
+                <Button id="btn-confirmation-continue-shopping" type="submit">Continue Shopping</Button>
               </Link>
             </S.ButtonContainer>
           </S.Container>
