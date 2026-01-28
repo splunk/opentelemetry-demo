@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Document, { DocumentContext, Html, Head, Main, NextScript } from 'next/document';
-import Script from 'next/script'
 import { ServerStyleSheet } from 'styled-components';
 import {context, propagation} from "@opentelemetry/api";
 
@@ -60,21 +59,18 @@ export default class MyDocument extends Document<{ envString: string }> {
             rel="stylesheet"
           />
           {/* Inject window.ENV first */}
-          <Script
-              strategy="beforeInteractive"
+          <script
               crossOrigin="anonymous"
               dangerouslySetInnerHTML={{ __html: this.props.envString }}>
-          </Script>
+          </script>
           {/* Load user attributes generator - must load before RUM initialization */}
           <script src="/global-attributes.js"></script>
-          <Script
-              src={`https://cdn.signalfx.com/o11y-gdi-rum/next/splunk-otel-web.js`}
-              strategy="beforeInteractive"
+          <script
+              src="https://cdn.signalfx.com/o11y-gdi-rum/next/splunk-otel-web.js"
               crossOrigin="anonymous"
           />
-          <Script
+          <script
               id="splunk-rum-init"
-              strategy="beforeInteractive"
               dangerouslySetInnerHTML={{
                 __html: `
                   SplunkRum.init({
@@ -108,14 +104,12 @@ export default class MyDocument extends Document<{ envString: string }> {
                 `,
               }}
           />
-          <Script
-              src={`https://cdn.signalfx.com/o11y-gdi-rum/next/splunk-otel-web-session-recorder.js`}
-              strategy="beforeInteractive"
+          <script
+              src="https://cdn.signalfx.com/o11y-gdi-rum/next/splunk-otel-web-session-recorder.js"
               crossOrigin="anonymous"
           />
-          <Script
+          <script
               id="splunk-session-recorder-init"
-              strategy="beforeInteractive"
               dangerouslySetInnerHTML={{
                 __html: `
                     SplunkSessionRecorder.init({
