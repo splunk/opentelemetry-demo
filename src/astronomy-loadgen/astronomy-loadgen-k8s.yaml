@@ -324,6 +324,13 @@ spec:
           value: "1000"
         - name: DEBUG_LOGGING
           value: ""  # Set to "true" to enable debug logging
+        resources:
+          requests:
+            memory: "768Mi"
+            cpu: "500m"
+          limits:
+            memory: "1536Mi"
+            cpu: "1000m"
         volumeMounts:
         - name: puppeteer
           subPath: local-file
