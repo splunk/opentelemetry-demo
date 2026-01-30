@@ -26,6 +26,19 @@ spec:
         app.kubernetes.io/name: accounting
     spec:
       serviceAccountName: opentelemetry-demo
+      # DNS Configuration to prevent stale DNS caching
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        options:
+          # Reduce DNS TTL to 10 seconds for faster updates
+          - name: ndots
+            value: "2"
+          # Number of DNS queries before giving up
+          - name: timeout
+            value: "2"
+          # Number of retries for DNS queries
+          - name: attempts
+            value: "3"
       containers:
       - name: accounting
         image: ghcr.io/splunk/opentelemetry-demo/otel-accounting:1.5.0
@@ -46,6 +59,15 @@ spec:
           value: cumulative
         - name: KAFKA_ADDR
           value: kafka:9092
+        # Kafka connection retry configuration
+        - name: KAFKA_RECONNECT_BACKOFF_MS
+          value: "1000"
+        - name: KAFKA_RECONNECT_BACKOFF_MAX_MS
+          value: "10000"
+        - name: KAFKA_CONNECTIONS_MAX_IDLE_MS
+          value: "300000"
+        - name: KAFKA_METADATA_MAX_AGE_MS
+          value: "10000"
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
           value: http://$(OTEL_COLLECTOR_NAME):4318
         - name: DB_CONNECTION_STRING
@@ -60,7 +82,9 @@ spec:
           value: 'true'
         resources:
           limits:
-            memory: 300Mi
+            memory: 512Mi
+          requests:
+            memory: 256Mi
         volumeMounts: null
       initContainers:
       - command:
