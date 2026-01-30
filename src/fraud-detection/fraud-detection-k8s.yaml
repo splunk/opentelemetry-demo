@@ -82,7 +82,9 @@ spec:
           value: '0'
         resources:
           limits:
-            memory: 450Mi
+            memory: 1Gi
+          requests:
+            memory: 512Mi
         volumeMounts: null
       initContainers:
       - command:

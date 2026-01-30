@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Copyright The OpenTelemetry Authors
+SPDX-License-Identifier: Apache-2.0
+-->
+
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} - %logger{36} - %msg trace_id=%X{trace_id} span_id=%X{span_id} trace_flags=%X{trace_flags} %n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Set log level for flagd resolver to INFO to suppress DEBUG messages about keep_alive events -->
+    <logger name="dev.openfeature.contrib.providers.flagd.resolver.rpc.RpcResolver" level="INFO"/>
+
+    <!-- Set log level for flagd provider to INFO -->
+    <logger name="dev.openfeature.contrib.providers.flagd" level="INFO"/>
+
+    <!-- Set log level for OpenFeature SDK to INFO -->
+    <logger name="dev.openfeature.sdk" level="INFO"/>
+
+    <!-- Set log level for gRPC/Netty to INFO to reduce verbosity -->
+    <logger name="io.grpc.netty" level="INFO"/>
+
+    <root level="INFO">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>
