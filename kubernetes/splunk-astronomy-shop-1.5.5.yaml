@@ -5,6 +5,7 @@
 # This manifest represents the actual deployed state on dev-astronomy
 # Includes stability improvements from PR #97:
 #   - Accounting: DNS optimization, Kafka auto-reconnect, memory increase (300Mi → 512Mi)
+#   - Fraud-Detection: Memory increase to prevent OOMKilled (450Mi → 1Gi)
 #   - Frontend: Upgraded to 1.6.0 for enhanced RUM features
 #   - Payment: Custom build with sarah-fix
 #   - Shop-DC-Load-Generator: Proper image (not curl placeholder)
@@ -1524,7 +1525,9 @@ spec:
           value: '0'
         resources:
           limits:
-            memory: 450Mi
+            memory: 1Gi
+          requests:
+            memory: 512Mi
         volumeMounts: null
       initContainers:
       - command:
