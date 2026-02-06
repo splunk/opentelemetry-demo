@@ -259,8 +259,6 @@ module.exports.charge = async request => {
         lastErr = err;
         clientSpan.addEvent('attempt.failure', { attempt, code: String(err.code || 401) });
         clientSpan.setAttributes({ 'http.status_code': String(err.code || 401) });
-        // Mark this attempt span as an error
-        clientSpan.setStatus({ code: SpanStatusCode.ERROR, message: String(err.code || 401) });
 
 
         // Flag the root span for every 401 attempt (not just the final failure)
