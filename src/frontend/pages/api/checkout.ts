@@ -16,7 +16,24 @@ const handler = async ({ method, body, query }: NextApiRequest, res: NextApiResp
     case 'POST': {
       const { currencyCode = '' } = query;
       const orderData = body as PlaceOrderRequest;
-      const { order: { items = [], ...order } = {} } = await CheckoutGateway.placeOrder(orderData);
+
+      let placeOrderResponse;
+      try {
+        placeOrderResponse = await CheckoutGateway.placeOrder(orderData);
+      } catch (error: any) {
+        // Handle gRPC errors and return appropriate HTTP status
+        const errorMessage = error?.message || 'Checkout failed';
+
+        // FAILED_PRECONDITION (code 9) - client error like empty cart
+        if (error?.code === 9) {
+          return res.status(400).json({ error: errorMessage } as any);
+        }
+
+        // Internal or other errors
+        return res.status(500).json({ error: errorMessage } as any);
+      }
+
+      const { order: { items = [], ...order } = {} } = placeOrderResponse;
 
       const productList: IProductCheckoutItem[] = await Promise.all(
         items.map(async ({ item: { productId = '', quantity = 0 } = {}, cost }) => {
