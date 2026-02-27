@@ -1,6 +1,6 @@
 # Splunk Astronomy Shop Kubernetes Manifest
 # Version: 1.5.0
-# Generated on: 2026-01-26T09:58:17Z
+# Generated on: 2026-02-27T12:07:35Z
 #
 # This manifest combines all service deployments for the Splunk Astronomy Shop
 # Services are defined in services.yaml
@@ -95,6 +95,19 @@ spec:
         app.kubernetes.io/name: accounting
     spec:
       serviceAccountName: opentelemetry-demo
+      # DNS Configuration to prevent stale DNS caching
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        options:
+          # Reduce DNS TTL to 10 seconds for faster updates
+          - name: ndots
+            value: "2"
+          # Number of DNS queries before giving up
+          - name: timeout
+            value: "2"
+          # Number of retries for DNS queries
+          - name: attempts
+            value: "3"
       containers:
       - name: accounting
         image: ghcr.io/splunk/opentelemetry-demo/otel-accounting:1.5.0
@@ -115,6 +128,15 @@ spec:
           value: cumulative
         - name: KAFKA_ADDR
           value: kafka:9092
+        # Kafka connection retry configuration
+        - name: KAFKA_RECONNECT_BACKOFF_MS
+          value: "1000"
+        - name: KAFKA_RECONNECT_BACKOFF_MAX_MS
+          value: "10000"
+        - name: KAFKA_CONNECTIONS_MAX_IDLE_MS
+          value: "300000"
+        - name: KAFKA_METADATA_MAX_AGE_MS
+          value: "10000"
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
           value: http://$(OTEL_COLLECTOR_NAME):4318
         - name: DB_CONNECTION_STRING
@@ -129,7 +151,9 @@ spec:
           value: 'true'
         resources:
           limits:
-            memory: 300Mi
+            memory: 512Mi
+          requests:
+            memory: 256Mi
         volumeMounts: null
       initContainers:
       - command:
@@ -581,6 +605,13 @@ spec:
           value: "1000"
         - name: DEBUG_LOGGING
           value: ""  # Set to "true" to enable debug logging
+        resources:
+          requests:
+            memory: "768Mi"
+            cpu: "500m"
+          limits:
+            memory: "1536Mi"
+            cpu: "1000m"
         volumeMounts:
         - name: puppeteer
           subPath: local-file
@@ -1496,7 +1527,9 @@ spec:
           value: '0'
         resources:
           limits:
-            memory: 450Mi
+            memory: 1Gi
+          requests:
+            memory: 512Mi
         volumeMounts: null
       initContainers:
       - command:
