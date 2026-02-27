@@ -66,10 +66,10 @@ class ExpiredCreditCard extends CreditCardError {
 }
 
 // Simulated external payment processor (accepts both new and original request shapes)
-function buttercupPaymentsApiCharge(request, token) {
+function buttercupPaymentsApiCharge(request, token, customDelayMs = null) {
   return new Promise((resolve, reject) => {
     if (token === API_TOKEN_FAILURE_TOKEN) {
-      const timeoutMillis = randomInt(0, ERROR_PAYMENT_SERVICE_DURATION_MILLIS);
+      const timeoutMillis = customDelayMs !== null ? customDelayMs : randomInt(0, ERROR_PAYMENT_SERVICE_DURATION_MILLIS);
       setTimeout(() => reject(new InvalidRequestError()), timeoutMillis);
       return;
     }
@@ -117,10 +117,50 @@ function buttercupPaymentsApiCharge(request, token) {
   });
 }
 
-// TODO: Revisit retry logic for buttercupPaymentsApiCharge
-//       - Decide if per-attempt probability failures should bypass validation errors
-//       - Consider whether to create a new client span per attempt instead of a single span
-//       - Confirm max retry behavior from OpenFeature flag or default
+// Helper function to distribute delay across retry attempts
+// Target total time: 4-8 seconds for failed requests
+function calculateFailureTimings(totalAttempts) {
+  // Total duration should be between 4000-8000ms
+  const totalDurationMs = randomInt(4000, 8000);
+
+  // We'll distribute time across API call delays and backoff delays
+  // Strategy: exponential-ish backoff but tuned to hit our total target
+  const timings = [];
+  let remainingTime = totalDurationMs;
+
+  for (let i = 0; i < totalAttempts; i++) {
+    const isLastAttempt = i === totalAttempts - 1;
+
+    // Distribute remaining time, giving more to later attempts (exponential-like)
+    const weight = Math.pow(1.5, i);
+    const totalWeight = Array.from({length: totalAttempts}, (_, idx) => Math.pow(1.5, idx))
+      .reduce((sum, w) => sum + w, 0);
+
+    let attemptTime = Math.floor((weight / totalWeight) * totalDurationMs);
+
+    // For last attempt, use all remaining time
+    if (isLastAttempt) {
+      attemptTime = remainingTime;
+    }
+
+    // Split attempt time between API delay and backoff (if not last)
+    let apiDelay, backoff;
+    if (isLastAttempt) {
+      apiDelay = attemptTime;
+      backoff = 0;
+    } else {
+      // 70% for API delay, 30% for backoff
+      apiDelay = Math.floor(attemptTime * 0.7);
+      backoff = attemptTime - apiDelay;
+    }
+
+    timings.push({ apiDelay, backoff });
+    remainingTime -= attemptTime;
+  }
+
+  return { timings, totalDurationMs };
+}
+
 module.exports.charge = async request => {
   // Create a SERVER span so attributes are promoted in Splunk O11y
   const span = tracer.startSpan('charge', {
@@ -138,7 +178,20 @@ module.exports.charge = async request => {
   const RETRY_MAX = Math.max(0, Math.floor(retryMaxRaw));
   const RETRY_BASE_DELAY_MS = 150;
   const numberVariant = await OpenFeature.getClient().getNumberValue('paymentFailure', 0);
-  // token will now be chosen per-attempt inside the retry loop
+
+  // IMPORTANT CHANGE: Decide once at the beginning whether this request will fail
+  const shouldFailRequest = numberVariant > 0 && Math.random() < numberVariant;
+
+  // If this request is destined to fail, pre-calculate timing to ensure 4-8 seconds total
+  let failureTimings = null;
+  if (shouldFailRequest) {
+    failureTimings = calculateFailureTimings(RETRY_MAX);
+    logger.info({
+      shouldFailRequest: true,
+      targetDurationMs: failureTimings.totalDurationMs,
+      timings: failureTimings.timings
+    }, 'Request will fail - calculated failure timings');
+  }
 
   const creditCard = request.creditCard || request.credit_card || {};
   const card = cardValidator(creditCard.creditCardNumber || creditCard.number || creditCard.credit_card_number);
@@ -153,6 +206,14 @@ module.exports.charge = async request => {
     'app.payment.card_valid': valid,
     'app.loyalty.level': loyalty_level,
   });
+
+  // Add planned failure information to span
+  if (shouldFailRequest && failureTimings) {
+    span.setAttributes({
+      'app.payment.planned_failure': true,
+      'app.payment.target_duration_ms': failureTimings.totalDurationMs
+    });
+  }
 
   let attempt = 0;
   let lastErr = null;
@@ -181,12 +242,21 @@ module.exports.charge = async request => {
         trace.setSpan(context.active(), span)
       );
 
-      // Recalculate success/failure for this attempt
-      const shouldFailAttempt = numberVariant > 0 && Math.random() < numberVariant;
-      const token = shouldFailAttempt ? API_TOKEN_FAILURE_TOKEN : API_TOKEN_SUCCESS_TOKEN;
-      clientSpan.addEvent('attempt.start', { attempt, shouldFailAttempt });
+      // Use the pre-determined success/failure decision (made once per request)
+      const token = shouldFailRequest ? API_TOKEN_FAILURE_TOKEN : API_TOKEN_SUCCESS_TOKEN;
+
+      // Get pre-calculated timing for this attempt (if failing)
+      const attemptTiming = failureTimings ? failureTimings.timings[attempt - 1] : null;
+      const customApiDelay = attemptTiming ? attemptTiming.apiDelay : null;
+
+      clientSpan.addEvent('attempt.start', {
+        attempt,
+        shouldFailRequest,
+        customApiDelay,
+        plannedBackoff: attemptTiming ? attemptTiming.backoff : null
+      });
       try {
-        const resp = await buttercupPaymentsApiCharge(request, token);
+        const resp = await buttercupPaymentsApiCharge(request, token, customApiDelay);
         // Success
         clientSpan.addEvent('attempt.success', { attempt });
         clientSpan.setAttributes({ 'http.status_code': '200' });
@@ -295,7 +365,8 @@ module.exports.charge = async request => {
 
         // If more attempts remain, backoff and retry
         if (attempt < RETRY_MAX) {
-          const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
+          // Use pre-calculated backoff if this is a planned failure, otherwise use exponential backoff
+          const delay = attemptTiming ? attemptTiming.backoff : RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
           await sleep(delay);
           continue;
         }
