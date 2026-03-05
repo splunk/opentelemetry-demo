@@ -164,7 +164,7 @@ spec:
 
         # OpenTelemetry service name
         - name: OTEL_SERVICE_NAME
-          value: "payment-va"
+          value: "payment"
 
         # Feature flags
         - name: FLAGD_HOST
@@ -183,10 +183,26 @@ spec:
         # OpenTelemetry collector endpoint
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
           value: http://$(OTEL_COLLECTOR_NAME):4317
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: grpc
 
         # Resource attributes
         - name: OTEL_RESOURCE_ATTRIBUTES
-          value: "service.name=payment-va,service.version=1.7.0-a,payment.variant=A,deployment.stability=stable"
+          value: "service.name=payment,service.version=350.9,payment.variant=350.9,deployment.stability=stable"
+
+        # Splunk OpenTelemetry configuration
+        - name: SPLUNK_INSTRUMENTATION_METRICS_ENABLED
+          value: "true"
+        - name: SPLUNK_METRICS_ENABLED
+          value: "true"
+        - name: SPLUNK_PROFILER_ENABLED
+          value: "false"
+        - name: SPLUNK_PROFILER_MEMORY_ENABLED
+          value: "false"
+
+        # Logging
+        - name: OTEL_LOG_LEVEL
+          value: info
 
         resources:
           requests:
@@ -262,7 +278,7 @@ spec:
 
         # OpenTelemetry service name
         - name: OTEL_SERVICE_NAME
-          value: "payment-vb"
+          value: "payment"
 
         # Feature flags
         - name: FLAGD_HOST
@@ -281,10 +297,26 @@ spec:
         # OpenTelemetry collector endpoint
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
           value: http://$(OTEL_COLLECTOR_NAME):4317
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: grpc
 
         # Resource attributes
         - name: OTEL_RESOURCE_ATTRIBUTES
-          value: "service.name=payment-vb,service.version=1.7.0-b,payment.variant=B,deployment.stability=canary"
+          value: "service.name=payment,service.version=350.10,payment.variant=350.10,deployment.stability=canary"
+
+        # Splunk OpenTelemetry configuration
+        - name: SPLUNK_INSTRUMENTATION_METRICS_ENABLED
+          value: "true"
+        - name: SPLUNK_METRICS_ENABLED
+          value: "true"
+        - name: SPLUNK_PROFILER_ENABLED
+          value: "false"
+        - name: SPLUNK_PROFILER_MEMORY_ENABLED
+          value: "false"
+
+        # Logging
+        - name: OTEL_LOG_LEVEL
+          value: info
 
         resources:
           requests:
