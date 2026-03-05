@@ -318,7 +318,7 @@ spec:
 
       containers:
       - name: checkout
-        image: ghcr.io/hagen-p/opentelemetry-demo-splunk/otel-checkout:test-1.7
+        image: ghcr.io/hagen-p/opentelemetry-demo-splunk/checkout:test-1.7
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -340,6 +340,8 @@ spec:
         # Checkout configuration
         - name: CHECKOUT_PORT
           value: '8080'
+        - name: PAYMENT_ADDR
+          value: payment-va:8080
         - name: CART_ADDR
           value: cart:8080
         - name: CURRENCY_ADDR
