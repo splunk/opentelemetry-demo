@@ -98,11 +98,17 @@ spec:
         - name: FLAGD_PORT
           value: "8013"
 
+        # Get node IP for collector
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: OTEL_COLLECTOR_NAME
+          value: $(NODE_IP)
+
         # OpenTelemetry collector configuration
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: http://$(OTEL_COLLECTOR_NAME):4318
-        - name: OTEL_COLLECTOR_NAME
-          value: $(OTEL_COLLECTOR_NAME)
+          value: http://$(OTEL_COLLECTOR_NAME):4317
 
         # Resource attributes (includes version-specific tags)
         - name: OTEL_RESOURCE_ATTRIBUTES
