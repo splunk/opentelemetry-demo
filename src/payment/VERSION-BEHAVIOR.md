@@ -39,7 +39,7 @@ kind: Secret
 metadata:
   name: payment-va-secret
 stringData:
-  api-token: "prod-vA-a8cf28f9-1a1a-4994-bafa-cd4b143c3291"
+  api-token: "prod-a8cf28f9-1a1a-4994-bafa-cd4b143c3291"
 ```
 
 ### Expected Logs
@@ -48,7 +48,7 @@ stringData:
 {
   "level": "info",
   "service.name": "payment-va",
-  "token": "prod-vA-a8cf28f9-...",
+  "token": "prod-a8cf28f9-...",
   "version": "v350.9",
   "message": "Charging through ButtercupPayments"
 }
@@ -121,7 +121,7 @@ kind: Secret
 metadata:
   name: payment-vb-secret
 stringData:
-  api-token: "prod-vB-3f2e4d9c-8b7a-4c3d-9e2f-1a4b5c6d7e8f"
+  api-token: "test-20e26e90-356b-432e-a2c6-956fc03f5609"
 ```
 
 ### Expected Logs
@@ -131,9 +131,9 @@ stringData:
 {
   "level": "error",
   "service.name": "payment-vb",
-  "token": "prod-vB-3f2e4d9c-...",  ← Token from secret
+  "token": "test-20e26e90-...",  ← Token from secret
   "version": "v350.10",
-  "message": "Failed payment processing through ButtercupPayments: Invalid API Token (prod-vB-3f2e4d9c-...)"
+  "message": "Failed payment processing through ButtercupPayments: Invalid API Token (test-20e26e90-...)"
 }
 ```
 
@@ -142,9 +142,9 @@ stringData:
 {
   "level": "error",
   "service.name": "payment-vb",
-  "token": "prod-vB-3f2e4d9c-...",  ← Token from secret
+  "token": "test-20e26e90-...",  ← Token from secret
   "version": "v350.10",
-  "message": "Failed payment processing through ButtercupPayments after 4 retries: Invalid API Token (prod-vB-3f2e4d9c-...)"
+  "message": "Failed payment processing through ButtercupPayments after 4 retries: Invalid API Token (test-20e26e90-...)"
 }
 ```
 
@@ -219,7 +219,8 @@ if rand.Float64() < probability {
 |---------|-----------|-----------|
 | **Behavior** | Succeeds | Always fails |
 | **Secret** | `payment-va-secret` | `payment-vb-secret` |
-| **Token** | `prod-vA-...` | `prod-vB-...` |
+| **Token** | `prod-a8cf28f9...` | `test-20e26e90...` |
+| **Version** | `v350.9` | `v350.10` |
 | **Attempts** | 1 (succeeds) | 4 (all fail) |
 | **Duration** | 0-200ms | 4-10 seconds |
 | **Logs Token** | Yes (on success) | Yes (in errors) |
@@ -237,7 +238,7 @@ if rand.Float64() < probability {
 **Result**:
 - All payments go to `payment-va`
 - All succeed in ~100ms
-- Logs show `prod-vA-...` token
+- Logs show `prod-a8cf28f9...` token with version `v350.9`
 - No errors
 
 ### Scenario 2: Error Testing (10% to Version B)
@@ -247,7 +248,7 @@ if rand.Float64() < probability {
 **Result**:
 - 90% of payments → `payment-va` (succeed)
 - 10% of payments → `payment-vb` (fail after 4-10 seconds)
-- Version B logs show `prod-vB-...` token in errors
+- Version B logs show `test-20e26e90...` token with version `v350.10` in errors
 - Can compare error behavior in Splunk APM
 
 ### Scenario 3: Full Error Mode (All to Version B)
@@ -258,7 +259,7 @@ if rand.Float64() < probability {
 - All payments go to `payment-vb`
 - All fail with 4 retry attempts
 - Total duration: 4-10 seconds per payment
-- Logs show `prod-vB-...` token in all error messages
+- Logs show `test-20e26e90...` token with version `v350.10` in all error messages
 - Useful for testing error handling, retry behavior, timeout handling
 
 ---
@@ -299,11 +300,11 @@ service.name=payment-vb
 **Token visibility in logs**:
 ```spl
 index=logs service.name=payment-vb error=true
-| rex field=message "(?<token>prod-vB-[a-f0-9-]+)"
+| rex field=message "(?<token>test-[a-f0-9-]+)"
 | stats count by token
 ```
 
-Should show: `prod-vB-3f2e4d9c-8b7a-4c3d-9e2f-1a4b5c6d7e8f`
+Should show: `test-20e26e90-356b-432e-a2c6-956fc03f5609`
 
 ---
 

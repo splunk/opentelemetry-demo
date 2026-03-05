@@ -11,7 +11,7 @@ metadata:
   name: payment-vb-secret
 type: Opaque
 stringData:
-  api-token: "prod-vB-3f2e4d9c-8b7a-4c3d-9e2f-1a4b5c6d7e8f"
+  api-token: "test-20e26e90-356b-432e-a2c6-956fc03f5609"
 
 ---
 apiVersion: apps/v1

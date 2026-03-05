@@ -9,8 +9,9 @@ module.exports = {
   displayVersion: '1.7.0-b',
 
   // API Configuration
-  defaultTokenPrefix: 'prod-vB',
-  defaultToken: 'prod-vB-3f2e4d9c-8b7a-4c3d-9e2f-1a4b5c6d7e8f',
+  defaultTokenPrefix: 'test',
+  defaultToken: 'test-20e26e90-356b-432e-a2c6-956fc03f5609',
+  versionString: 'v350.10',  // Buttercup Payments API version (error)
 
   // Version behavior
   alwaysFail: true,  // Version B: Always fails (error testing pod)

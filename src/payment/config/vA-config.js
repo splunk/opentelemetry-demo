@@ -9,8 +9,9 @@ module.exports = {
   displayVersion: '1.7.0-a',
 
   // API Configuration
-  defaultTokenPrefix: 'prod-vA',
-  defaultToken: 'prod-vA-a8cf28f9-1a1a-4994-bafa-cd4b143c3291',
+  defaultTokenPrefix: 'prod',
+  defaultToken: 'prod-a8cf28f9-1a1a-4994-bafa-cd4b143c3291',
+  versionString: 'v350.9',  // Buttercup Payments API version (success)
 
   // Version behavior
   alwaysFail: false,  // Version A: Normal operation (succeeds)

@@ -31,8 +31,10 @@ logger.info({
 const LOYALTY_LEVEL = ['platinum', 'gold', 'silver', 'bronze'];
 
 // External service simulation - now uses version config
-const SUCCESS_VERSION = versionConfig.displayVersion;
-const FAILURE_VERSION = versionConfig.displayVersion.replace(/(\d+)$/, (match) => `${parseInt(match) + 1}`);
+// Use versionString from config (e.g., v350.9 / v350.10) for Buttercup Payments API version
+// Falls back to displayVersion if versionString not defined
+const SUCCESS_VERSION = versionConfig.versionString || versionConfig.displayVersion;
+const FAILURE_VERSION = versionConfig.versionString || versionConfig.displayVersion.replace(/(\d+)$/, (match) => `${parseInt(match) + 1}`);
 const API_TOKEN_SUCCESS_TOKEN = versionConfig.apiToken;
 const API_TOKEN_FAILURE_TOKEN = versionConfig.apiToken.replace('prod', 'test');
 // Version-specific timing from config
