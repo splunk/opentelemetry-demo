@@ -231,16 +231,38 @@ jobs:
                   # Get dockerfile path (default to standard location)
                   dockerfile = svc.get('dockerfile', f'src/{name}/Dockerfile')
 
-                  services_to_build.append({
-                      'name': name,
-                      'platform': platform,
-                      'dockerfile': dockerfile
-                  })
+                  # Special handling for payment service - build A and B versions
+                  if name == 'payment':
+                      # Build version A
+                      services_to_build.append({
+                          'name': name,
+                          'variant': 'A',
+                          'platform': platform,
+                          'dockerfile': dockerfile,
+                          'build_args': 'VERSION=A'
+                      })
+                      # Build version B
+                      services_to_build.append({
+                          'name': name,
+                          'variant': 'B',
+                          'platform': platform,
+                          'dockerfile': dockerfile,
+                          'build_args': 'VERSION=B'
+                      })
+                  else:
+                      # Normal service - single build
+                      services_to_build.append({
+                          'name': name,
+                          'variant': '',
+                          'platform': platform,
+                          'dockerfile': dockerfile,
+                          'build_args': ''
+                      })
 
           # Create matrix - ensure at least a dummy entry to avoid GitHub Actions error
           if not services_to_build:
               # Add dummy entry that will be skipped
-              matrix = {'include': [{'name': '_skip', 'platform': 'linux/amd64', 'dockerfile': 'none'}]}
+              matrix = {'include': [{'name': '_skip', 'variant': '', 'platform': 'linux/amd64', 'dockerfile': 'none', 'build_args': ''}]}
           else:
               matrix = {'include': services_to_build}
 
@@ -253,7 +275,8 @@ jobs:
           print(f"Services to build: {len(services_to_build)}")
           if services_to_build:
               for svc in services_to_build:
-                  print(f"  - {svc['name']} (platform: {svc['platform']})")
+                  variant_str = f" (variant: {svc['variant']})" if svc['variant'] else ""
+                  print(f"  - {svc['name']}{variant_str} (platform: {svc['platform']})")
           else:
               print("  (none - dummy matrix entry added)")
           PYTHON_SCRIPT
@@ -311,17 +334,31 @@ jobs:
         id: image
         run: |
           SERVICE_NAME="${{ matrix.name }}"
+          VARIANT="${{ matrix.variant }}"
           REGISTRY="${{ needs.prepare-matrix.outputs.registry }}"
+          VERSION="${{ needs.determine-version.outputs.version }}"
 
           # All services use otel-{service} naming convention
           IMAGE_NAME="otel-${SERVICE_NAME}"
 
-          FULL_IMAGE="${REGISTRY}/${IMAGE_NAME}:${{ needs.determine-version.outputs.version }}"
+          # Add variant suffix to version tag if this is a variant build (payment A/B)
+          if [ -n "$VARIANT" ]; then
+            VARIANT_LOWER=$(echo "$VARIANT" | tr '[:upper:]' '[:lower:]')
+            VERSION_TAG="${VERSION}-${VARIANT_LOWER}"
+          else
+            VERSION_TAG="${VERSION}"
+          fi
+
+          FULL_IMAGE="${REGISTRY}/${IMAGE_NAME}:${VERSION_TAG}"
 
           echo "image_name=${IMAGE_NAME}" >> $GITHUB_OUTPUT
           echo "full_image=${FULL_IMAGE}" >> $GITHUB_OUTPUT
+          echo "version_tag=${VERSION_TAG}" >> $GITHUB_OUTPUT
 
           echo "Building: ${FULL_IMAGE}"
+          if [ -n "$VARIANT" ]; then
+            echo "Variant: ${VARIANT}"
+          fi
 
       - name: Check for Dockerfile
         if: steps.check-skip.outputs.skip != 'true'
@@ -344,6 +381,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           push: true
           tags: ${{ steps.image.outputs.full_image }}
+          build-args: ${{ matrix.build_args }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           no-cache: ${{ inputs.no_cache }}
@@ -351,14 +389,27 @@ jobs:
       - name: Image info
         if: steps.check.outputs.exists == 'true'
         run: |
-          echo "### ✅ Image Built: ${{ matrix.name }}" >> $GITHUB_STEP_SUMMARY
+          VARIANT="${{ matrix.variant }}"
+          if [ -n "$VARIANT" ]; then
+            SERVICE_DISPLAY="${{ matrix.name }} (variant $VARIANT)"
+          else
+            SERVICE_DISPLAY="${{ matrix.name }}"
+          fi
+
+          echo "### ✅ Image Built: ${SERVICE_DISPLAY}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Service | \`${{ matrix.name }}\` |" >> $GITHUB_STEP_SUMMARY
+          if [ -n "$VARIANT" ]; then
+            echo "| Variant | \`$VARIANT\` |" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "| Image | \`${{ steps.image.outputs.full_image }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Platform | \`${{ matrix.platform }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Dockerfile | \`${{ matrix.dockerfile }}\` |" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ matrix.build_args }}" ]; then
+            echo "| Build Args | \`${{ matrix.build_args }}\` |" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Skip notice
         if: steps.check.outputs.exists == 'false'
