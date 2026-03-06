@@ -75,7 +75,7 @@ spec:
         env:
         # Version configuration (baked into image, can override)
         - name: PAYMENT_VERSION
-          value: "vB"
+          value: "350.10"
 
         # Token from dedicated secret for version B
         - name: PAYMENT_API_TOKEN
