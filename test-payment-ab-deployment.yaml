@@ -149,7 +149,7 @@ spec:
         env:
         # Version configuration
         - name: PAYMENT_VERSION
-          value: "350.9"
+          value: "vA"
 
         # Token from secret
         - name: PAYMENT_API_TOKEN
@@ -264,7 +264,7 @@ spec:
         env:
         # Version configuration
         - name: PAYMENT_VERSION
-          value: "350.10"
+          value: "vB"
 
         # Token from secret
         - name: PAYMENT_API_TOKEN
