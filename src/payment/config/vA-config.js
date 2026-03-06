@@ -4,7 +4,7 @@
  */
 
 module.exports = {
-  name: 'payment-vA',
+  name: 'payment',
   version: 'vA',
   displayVersion: '1.7.0-a',
 

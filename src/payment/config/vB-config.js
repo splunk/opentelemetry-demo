@@ -4,7 +4,7 @@
  */
 
 module.exports = {
-  name: 'payment-vB',
+  name: 'payment',
   version: 'vB',
   displayVersion: '1.7.0-b',
 
