@@ -8,7 +8,7 @@
 apiVersion: v1
 kind: Secret
 metadata:
-  name: payment-va-secret
+  name: prod-payment-secret
 type: Opaque
 stringData:
   api-token: "prod-a8cf28f9-1a1a-4994-bafa-cd4b143c3291"
@@ -75,14 +75,15 @@ spec:
         env:
         # Version configuration (baked into image, can override)
         - name: PAYMENT_VERSION
-          value: "vA"
+          value: "350.9"
 
         # Token from dedicated secret for version A
         - name: PAYMENT_API_TOKEN
           valueFrom:
             secretKeyRef:
-              name: payment-va-secret
+              name: prod-payment-secret
               key: api-token
+              optional: false
 
         # Service configuration
         - name: PAYMENT_PORT
@@ -114,7 +115,7 @@ spec:
 
         # Resource attributes (includes version-specific tags)
         - name: OTEL_RESOURCE_ATTRIBUTES
-          value: "service.name=payment,service.version=350.9,payment.variant=350.9,deployment.environment=$(WORKSHOP_ENV)"
+          value: "service.name=payment,service.version=350.9,payment.variant=350.9"
 
         # Splunk OpenTelemetry configuration
         - name: SPLUNK_INSTRUMENTATION_METRICS_ENABLED

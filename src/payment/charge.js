@@ -352,7 +352,7 @@ module.exports.charge = async request => {
         context.with(trace.setSpan(context.active(), clientSpan), () => {
           logger.info(
             {
-              severity: 'info',
+              severity: 'INFO',
               time: Math.floor(Date.now() / 1000),
               pid: process.pid,
               hostname: require('os').hostname(),
@@ -374,7 +374,7 @@ module.exports.charge = async request => {
         if (synthetic) {
           logger.info(
             {
-              severity: 'info',
+              severity: 'INFO',
               time: Math.floor(Date.now() / 1000),
               pid: process.pid,
               hostname: require('os').hostname(),
@@ -429,12 +429,12 @@ module.exports.charge = async request => {
         }
 
         // TODO: Revisit this log message to adjust for non-401 errors (currently always logs "Invalid API Token")
-        // Per-attempt failure log in original raw JSON shape (keep version; lowercase severity)
+        // Per-attempt failure log in original raw JSON shape (keep version; uppercase severity for Splunk)
         // Log within the OTel context of the client span before ending it
         context.with(trace.setSpan(context.active(), clientSpan), () => {
           logger.error(
             {
-              severity: 'error',
+              severity: 'ERROR',
               time: Math.floor(Date.now() / 1000),
               pid: process.pid,
               hostname: require('os').hostname(),
@@ -497,7 +497,7 @@ module.exports.charge = async request => {
     if (synthetic) {
       logger.info(
         {
-          severity: 'info',
+          severity: 'INFO',
           time: Math.floor(Date.now() / 1000),
           pid: process.pid,
           hostname: require('os').hostname(),
@@ -518,7 +518,7 @@ module.exports.charge = async request => {
       if (finalCode === 401) {
         logger.error(
           {
-            severity: 'error',
+            severity: 'ERROR',
             time: Math.floor(Date.now() / 1000),
             pid: process.pid,
             hostname: require('os').hostname(),
@@ -535,7 +535,7 @@ module.exports.charge = async request => {
       } else {
         logger.error(
           {
-            severity: 'error',
+            severity: 'ERROR',
             time: Math.floor(Date.now() / 1000),
             pid: process.pid,
             hostname: require('os').hostname(),

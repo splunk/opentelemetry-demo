@@ -15,7 +15,7 @@
 apiVersion: v1
 kind: Secret
 metadata:
-  name: payment-va-secret
+  name: prod-payment-secret
   labels:
     app: payment
     version: vA
@@ -28,7 +28,7 @@ stringData:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: payment-vb-secret
+  name: test-payment-secret
   labels:
     app: payment
     version: vB
@@ -149,14 +149,15 @@ spec:
         env:
         # Version configuration
         - name: PAYMENT_VERSION
-          value: "vA"
+          value: "350.9"
 
         # Token from secret
         - name: PAYMENT_API_TOKEN
           valueFrom:
             secretKeyRef:
-              name: payment-va-secret
+              name: prod-payment-secret
               key: api-token
+              optional: false
 
         # Service configuration
         - name: PAYMENT_PORT
@@ -263,14 +264,15 @@ spec:
         env:
         # Version configuration
         - name: PAYMENT_VERSION
-          value: "vB"
+          value: "350.10"
 
         # Token from secret
         - name: PAYMENT_API_TOKEN
           valueFrom:
             secretKeyRef:
-              name: payment-vb-secret
+              name: test-payment-secret
               key: api-token
+              optional: false
 
         # Service configuration
         - name: PAYMENT_PORT
