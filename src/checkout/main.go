@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -549,9 +550,34 @@ func (cs *checkout) convertCurrency(ctx context.Context, from *pb.Money, toCurre
 
 func (cs *checkout) chargeCard(ctx context.Context, amount *pb.Money, paymentInfo *pb.CreditCardInfo) (string, error) {
 	paymentService := cs.paymentSvcClient
+
+	// Check for intentional failure mode (uses existing paymentUnreachable flag)
 	if cs.isFeatureFlagEnabled(ctx, "paymentUnreachable") {
 		badAddress := "badAddress:50051"
 		c := mustCreateClient(badAddress)
+		paymentService = pb.NewPaymentServiceClient(c)
+	} else {
+		// Use paymentFailure flag to route between payment version A and B
+		// paymentFailure=0   → 100% to version A
+		// paymentFailure=0.5 → 50% to A, 50% to B
+		// paymentFailure=1   → 100% to version B
+		paymentFailureProbability := cs.getFeatureFlagFloat(ctx, "paymentFailure", 0.0)
+
+		// Generate random number to determine routing
+		shouldRouteToB := rand.Float64() < paymentFailureProbability
+
+		var paymentAddr string
+		if shouldRouteToB {
+			// Route to version B (optimized/faster)
+			paymentAddr = "payment-vb:8080"
+		} else {
+			// Route to version A (stable/conservative)
+			paymentAddr = "payment-va:8080"
+		}
+
+		// Create client for selected version
+		c := mustCreateClient(paymentAddr)
+		defer c.Close()
 		paymentService = pb.NewPaymentServiceClient(c)
 	}
 
@@ -746,4 +772,32 @@ func (cs *checkout) getIntFeatureFlag(ctx context.Context, featureFlagName strin
 	)
 
 	return int(featureFlagValue)
+}
+
+func (cs *checkout) getFeatureFlagString(ctx context.Context, featureFlagName string, defaultValue string) string {
+	client := openfeature.NewClient("checkout")
+
+	// Get string value from feature flag
+	featureFlagValue, _ := client.StringValue(
+		ctx,
+		featureFlagName,
+		defaultValue,
+		openfeature.EvaluationContext{},
+	)
+
+	return featureFlagValue
+}
+
+func (cs *checkout) getFeatureFlagFloat(ctx context.Context, featureFlagName string, defaultValue float64) float64 {
+	client := openfeature.NewClient("checkout")
+
+	// Get float value from feature flag
+	featureFlagValue, _ := client.FloatValue(
+		ctx,
+		featureFlagName,
+		defaultValue,
+		openfeature.EvaluationContext{},
+	)
+
+	return featureFlagValue
 }

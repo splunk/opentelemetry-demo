@@ -53,7 +53,7 @@ services:
     dockerfile: src/cart/src/Dockerfile
 
   - name: checkout
-    build: false
+    build: true
     manifest: true
     replace_registry: false  # Uses ghcr.io/open-telemetry/demo (standard)
 

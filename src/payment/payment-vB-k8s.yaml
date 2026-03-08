@@ -1,0 +1,194 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# Payment Service Version B - Optimized/Next-gen Version
+# This manifest deploys payment service v1.7.0-b with version-specific configuration
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: test-payment-secret
+type: Opaque
+stringData:
+  api-token: "test-20e26e90-356b-432e-a2c6-956fc03f5609"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-vb
+  labels:
+    app: payment
+    version: vB
+    opentelemetry.io/name: payment-vb
+    app.kubernetes.io/component: payment
+    app.kubernetes.io/name: payment-vb
+    app.kubernetes.io/version: "1.7.0-b"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payment
+      version: vB
+  template:
+    metadata:
+      labels:
+        app: payment
+        version: vB
+        opentelemetry.io/name: payment-vb
+        app.kubernetes.io/component: payment
+        app.kubernetes.io/name: payment-vb
+    spec:
+      serviceAccountName: opentelemetry-demo
+
+      # Node affinity and anti-affinity for separation
+      affinity:
+        # Prefer nodes labeled for version B
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: payment-version
+                operator: In
+                values: ["vB"]
+
+        # Anti-affinity - never on same node as version A
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: payment
+                version: vA
+            topologyKey: kubernetes.io/hostname
+
+      containers:
+      - name: payment
+        image: ghcr.io/splunk/opentelemetry-demo/otel-payment:1.7.0-b
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: grpc
+          protocol: TCP
+
+        env:
+        # Version configuration (baked into image, can override)
+        - name: PAYMENT_VERSION
+          value: "350.10"
+
+        # Token from dedicated secret for version B
+        - name: PAYMENT_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: test-payment-secret
+              key: api-token
+              optional: false
+
+        # Service configuration
+        - name: PAYMENT_PORT
+          value: "8080"
+
+        # OpenTelemetry service name
+        - name: OTEL_SERVICE_NAME
+          value: "payment"
+
+        # Feature flags
+        - name: FLAGD_HOST
+          value: flagd
+        - name: FLAGD_PORT
+          value: "8013"
+
+        # Get node IP for collector
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: OTEL_COLLECTOR_NAME
+          value: $(NODE_IP)
+
+        # OpenTelemetry collector configuration
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: http://$(OTEL_COLLECTOR_NAME):4317
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: grpc
+
+        # Resource attributes (includes version-specific tags)
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: "service.name=payment,service.version=350.10,payment.variant=350.10"
+
+        # Splunk OpenTelemetry configuration
+        - name: SPLUNK_INSTRUMENTATION_METRICS_ENABLED
+          value: "true"
+        - name: SPLUNK_METRICS_ENABLED
+          value: "true"
+        - name: SPLUNK_PROFILER_ENABLED
+          value: "false"
+        - name: SPLUNK_PROFILER_MEMORY_ENABLED
+          value: "false"
+
+        # Logging (more verbose for version B)
+        - name: OTEL_LOG_LEVEL
+          value: debug
+        - name: LOG_LEVEL
+          value: debug
+
+        # Workshop environment (dynamic)
+        - name: WORKSHOP_ENV
+          valueFrom:
+            secretKeyRef:
+              name: workshop-secret
+              key: env
+              optional: true
+
+        resources:
+          requests:
+            memory: 64Mi
+            cpu: 100m
+          limits:
+            memory: 120Mi
+            cpu: 200m
+
+        securityContext:
+          runAsUser: 1001
+          runAsGroup: 1001
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+
+        livenessProbe:
+          grpc:
+            port: 8080
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 5
+
+        readinessProbe:
+          grpc:
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-vb
+  labels:
+    app: payment
+    version: vB
+    opentelemetry.io/name: payment-vb
+spec:
+  type: ClusterIP
+  selector:
+    app: payment
+    version: vB
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: grpc
