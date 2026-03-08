@@ -9,19 +9,37 @@ const { FlagdProvider } = require('@openfeature/flagd-provider');
 const flagProvider = new FlagdProvider();
 
 const logger = require('./logger');
-const tracer = trace.getTracer('payment');
-const meter = metrics.getMeter('payment');
+
+// Load version-specific configuration
+const versionConfig = require('./config/version-config');
+
+// Initialize tracer with version info
+const tracer = trace.getTracer('payment', versionConfig.displayVersion);
+const meter = metrics.getMeter('payment', versionConfig.displayVersion);
 const transactionsCounter = meter.createCounter('app.payment.transactions');
+
+// Log which version is running
+logger.info({
+  version: versionConfig.version,
+  displayVersion: versionConfig.displayVersion,
+  name: versionConfig.name,
+  apiToken: versionConfig.apiToken.substring(0, 20) + '...',
+  retryMaxDefault: versionConfig.retryMaxDefault,
+  retryStrategy: versionConfig.retryStrategy,
+}, `Payment service ${versionConfig.displayVersion} initialized`);
 
 const LOYALTY_LEVEL = ['platinum', 'gold', 'silver', 'bronze'];
 
-// External service simulation (aligned with original semantics)
-const SUCCESS_VERSION = 'v350.9';
-const FAILURE_VERSION = 'v350.10';
-const API_TOKEN_SUCCESS_TOKEN = 'prod-a8cf28f9-1a1a-4994-bafa-cd4b143c3291';
-const API_TOKEN_FAILURE_TOKEN = 'test-20e26e90-356b-432e-a2c6-956fc03f5609';
-const SUCCESS_PAYMENT_SERVICE_DURATION_MILLIS = 200;  // fast success
-const ERROR_PAYMENT_SERVICE_DURATION_MILLIS = 1000;   // slower error
+// External service simulation - now uses version config
+// Use versionString from config (e.g., v350.9 / v350.10) for Buttercup Payments API version
+// Falls back to displayVersion if versionString not defined
+const SUCCESS_VERSION = versionConfig.versionString || versionConfig.displayVersion;
+const FAILURE_VERSION = versionConfig.versionString || versionConfig.displayVersion.replace(/(\d+)$/, (match) => `${parseInt(match) + 1}`);
+const API_TOKEN_SUCCESS_TOKEN = versionConfig.apiToken;
+const API_TOKEN_FAILURE_TOKEN = versionConfig.apiToken.replace('prod', 'test');
+// Version-specific timing from config
+const SUCCESS_PAYMENT_SERVICE_DURATION_MILLIS = versionConfig.successDelayRange[1];
+const ERROR_PAYMENT_SERVICE_DURATION_MILLIS = versionConfig.failureDelayRange[1];
 
 function random(arr) {
   const index = Math.floor(Math.random() * arr.length);
@@ -101,7 +119,8 @@ function buttercupPaymentsApiCharge(request, token, customDelayMs = null) {
       return;
     }
 
-    const timeoutMillis = randomInt(0, SUCCESS_PAYMENT_SERVICE_DURATION_MILLIS);
+    // Use version-specific success delay range
+    const timeoutMillis = randomInt(versionConfig.successDelayRange[0], versionConfig.successDelayRange[1]);
     setTimeout(() => {
       resolve({
         transaction_id: uuidv4(),
@@ -118,38 +137,96 @@ function buttercupPaymentsApiCharge(request, token, customDelayMs = null) {
 }
 
 // Helper function to distribute delay across retry attempts
-// Target total time: 4-8 seconds for failed requests
+// Version A: Not used (succeeds immediately)
+// Version B: Controlled timing with constraints:
+//   - Total: 4-10 seconds
+//   - 3 attempts: 4-7.3 seconds
+//   - Each attempt: random duration
 function calculateFailureTimings(totalAttempts) {
-  // Total duration should be between 4000-8000ms
-  const totalDurationMs = randomInt(4000, 8000);
+  // Version B specific: Use controlled timing constraints
+  if (versionConfig.alwaysFail && versionConfig.failureTimingConstraints) {
+    const constraints = versionConfig.failureTimingConstraints;
 
-  // We'll distribute time across API call delays and backoff delays
-  // Strategy: exponential-ish backoff but tuned to hit our total target
+    // Randomly decide total duration (4-10 seconds)
+    const totalDurationMs = randomInt(constraints.totalMinMs, constraints.totalMaxMs);
+
+    // Calculate duration for first 3 attempts (4-7.3 seconds)
+    const threeAttemptsDuration = randomInt(
+      constraints.threeAttemptsMinMs,
+      Math.min(constraints.threeAttemptsMaxMs, totalDurationMs - 500)  // Leave at least 500ms for 4th attempt
+    );
+
+    // Duration for 4th attempt (remaining time)
+    const fourthAttemptDuration = totalDurationMs - threeAttemptsDuration;
+
+    // Distribute time across first 3 attempts randomly
+    const timings = [];
+    let remainingThreeAttemptsTime = threeAttemptsDuration;
+
+    for (let i = 0; i < 3; i++) {
+      // Random distribution for first 2 attempts, remainder for 3rd
+      let attemptTime;
+      if (i < 2) {
+        // Random portion of remaining time (between 20% and 50%)
+        const minPortion = 0.2;
+        const maxPortion = 0.5;
+        const portion = minPortion + Math.random() * (maxPortion - minPortion);
+        attemptTime = Math.floor(remainingThreeAttemptsTime * portion);
+      } else {
+        // 3rd attempt gets the remainder
+        attemptTime = remainingThreeAttemptsTime;
+      }
+
+      // Split between API delay and backoff (70/30)
+      const apiDelay = Math.floor(attemptTime * 0.7);
+      const backoff = attemptTime - apiDelay;
+
+      timings.push({ apiDelay, backoff });
+      remainingThreeAttemptsTime -= attemptTime;
+    }
+
+    // 4th attempt (final, no backoff)
+    timings.push({
+      apiDelay: fourthAttemptDuration,
+      backoff: 0
+    });
+
+    logger.info({
+      totalDurationMs,
+      threeAttemptsDuration,
+      fourthAttemptDuration,
+      timings,
+      version: versionConfig.version
+    }, 'Version B: Calculated controlled failure timings');
+
+    return { timings, totalDurationMs };
+  }
+
+  // Fallback for version A or if constraints not defined (shouldn't be used)
+  const baseTarget = versionConfig.totalFailureTargetMs || 5000;
+  const totalDurationMs = randomInt(baseTarget, baseTarget + 1000);
+
   const timings = [];
   let remainingTime = totalDurationMs;
 
   for (let i = 0; i < totalAttempts; i++) {
     const isLastAttempt = i === totalAttempts - 1;
 
-    // Distribute remaining time, giving more to later attempts (exponential-like)
     const weight = Math.pow(1.5, i);
     const totalWeight = Array.from({length: totalAttempts}, (_, idx) => Math.pow(1.5, idx))
       .reduce((sum, w) => sum + w, 0);
 
     let attemptTime = Math.floor((weight / totalWeight) * totalDurationMs);
 
-    // For last attempt, use all remaining time
     if (isLastAttempt) {
       attemptTime = remainingTime;
     }
 
-    // Split attempt time between API delay and backoff (if not last)
     let apiDelay, backoff;
     if (isLastAttempt) {
       apiDelay = attemptTime;
       backoff = 0;
     } else {
-      // 70% for API delay, 30% for backoff
       apiDelay = Math.floor(attemptTime * 0.7);
       backoff = attemptTime - apiDelay;
     }
@@ -169,18 +246,28 @@ module.exports.charge = async request => {
       'rpc.system': 'grpc',
       'rpc.service': 'PaymentService',
       'rpc.method': 'Charge',
+      // Add version-specific attributes
+      ...versionConfig.resourceAttributes,
     }
   });
   await OpenFeature.setProviderAndWait(flagProvider);
-  // Fetch retry max from OpenFeature; default to 4 if not present
-  //const retryMaxRaw = await OpenFeature.getClient().getNumberValue('paymentRetryMax', 4);
-  const retryMaxRaw =  4;
-  const RETRY_MAX = Math.max(0, Math.floor(retryMaxRaw));
-  const RETRY_BASE_DELAY_MS = 150;
-  const numberVariant = await OpenFeature.getClient().getNumberValue('paymentFailure', 0);
 
-  // IMPORTANT CHANGE: Decide once at the beginning whether this request will fail
-  const shouldFailRequest = numberVariant > 0 && Math.random() < numberVariant;
+  // Use version-specific retry settings with optional feature flag override
+  let RETRY_MAX = versionConfig.retryMaxDefault;
+  if (versionConfig.useRetryMaxFlag) {
+    try {
+      const retryMaxRaw = await OpenFeature.getClient().getNumberValue('paymentRetryMax', versionConfig.retryMaxDefault);
+      RETRY_MAX = Math.max(0, Math.floor(retryMaxRaw));
+    } catch (e) {
+      logger.warn({ error: e.message }, 'Failed to read paymentRetryMax flag, using version default');
+    }
+  }
+  const RETRY_BASE_DELAY_MS = versionConfig.retryBaseDelayMs;
+
+  // Version-specific behavior:
+  // - Version A: Normal operation (succeeds)
+  // - Version B: Always fails (error testing pod)
+  const shouldFailRequest = versionConfig.alwaysFail || false;
 
   // If this request is destined to fail, pre-calculate timing to ensure 4-8 seconds total
   let failureTimings = null;
@@ -265,14 +352,14 @@ module.exports.charge = async request => {
         context.with(trace.setSpan(context.active(), clientSpan), () => {
           logger.info(
             {
-              severity: 'info',
+              severity: 'INFO',
               time: Math.floor(Date.now() / 1000),
               pid: process.pid,
               hostname: require('os').hostname(),
               name: 'paymentservice',
               trace_id: trace.getSpan(context.active()).spanContext().traceId,
               span_id: trace.getSpan(context.active()).spanContext().spanId,
-              'service.name': 'payment',
+              'service.name': versionConfig.name,
               token: token,
               version: SUCCESS_VERSION,
               message: 'Charging through ButtercupPayments',
@@ -287,14 +374,14 @@ module.exports.charge = async request => {
         if (synthetic) {
           logger.info(
             {
-              severity: 'info',
+              severity: 'INFO',
               time: Math.floor(Date.now() / 1000),
               pid: process.pid,
               hostname: require('os').hostname(),
               name: 'payment',
               trace_id: trace.getSpan(context.active()).spanContext().traceId,
               span_id: trace.getSpan(context.active()).spanContext().spanId,
-              'service.name': 'payment',
+              'service.name': versionConfig.name,
               message: 'Processing synthetic request - setting app.payment.charged=false',
               synthetic_request: true,
             }
@@ -342,19 +429,19 @@ module.exports.charge = async request => {
         }
 
         // TODO: Revisit this log message to adjust for non-401 errors (currently always logs "Invalid API Token")
-        // Per-attempt failure log in original raw JSON shape (keep version; lowercase severity)
+        // Per-attempt failure log in original raw JSON shape (keep version; uppercase severity for Splunk)
         // Log within the OTel context of the client span before ending it
         context.with(trace.setSpan(context.active(), clientSpan), () => {
           logger.error(
             {
-              severity: 'error',
+              severity: 'ERROR',
               time: Math.floor(Date.now() / 1000),
               pid: process.pid,
               hostname: require('os').hostname(),
               name: 'payment',
               trace_id: trace.getSpan(context.active()).spanContext().traceId,
               span_id: trace.getSpan(context.active()).spanContext().spanId,
-              'service.name': 'payment',
+              'service.name': versionConfig.name,
               token: API_TOKEN_FAILURE_TOKEN,
               version: FAILURE_VERSION,
               message: `Failed payment processing through ButtercupPayments: Invalid API Token (${API_TOKEN_FAILURE_TOKEN})`,
@@ -365,8 +452,19 @@ module.exports.charge = async request => {
 
         // If more attempts remain, backoff and retry
         if (attempt < RETRY_MAX) {
-          // Use pre-calculated backoff if this is a planned failure, otherwise use exponential backoff
-          const delay = attemptTiming ? attemptTiming.backoff : RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
+          // Use pre-calculated backoff if this is a planned failure
+          let delay;
+          if (attemptTiming) {
+            delay = attemptTiming.backoff;
+          } else {
+            // Use version-specific retry strategy
+            delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
+            // Add jitter if using exponential-jitter strategy
+            if (versionConfig.retryStrategy === 'exponential-jitter' && versionConfig.jitterMaxMs) {
+              const jitter = Math.random() * versionConfig.jitterMaxMs;
+              delay += jitter;
+            }
+          }
           await sleep(delay);
           continue;
         }
@@ -399,14 +497,14 @@ module.exports.charge = async request => {
     if (synthetic) {
       logger.info(
         {
-          severity: 'info',
+          severity: 'INFO',
           time: Math.floor(Date.now() / 1000),
           pid: process.pid,
           hostname: require('os').hostname(),
           name: 'payment',
           trace_id: trace.getSpan(context.active()).spanContext().traceId,
           span_id: trace.getSpan(context.active()).spanContext().spanId,
-          'service.name': 'payment',
+          'service.name': versionConfig.name,
           message: 'Processing synthetic request (all retries failed) - setting app.payment.charged=false',
           synthetic_request: true,
         }
@@ -420,14 +518,14 @@ module.exports.charge = async request => {
       if (finalCode === 401) {
         logger.error(
           {
-            severity: 'error',
+            severity: 'ERROR',
             time: Math.floor(Date.now() / 1000),
             pid: process.pid,
             hostname: require('os').hostname(),
             name: 'paymentservice',
             trace_id: trace.getSpan(context.active()).spanContext().traceId,
             span_id: trace.getSpan(context.active()).spanContext().spanId,
-            'service.name': 'paymentservice',
+            'service.name': versionConfig.name,
             token: API_TOKEN_FAILURE_TOKEN,
             version: FAILURE_VERSION,
             message: `Failed payment processing through ButtercupPayments after ${RETRY_MAX} retries: Invalid API Token (${API_TOKEN_FAILURE_TOKEN})`,
@@ -437,14 +535,14 @@ module.exports.charge = async request => {
       } else {
         logger.error(
           {
-            severity: 'error',
+            severity: 'ERROR',
             time: Math.floor(Date.now() / 1000),
             pid: process.pid,
             hostname: require('os').hostname(),
             name: 'paymentservice',
             trace_id: trace.getSpan(context.active()).spanContext().traceId,
             span_id: trace.getSpan(context.active()).spanContext().spanId,
-            'service.name': 'paymentservice',
+            'service.name': versionConfig.name,
             version: FAILURE_VERSION,
             message: 'Failed payment processing through ButtercupPayments after retries',
 
