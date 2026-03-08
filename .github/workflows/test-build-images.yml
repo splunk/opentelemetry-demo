@@ -370,8 +370,37 @@ jobs:
                 ;;
             esac
 
-            # Update the manifest
-            python3 .github/scripts/update-manifest-images.py "$SERVICE" "$REGISTRY" "$IMAGE_NAME" "$VERSION"
+            # Special handling for payment service (dual version)
+            if [ "$SERVICE" = "payment" ]; then
+              # Update payment-vA manifest
+              MANIFEST_PATH="src/payment/payment-vA-k8s.yaml"
+              if [ -f "$MANIFEST_PATH" ]; then
+                VERSION_TAG_A="${VERSION}-a"
+                NEW_IMAGE_A="${REGISTRY}/otel-payment:${VERSION_TAG_A}"
+                sed -i.bak -E "s|image:[ ]+[^ ]+/otel-payment:[^ ]+|image: ${NEW_IMAGE_A}|g" "$MANIFEST_PATH"
+                rm -f "${MANIFEST_PATH}.bak"
+                echo "✅ Updated $MANIFEST_PATH"
+                echo "   New image: $NEW_IMAGE_A"
+              else
+                echo "⚠️  Manifest not found: $MANIFEST_PATH"
+              fi
+
+              # Update payment-vB manifest
+              MANIFEST_PATH="src/payment/payment-vB-k8s.yaml"
+              if [ -f "$MANIFEST_PATH" ]; then
+                VERSION_TAG_B="${VERSION}-b"
+                NEW_IMAGE_B="${REGISTRY}/otel-payment:${VERSION_TAG_B}"
+                sed -i.bak -E "s|image:[ ]+[^ ]+/otel-payment:[^ ]+|image: ${NEW_IMAGE_B}|g" "$MANIFEST_PATH"
+                rm -f "${MANIFEST_PATH}.bak"
+                echo "✅ Updated $MANIFEST_PATH"
+                echo "   New image: $NEW_IMAGE_B"
+              else
+                echo "⚠️  Manifest not found: $MANIFEST_PATH"
+              fi
+            else
+              # Standard service - single manifest
+              python3 .github/scripts/update-manifest-images.py "$SERVICE" "$REGISTRY" "$IMAGE_NAME" "$VERSION"
+            fi
           done
 
           echo ""
