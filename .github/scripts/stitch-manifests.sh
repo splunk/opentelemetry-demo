@@ -147,10 +147,11 @@ for svc in config.get('services', []):
                     # Replace registry URLs, image tags, and version numbers
                     # Pattern matches: ghcr.io/{org}/{repo} and replaces with ${REGISTRY_URL}
                     # Version replacement ONLY applies to images from ${REGISTRY_URL}, preserving third-party images
+                    # Special handling: Preserves version suffixes (e.g., -a, -b) for A/B testing variants
                     sed -e "s|ghcr.io/[^/]*/[^/]*|${REGISTRY_URL}|g" \
-                        -e "s|\(${REGISTRY_URL}/[^:]*\):[0-9][0-9.][^[:space:]]*|\1:${SERVICE_VERSION}|" \
-                        -e "s|app.kubernetes.io/version: [0-9][0-9.]*|app.kubernetes.io/version: ${SERVICE_VERSION}|g" \
-                        -e "s|service.version=[0-9][0-9.]*|service.version=${SERVICE_VERSION}|g" \
+                        -e "s|\(${REGISTRY_URL}/[^:]*\):[0-9][0-9.]*\([^[:space:]]*\)|\1:${SERVICE_VERSION}\2|" \
+                        -e "s|app.kubernetes.io/version: [0-9][0-9.]*\([^\"[:space:]]*\)|app.kubernetes.io/version: ${SERVICE_VERSION}\1|g" \
+                        -e "s|service.version=[0-9][0-9.]*\([^,[:space:]]*\)|service.version=${SERVICE_VERSION}\1|g" \
                         "$CURRENT_MANIFEST" >> "$OUTPUT_FILE"
                 elif [ "$SHOULD_REPLACE" = "false" ]; then
                     # Keep manifest completely as-is (no registry replacement, no version replacement)
@@ -158,8 +159,9 @@ for svc in config.get('services', []):
                     echo "  (using original registry and versions)"
                 else
                     # No registry specified, but replace version numbers in labels only
-                    sed -e "s|app.kubernetes.io/version: [0-9][0-9.]*|app.kubernetes.io/version: ${SERVICE_VERSION}|g" \
-                        -e "s|service.version=[0-9][0-9.]*|service.version=${SERVICE_VERSION}|g" \
+                    # Preserves version suffixes (e.g., -a, -b) for A/B testing variants
+                    sed -e "s|app.kubernetes.io/version: [0-9][0-9.]*\([^\"[:space:]]*\)|app.kubernetes.io/version: ${SERVICE_VERSION}\1|g" \
+                        -e "s|service.version=[0-9][0-9.]*\([^,[:space:]]*\)|service.version=${SERVICE_VERSION}\1|g" \
                         "$CURRENT_MANIFEST" >> "$OUTPUT_FILE"
                 fi
 
@@ -218,10 +220,11 @@ for svc in config.get('services', []):
                 # Replace registry URLs, image tags, and version numbers
                 # Pattern matches: ghcr.io/{org}/{repo} and replaces with ${REGISTRY_URL}
                 # Version replacement ONLY applies to images from ${REGISTRY_URL}, preserving third-party images
+                # Special handling: Preserves version suffixes (e.g., -a, -b) for A/B testing variants
                 sed -e "s|ghcr.io/[^/]*/[^/]*|${REGISTRY_URL}|g" \
-                    -e "s|\(${REGISTRY_URL}/[^:]*\):[0-9][0-9.][^[:space:]]*|\1:${SERVICE_VERSION}|" \
-                    -e "s|app.kubernetes.io/version: [0-9][0-9.]*|app.kubernetes.io/version: ${SERVICE_VERSION}|g" \
-                    -e "s|service.version=[0-9][0-9.]*|service.version=${SERVICE_VERSION}|g" \
+                    -e "s|\(${REGISTRY_URL}/[^:]*\):[0-9][0-9.]*\([^[:space:]]*\)|\1:${SERVICE_VERSION}\2|" \
+                    -e "s|app.kubernetes.io/version: [0-9][0-9.]*\([^\"[:space:]]*\)|app.kubernetes.io/version: ${SERVICE_VERSION}\1|g" \
+                    -e "s|service.version=[0-9][0-9.]*\([^,[:space:]]*\)|service.version=${SERVICE_VERSION}\1|g" \
                     "$MANIFEST_FILE" >> "$OUTPUT_FILE"
             elif [ "$SHOULD_REPLACE" = "false" ]; then
                 # Keep manifest completely as-is (no registry replacement, no version replacement)
@@ -229,8 +232,9 @@ for svc in config.get('services', []):
                 echo "  (using original registry and versions)"
             else
                 # No registry specified, but replace version numbers in labels only
-                sed -e "s|app.kubernetes.io/version: [0-9][0-9.]*|app.kubernetes.io/version: ${SERVICE_VERSION}|g" \
-                    -e "s|service.version=[0-9][0-9.]*|service.version=${SERVICE_VERSION}|g" \
+                # Preserves version suffixes (e.g., -a, -b) for A/B testing variants
+                sed -e "s|app.kubernetes.io/version: [0-9][0-9.]*\([^\"[:space:]]*\)|app.kubernetes.io/version: ${SERVICE_VERSION}\1|g" \
+                    -e "s|service.version=[0-9][0-9.]*\([^,[:space:]]*\)|service.version=${SERVICE_VERSION}\1|g" \
                     "$MANIFEST_FILE" >> "$OUTPUT_FILE"
             fi
 
