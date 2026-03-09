@@ -55,7 +55,7 @@ services:
   - name: checkout
     build: true
     manifest: true
-    replace_registry: false  # Uses ghcr.io/open-telemetry/demo (standard)
+    replace_registry: true  # Uses Splunk registry (custom build)
 
   - name: currency
     build: false
