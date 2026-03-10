@@ -1525,7 +1525,7 @@ metadata:
     opentelemetry.io/name: frontend
     app.kubernetes.io/component: frontend
     app.kubernetes.io/name: frontend
-    app.kubernetes.io/version: 1.7.0
+    app.kubernetes.io/version: 1.7.1
     app.kubernetes.io/part-of: opentelemetry-demo
 spec:
   type: ClusterIP
@@ -1544,7 +1544,7 @@ metadata:
     opentelemetry.io/name: frontend
     app.kubernetes.io/component: frontend
     app.kubernetes.io/name: frontend
-    app.kubernetes.io/version: 1.7.0
+    app.kubernetes.io/version: 1.7.1
     app.kubernetes.io/part-of: opentelemetry-demo
 spec:
   replicas: 1
@@ -1562,7 +1562,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: frontend
-        image: ghcr.io/splunk/opentelemetry-demo/otel-frontend:1.7.0
+        image: ghcr.io/splunk/opentelemetry-demo/otel-frontend:1.7.1
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -1669,7 +1669,7 @@ metadata:
     opentelemetry.io/name: frontend-proxy
     app.kubernetes.io/component: frontend-proxy
     app.kubernetes.io/name: frontend-proxy
-    app.kubernetes.io/version: 1.7.0
+    app.kubernetes.io/version: 1.7.1
     app.kubernetes.io/part-of: opentelemetry-demo
 spec:
   type: ClusterIP
@@ -1688,7 +1688,7 @@ metadata:
     opentelemetry.io/name: frontend-proxy
     app.kubernetes.io/component: frontend-proxy
     app.kubernetes.io/name: frontend-proxy
-    app.kubernetes.io/version: 1.7.0
+    app.kubernetes.io/version: 1.7.1
     app.kubernetes.io/part-of: opentelemetry-demo
 spec:
   replicas: 1
@@ -1706,7 +1706,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: frontend-proxy
-        image: ghcr.io/splunk/opentelemetry-demo/otel-frontend-proxy:1.7.0
+        image: ghcr.io/splunk/opentelemetry-demo/otel-frontend-proxy:1.7.1
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
