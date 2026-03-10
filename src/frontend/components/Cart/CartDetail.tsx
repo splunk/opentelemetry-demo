@@ -61,7 +61,8 @@ const CartDetail = () => {
         // Check if the order response contains an error (backend returned error as 200)
         if ((order as any).error) {
           const errorMessage = (order as any).error;
-          setCheckoutError(errorMessage);
+          // Set friendly error message for user, log technical details to console
+          setCheckoutError("Oh Dear, there seems to be a problem with your order. Please contact a sales representative at 1-800-ASTRONOMY (1-800-278-766-669)");
           console.error('Checkout failed:', errorMessage);
 
           // Determine if this is a payment failure specifically
@@ -106,9 +107,9 @@ const CartDetail = () => {
           query: { order: JSON.stringify(order) },
         });
       } catch (error: any) {
-        // Display error message to user
+        // Log technical details but show friendly message to user
         const errorMessage = error?.message || 'Failed to place order. Please try again.';
-        setCheckoutError(errorMessage);
+        setCheckoutError("Oh Dear, there seems to be a problem with your order. Please contact a sales representative at 1-800-ASTRONOMY (1-800-278-766-669)");
         console.error('Checkout error:', error);
 
         // Create RUM custom event for checkout errors
@@ -154,15 +155,22 @@ const CartDetail = () => {
       <div>
         {checkoutError && (
           <div style={{
-            backgroundColor: '#fee',
-            border: '1px solid #f88',
-            borderRadius: '4px',
-            padding: '12px 16px',
+            backgroundColor: '#fff3cd',
+            border: '1px solid #ffc107',
+            borderRadius: '8px',
+            padding: '16px 20px',
             marginBottom: '16px',
-            color: '#c00',
-            fontSize: '14px'
+            color: '#856404',
+            fontSize: '14px',
+            lineHeight: '1.5'
           }}>
-            <strong>Checkout Error:</strong> {checkoutError}
+            <div style={{ marginBottom: '8px' }}>
+              <strong>⚠️ Order Issue</strong>
+            </div>
+            <div>{checkoutError}</div>
+            <div style={{ marginTop: '12px', fontSize: '12px', fontStyle: 'italic' }}>
+              Note: This is a demonstration phone number and is not in service.
+            </div>
           </div>
         )}
         <CheckoutForm onSubmit={onPlaceOrder} />
