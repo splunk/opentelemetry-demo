@@ -1,68 +1,31 @@
 # Splunk Astronomy Shop Kubernetes Manifest
 # Version: 1.7.0
-# Generated on: 2026-03-09T15:25:23Z
+# Generated on: 2026-03-10T15:46:37Z
 #
 # This manifest combines all service deployments for the Splunk Astronomy Shop
 # Services are defined in services.yaml
 ---
 
 # === ingress ===
-#ingress format for astronomy-shop.splunko11y.com with TLS
+# === ingress for DIAB  ===
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: frontend-proxy-ingress
+  name: frontend
   annotations:
-    kubernetes.io/ingress.class: traefik
-    # Force redirect HTTP to HTTPS
-    traefik.ingress.kubernetes.io/redirect-entry-point: https
-    traefik.ingress.kubernetes.io/redirect-permanent: "true"
-    # Or for newer Traefik versions:
-    # traefik.ingress.kubernetes.io/router.middlewares: default-redirect-https@kubernetescrd
 spec:
-  tls:
-  - hosts:
-    - astronomy-shop.splunko11y.com
-    # Note: secretName only needed if using cert-manager for SSL certs
-    # If AWS LB handles SSL termination, Traefik will still accept HTTPS on 443
-    # secretName: astronomy-shop-tls
+  ingressClassName: traefik
   rules:
-    - host: astronomy-shop.splunko11y.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: frontend-proxy
-                port:
-                  number: 8080
-
-# # Ingress format for official demo with AWS domain
-# apiVersion: networking.k8s.io/v1
-# kind: Ingress
-# metadata:
-#   name: frontend-proxy
-#   annotations:
-#     cert-manager.io/cluster-issuer: "letsencrypt-prod"
-#     traefik.ingress.kubernetes.io/router.middlewares: default-custom-headers@kubernetescrd
-# spec:
-#   ingressClassName: traefik
-#   tls:
-#   - hosts:
-#     - jrh-instance.splunko11y.com
-#     secretName: splunk-demo-tls
-#   rules:
-#   - host: jrh-instance.splunko11y.com
-#     http:
-#       paths:
-#       - path: /
-#         pathType: Prefix
-#         backend:
-#           service:
-#             name: frontend-proxy
-#             port:
-#               number: 8080
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend-proxy
+            port:
+              number: 8080
+              
 ---
 ---
 
@@ -755,7 +718,7 @@ metadata:
     opentelemetry.io/name: checkout
     app.kubernetes.io/component: checkout
     app.kubernetes.io/name: checkout
-    app.kubernetes.io/version: 2.1.3
+    app.kubernetes.io/version: 1.7.0
     app.kubernetes.io/part-of: opentelemetry-demo
 spec:
   type: ClusterIP
@@ -774,7 +737,7 @@ metadata:
     opentelemetry.io/name: checkout
     app.kubernetes.io/component: checkout
     app.kubernetes.io/name: checkout
-    app.kubernetes.io/version: 2.1.3
+    app.kubernetes.io/version: 1.7.0
     app.kubernetes.io/part-of: opentelemetry-demo
 spec:
   replicas: 1
@@ -836,7 +799,7 @@ spec:
         - name: GOMEMLIMIT
           value: 16MiB
         - name: OTEL_RESOURCE_ATTRIBUTES
-          value: service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version=2.1.3,service.kafka=no
+          value: service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version=1.7.0,service.kafka=no
         resources:
           limits:
             memory: 20Mi
@@ -1660,6 +1623,7 @@ spec:
             secretKeyRef:
               name: workshop-secret
               key: api_token
+              optional: true
         - name: SPLUNK_RUM_TOKEN
           valueFrom:
             secretKeyRef:
@@ -1800,11 +1764,13 @@ spec:
             secretKeyRef:
               name: workshop-secret
               key: flagd_user
+              optional: true
         - name: FEATURE_PASS
           valueFrom:
             secretKeyRef:
               name: workshop-secret
               key: flagd_pw
+              optional: true
         resources:
           limits:
             memory: 65Mi
@@ -2171,7 +2137,7 @@ spec:
 
       containers:
       - name: payment
-        image: ghcr.io/splunk/opentelemetry-demo/otel-payment:1.7.0
+        image: ghcr.io/splunk/opentelemetry-demo/otel-payment:1.7.0-a
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
@@ -2367,7 +2333,7 @@ spec:
 
       containers:
       - name: payment
-        image: ghcr.io/splunk/opentelemetry-demo/otel-payment:1.7.0
+        image: ghcr.io/splunk/opentelemetry-demo/otel-payment:1.7.0-b
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
