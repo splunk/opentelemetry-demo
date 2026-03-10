@@ -17,20 +17,51 @@ import { IProductCheckout } from '../../../../types/Cart';
 
 const Checkout: NextPage = () => {
   const { query } = useRouter();
-  const { items = [], shippingAddress, orderId } = JSON.parse((query.order || '{}') as string) as IProductCheckout;
+  const orderData = JSON.parse((query.order || '{}') as string);
+  const hasError = !!(orderData as any).error;
+  const { items = [], shippingAddress, orderId } = orderData as IProductCheckout;
 
-  // Create a custom span for order confirmation
+  // Create a custom span for order confirmation or error page view
   useEffect(() => {
-    if (orderId && typeof window !== 'undefined') {
-      // Use the tracer from window if available (initialized in _document.tsx)
-      if (typeof (window as any).tracer !== 'undefined') {
-        const tracer = (window as any).tracer;
-        const span = tracer.startSpan('order.confirmed', {
+    if (typeof window !== 'undefined' && typeof (window as any).tracer !== 'undefined') {
+      const tracer = (window as any).tracer;
+
+      if (hasError) {
+        // Create RUM custom workflow event for error page view
+        const span = tracer.startSpan('OrderConfirmationError', {
           attributes: {
+            'workflow.name': 'OrderConfirmationError',
+            'error': true,
+            'error.type': 'order_confirmation_with_error',
+            'error.category': 'order_processing',
+            'page.type': 'confirmation',
+            'page.state': 'error',
+          },
+        });
+
+        span.addEvent('error_page_viewed', {
+          'error.reached_confirmation': true,
+          'error.should_not_happen': true,
+        });
+
+        console.log('Order confirmation error page viewed - this should not happen with proper error handling');
+        span.end();
+      } else if (orderId) {
+        // Success case - order confirmed
+        const span = tracer.startSpan('OrderConfirmed', {
+          attributes: {
+            'workflow.name': 'OrderConfirmed',
             'order.id': orderId,
             'order.items_count': items.length,
             'order.total_items': items.reduce((sum, item) => sum + item.item.quantity, 0),
+            'page.type': 'confirmation',
+            'page.state': 'success',
           },
+        });
+
+        span.addEvent('order_confirmation_viewed', {
+          'order.id': orderId,
+          'order.items': items.length,
         });
 
         console.log('Order confirmation span created:', {
@@ -39,11 +70,10 @@ const Checkout: NextPage = () => {
           totalItems: items.reduce((sum, item) => sum + item.item.quantity, 0),
         });
 
-        // End the span immediately as this is just a marker
         span.end();
       }
     }
-  }, [orderId, items]);
+  }, [orderId, items, hasError]);
 
   return (
     <AdProvider
@@ -51,23 +81,50 @@ const Checkout: NextPage = () => {
       contextKeys={[...new Set(items.flatMap(({ item }) => item.product.categories))]}
     >
       <Head>
-        <title>Otel Demo - Order Confirmation</title>
+        <title>Otel Demo - Order {hasError ? 'Error' : 'Confirmation'}</title>
       </Head>
       <Layout>
         <S.Checkout>
           <S.Container>
-            <S.Title>Your order is complete!</S.Title>
-            <S.Subtitle>We&apos;ve sent you a confirmation email.</S.Subtitle>
+            {hasError ? (
+              <>
+                <S.Title>Oh Dear, there seems to be a problem with your order.</S.Title>
+                <S.Subtitle>
+                  Please contact a sales representative at{' '}
+                  <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>1-800-ASTRONOMY</span>
+                  {' '}(1-800-278-766-669)
+                </S.Subtitle>
+                <div style={{
+                  backgroundColor: '#fff3cd',
+                  border: '1px solid #ffc107',
+                  borderRadius: '8px',
+                  padding: '16px 20px',
+                  marginTop: '24px',
+                  marginBottom: '24px',
+                  color: '#856404',
+                  fontSize: '14px'
+                }}>
+                  <strong>Note:</strong> This is a demonstration phone number and is not in service.
+                </div>
+              </>
+            ) : (
+              <>
+                <S.Title>Your order is complete!</S.Title>
+                <S.Subtitle>We&apos;ve sent you a confirmation email.</S.Subtitle>
+              </>
+            )}
 
-            <S.ItemList>
-              {items.map(checkoutItem => (
-                <CheckoutItem
-                  key={checkoutItem.item.productId}
-                  checkoutItem={checkoutItem}
-                  address={shippingAddress}
-                />
-              ))}
-            </S.ItemList>
+            {!hasError && (
+              <S.ItemList>
+                {items.map(checkoutItem => (
+                  <CheckoutItem
+                    key={checkoutItem.item.productId}
+                    checkoutItem={checkoutItem}
+                    address={shippingAddress}
+                  />
+                ))}
+              </S.ItemList>
+            )}
 
             <S.ButtonContainer>
               <Link href="/">
