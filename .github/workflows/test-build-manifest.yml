@@ -13,6 +13,11 @@ name: Build Demo Manifest - TEST
         required: false
         type: string
         default: '-test'
+      diab_scenario:
+        description: 'Enable DIAB scenario (includes ingress, adds -diab suffix)'
+        required: true
+        type: boolean
+        default: false
       commit_manifest:
         description: 'Commit the generated manifest to repository'
         required: true
@@ -73,12 +78,21 @@ jobs:
           echo "test_version=$TEST_VERSION" >> $GITHUB_OUTPUT
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
 
+          # Determine manifest filename
+          MANIFEST_SUFFIX=""
+          if [[ "${{ inputs.diab_scenario }}" == "true" ]]; then
+            MANIFEST_SUFFIX="-diab"
+          fi
+
           echo "### Test Build Configuration" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Current Version** (unchanged): \`$CURRENT_VERSION\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Test Version** (fallback): \`$TEST_VERSION\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Version Source**: $VERSION_SOURCE" >> $GITHUB_STEP_SUMMARY
-          echo "- **Output File**: \`kubernetes/TEST-splunk-astronomy-shop-${TEST_VERSION}.yaml\`" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ inputs.diab_scenario }}" == "true" ]]; then
+            echo "- **DIAB Scenario**: ✅ Enabled (includes ingress)" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "- **Output File**: \`kubernetes/TEST-splunk-astronomy-shop-${TEST_VERSION}${MANIFEST_SUFFIX}.yaml\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Show per-service versions if available
@@ -115,16 +129,29 @@ jobs:
           echo "> If not built, using original/existing tags" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
+          # Run stitch script with DIAB option if enabled
+          DIAB_FLAG=""
+          if [[ "${{ inputs.diab_scenario }}" == "true" ]]; then
+            DIAB_FLAG="diab"
+            echo "🔀 **DIAB Scenario Enabled** - Ingress will be included" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
           # Run stitch script WITHOUT registry replacement
           # This preserves whatever image tags are in the -k8s files
           # - If images were built by test-build-images workflow, tags are already updated
           # - If not built, uses existing tags (original upstream or previous builds)
           # Always includes ALL services with manifest: true from services.yaml
-          .github/scripts/stitch-manifests.sh
+          .github/scripts/stitch-manifests.sh $DIAB_FLAG
 
-          # Rename the generated file to TEST- prefix
-          GENERATED_FILE="kubernetes/splunk-astronomy-shop-${{ steps.version.outputs.test_version }}.yaml"
-          MANIFEST_FILE="kubernetes/TEST-splunk-astronomy-shop-${{ steps.version.outputs.test_version }}.yaml"
+          # Determine manifest filenames (with or without -diab suffix)
+          MANIFEST_SUFFIX=""
+          if [[ "${{ inputs.diab_scenario }}" == "true" ]]; then
+            MANIFEST_SUFFIX="-diab"
+          fi
+
+          GENERATED_FILE="kubernetes/splunk-astronomy-shop-${{ steps.version.outputs.test_version }}${MANIFEST_SUFFIX}.yaml"
+          MANIFEST_FILE="kubernetes/TEST-splunk-astronomy-shop-${{ steps.version.outputs.test_version }}${MANIFEST_SUFFIX}.yaml"
 
           if [ -f "$GENERATED_FILE" ]; then
             mv "$GENERATED_FILE" "$MANIFEST_FILE"
@@ -232,12 +259,18 @@ jobs:
       - name: Upload manifest as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: astronomy-shop-manifest-${{ steps.version.outputs.test_version }}
-          path: kubernetes/TEST-splunk-astronomy-shop-${{ steps.version.outputs.test_version }}.yaml
+          name: astronomy-shop-manifest-${{ steps.version.outputs.test_version }}${{ inputs.diab_scenario == true && '-diab' || '' }}
+          path: ${{ steps.stitch.outputs.manifest_file }}
           retention-days: 7
 
       - name: Generate deployment command
         run: |
+          ARTIFACT_NAME="astronomy-shop-manifest-${{ steps.version.outputs.test_version }}"
+          if [[ "${{ inputs.diab_scenario }}" == "true" ]]; then
+            ARTIFACT_NAME="${ARTIFACT_NAME}-diab"
+          fi
+          MANIFEST_BASENAME=$(basename "${{ steps.stitch.outputs.manifest_file }}")
+
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -250,7 +283,7 @@ jobs:
           echo "git pull" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "# Deploy to cluster" >> $GITHUB_STEP_SUMMARY
-          echo "kubectl apply -f kubernetes/TEST-splunk-astronomy-shop-${{ steps.version.outputs.test_version }}.yaml" >> $GITHUB_STEP_SUMMARY
+          echo "kubectl apply -f ${{ steps.stitch.outputs.manifest_file }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "# Verify deployment" >> $GITHUB_STEP_SUMMARY
           echo "kubectl get all -n astronomy-shop" >> $GITHUB_STEP_SUMMARY
@@ -258,9 +291,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Option 2: Download Artifact" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "1. Download artifact: \`astronomy-shop-manifest-${{ steps.version.outputs.test_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "1. Download artifact: \`${ARTIFACT_NAME}\`" >> $GITHUB_STEP_SUMMARY
           echo "2. Extract the YAML file" >> $GITHUB_STEP_SUMMARY
-          echo "3. Deploy: \`kubectl apply -f TEST-splunk-astronomy-shop-${{ steps.version.outputs.test_version }}.yaml\`" >> $GITHUB_STEP_SUMMARY
+          echo "3. Deploy: \`kubectl apply -f ${MANIFEST_BASENAME}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -291,7 +324,10 @@ jobs:
           echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| **Current Version** | \`${{ steps.version.outputs.current_version }}\` (unchanged) |" >> $GITHUB_STEP_SUMMARY
           echo "| **Test Version** | \`${{ steps.version.outputs.test_version }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Manifest File** | \`kubernetes/TEST-splunk-astronomy-shop-${{ steps.version.outputs.test_version }}.yaml\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Manifest File** | \`${{ steps.stitch.outputs.manifest_file }}\` |" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ inputs.diab_scenario }}" == "true" ]]; then
+            echo "| **DIAB Scenario** | ✅ Enabled (includes ingress) |" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "| **SPLUNK-VERSION Modified** | ❌ No |" >> $GITHUB_STEP_SUMMARY
           echo "| **Validated** | ${{ inputs.validate_manifest }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Committed** | ${{ inputs.commit_manifest }} |" >> $GITHUB_STEP_SUMMARY
