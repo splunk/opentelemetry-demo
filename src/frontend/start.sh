@@ -10,6 +10,9 @@ set -e
 
 echo "🚀 Starting frontend service..."
 
+# Set default values if environment variables are empty
+API_TOKEN="${API_TOKEN:-}"  # Default to empty string (skip sourcemap upload)
+
 # Upload sourcemaps if RUM credentials are provided
 # Note: API_TOKEN must be an API token with RUM ingest permissions, not the RUM token
 if [ -n "$API_TOKEN" ] && [ -n "$SPLUNK_RUM_REALM" ] && [ -n "$SPLUNK_APP_NAME" ]; then

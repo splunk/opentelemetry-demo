@@ -108,6 +108,7 @@ spec:
             secretKeyRef:
               name: workshop-secret
               key: api_token
+              optional: true
         - name: SPLUNK_RUM_TOKEN
           valueFrom:
             secretKeyRef:

@@ -105,11 +105,13 @@ spec:
             secretKeyRef:
               name: workshop-secret
               key: flagd_user
+              optional: true
         - name: FEATURE_PASS
           valueFrom:
             secretKeyRef:
               name: workshop-secret
               key: flagd_pw
+              optional: true
         resources:
           limits:
             memory: 65Mi
