@@ -41,6 +41,8 @@ dependencies {
     implementation("io.opentelemetry:opentelemetry-api:1.56.0")
     implementation("io.opentelemetry:opentelemetry-sdk:1.56.0")
     implementation("io.opentelemetry:opentelemetry-extension-annotations:1.18.0")
+    implementation("io.opentelemetry:opentelemetry-context:1.56.0")
+    implementation("io.opentelemetry:opentelemetry-semconv:1.56.0-alpha")
     implementation("org.apache.logging.log4j:log4j-core:2.25.2")
     implementation("org.slf4j:slf4j-api:2.0.17")
     implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.25.2")
