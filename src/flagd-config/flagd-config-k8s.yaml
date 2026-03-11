@@ -142,8 +142,7 @@ data:
           "description": "Route payment requests to version A (stable) or B (canary/error testing) - percentage routes to B",
           "state": "ENABLED",
           "variants": {
-            "100%": 1,
-            "90%": 0.95,
+            "90%": 0.9,
             "75%": 0.75,
             "50%": 0.5,
             "25%": 0.25,
