@@ -1,9 +1,32 @@
 # Splunk Astronomy Shop Kubernetes Manifest
 # Version: 1.7.0
-# Generated on: 2026-03-10T16:07:03Z
+# Generated on: 2026-03-11T15:04:27Z
 #
 # This manifest combines all service deployments for the Splunk Astronomy Shop
 # Services are defined in services.yaml
+---
+
+# === ingress ===
+# === ingress for DIAB  ===
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: frontend
+  annotations:
+spec:
+  ingressClassName: traefik
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend-proxy
+            port:
+              number: 8080
+              
+---
 ---
 
 # === accounting ===
@@ -1501,7 +1524,7 @@ metadata:
     opentelemetry.io/name: frontend
     app.kubernetes.io/component: frontend
     app.kubernetes.io/name: frontend
-    app.kubernetes.io/version: 1.7.1
+    app.kubernetes.io/version: 1.7.0
     app.kubernetes.io/part-of: opentelemetry-demo
 spec:
   type: ClusterIP
@@ -1520,7 +1543,7 @@ metadata:
     opentelemetry.io/name: frontend
     app.kubernetes.io/component: frontend
     app.kubernetes.io/name: frontend
-    app.kubernetes.io/version: 1.7.1
+    app.kubernetes.io/version: 1.7.0
     app.kubernetes.io/part-of: opentelemetry-demo
 spec:
   replicas: 1
@@ -1538,7 +1561,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: frontend
-        image: ghcr.io/splunk/opentelemetry-demo/otel-frontend:1.7.1
+        image: ghcr.io/splunk/opentelemetry-demo/otel-frontend:1.7.0
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -1645,7 +1668,7 @@ metadata:
     opentelemetry.io/name: frontend-proxy
     app.kubernetes.io/component: frontend-proxy
     app.kubernetes.io/name: frontend-proxy
-    app.kubernetes.io/version: 1.7.1
+    app.kubernetes.io/version: 1.7.0
     app.kubernetes.io/part-of: opentelemetry-demo
 spec:
   type: ClusterIP
@@ -1664,7 +1687,7 @@ metadata:
     opentelemetry.io/name: frontend-proxy
     app.kubernetes.io/component: frontend-proxy
     app.kubernetes.io/name: frontend-proxy
-    app.kubernetes.io/version: 1.7.1
+    app.kubernetes.io/version: 1.7.0
     app.kubernetes.io/part-of: opentelemetry-demo
 spec:
   replicas: 1
@@ -1682,7 +1705,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: frontend-proxy
-        image: ghcr.io/splunk/opentelemetry-demo/otel-frontend-proxy:1.7.1
+        image: ghcr.io/splunk/opentelemetry-demo/otel-frontend-proxy:1.7.0
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -3799,4 +3822,27 @@ spec:
         volumeMounts: null
       volumes: null
 
+---
+
+# === ingress ===
+# === ingress for DIAB  ===
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: frontend
+  annotations:
+spec:
+  ingressClassName: traefik
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend-proxy
+            port:
+              number: 8080
+              
+---
 ---
