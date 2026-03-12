@@ -22,14 +22,15 @@ clusterReceiver:
         receivers:
           # SQL Server for Shop DC Shim - only created when pod is ready
           sqlserver/shopshim:
-            rule: type == "pod" && name matches "shop-dc-shim-db" && port == 1433
+            rule: type == "pod.container" && pod.annotations["splunk.com/monitor"] == "sqlserver" && pod.annotations["splunk.com/sqlserver.database"] == "shopshim"
             config:
               collection_interval: 10s
               top_query_collection:
                 lookback_time: 300s
               username: sa
               password: ShopPass123!
-              endpoint: '`endpoint`:`port`'
+              server: '`endpoint`'
+              port: 1433
               resource_attributes:
                 sqlserver.instance.name:
                   enabled: true
@@ -75,14 +76,15 @@ clusterReceiver:
                     enabled: true
           # SQL Server for Fraud Detection - only created when pod is ready
           sqlserver/fraud:
-            rule: type == "pod" && name matches "sql-server-fraud" && port == 1433
+            rule: type == "pod.container" && pod.annotations["splunk.com/monitor"] == "sqlserver" && pod.annotations["splunk.com/sqlserver.database"] == "fraud"
             config:
               collection_interval: 10s
               top_query_collection:
                 lookback_time: 120s
               username: sa
               password: "ChangeMe_SuperStrong123!"
-              endpoint: '`endpoint`:`port`'
+              server: '`endpoint`'
+              port: 1433
               resource_attributes:
                 sqlserver.instance.name:
                   enabled: true
@@ -129,12 +131,30 @@ clusterReceiver:
                     enabled: true
                 sqlserver.database.latency:
                   enabled: true
+          # PostgreSQL for Main Database - only created when pod is ready
+          postgresql/main:
+            rule: type == "pod.container" && pod.annotations["splunk.com/monitor"] == "postgresql" && pod.annotations["splunk.com/postgresql.database"] == "otel"
+            config:
+              endpoint: '`endpoint`:5432'
+              transport: tcp
+              username: root
+              password: otel
+              databases:
+                - otel
+              tls:
+                insecure: true
+              collection_interval: 10s
+              events:
+                db.server.query_sample:
+                  enabled: true
+                db.server.top_query:
+                  enabled: true
+    extensions:
       # K8s Observer watches for pod endpoints - required for receiver_creator
       k8s_observer:
         auth_type: serviceAccount
-        node: ${K8S_NODE_NAME}
         observe_pods: true
-        observe_nodes: false  
+        observe_nodes: false
     exporters:
       # Exports dbmon events as logs
       otlphttp/dbmon:
@@ -163,6 +183,7 @@ clusterReceiver:
             statements:
               - set(resource.attributes["service.instance.id"], Concat([resource.attributes["k8s.pod.name"], " - ", resource.attributes["sqlserver.instance.name"]], ""))
     service:
+      extensions: [health_check, k8s_observer]
       pipelines:
         metrics:
           exporters: [signalfx]
