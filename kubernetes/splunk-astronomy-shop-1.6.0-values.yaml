@@ -15,113 +15,126 @@ clusterReceiver:
       namespaces: [default, splunk]
   config:
     receivers:
-      sqlserver/shopshim:
-        collection_interval: 10s
-        top_query_collection:
-          lookback_time: 300s
-        username: sa
-        password: ShopPass123!
-        server: shop-dc-shim-db
-        port: 1433
-        resource_attributes:
-          sqlserver.instance.name:
-            enabled: true
-        events:
-          db.server.query_sample:
-            enabled: true
-          db.server.top_query:
-            enabled: true
-        metrics:
-          sqlserver.batch.request.rate:
-              enabled: true
-          sqlserver.batch.sql_compilation.rate:
-              enabled: true
-          sqlserver.batch.sql_recompilation.rate:
-              enabled: true
-          sqlserver.database.count:
-              enabled: true
-          sqlserver.database.io:
-              enabled: true
-          sqlserver.database.latency:
-              enabled: true
-          sqlserver.database.operations:
-              enabled: true
-          sqlserver.deadlock.rate:
-              enabled: true
-          sqlserver.lock.wait.count:
-              enabled: true
-          sqlserver.lock.wait.rate:
-              enabled: true
-          sqlserver.os.wait.duration:
-              enabled: true
-          sqlserver.page.buffer_cache.hit_ratio:
-              enabled: true
-          sqlserver.processes.blocked:
-              enabled: true
-          sqlserver.resource_pool.disk.operations:
-              enabled: true
-          sqlserver.resource_pool.disk.throttled.read.rate:
-              enabled: true
-          sqlserver.resource_pool.disk.throttled.write.rate:
-              enabled: true
-          sqlserver.user.connection.count:
-              enabled: true
-      sqlserver/fraud:
-        collection_interval: 10s
-        top_query_collection:
-          lookback_time: 120s
-        username: sa
-        password: "ChangeMe_SuperStrong123!"
-        server: sql-server-fraud.default.svc.cluster.local
-        port: 1433
-        resource_attributes:
-          # sqlserver.computer.name:
-          #   enabled: true
-          sqlserver.instance.name:
-            enabled: true
-        # ADD to ENABLE Database Monitoring
-        events:
-          db.server.query_sample:
-            enabled: true
-          db.server.top_query:
-            enabled: true 
-        metrics:
-          sqlserver.batch.request.rate:
-              enabled: true
-          sqlserver.batch.sql_compilation.rate:
-              enabled: true
-          sqlserver.batch.sql_recompilation.rate:
-              enabled: true
-          sqlserver.database.count:
-              enabled: true
-          sqlserver.database.io:
-              enabled: true
-          sqlserver.database.latency:
-              enabled: true
-          sqlserver.database.operations:
-              enabled: true
-          sqlserver.deadlock.rate:
-              enabled: true
-          sqlserver.lock.wait.count:
-              enabled: true
-          sqlserver.lock.wait.rate:
-              enabled: true
-          sqlserver.os.wait.duration:
-              enabled: true
-          sqlserver.page.buffer_cache.hit_ratio:
-              enabled: true
-          sqlserver.processes.blocked:
-              enabled: true
-          sqlserver.resource_pool.disk.operations:
-              enabled: true
-          sqlserver.resource_pool.disk.throttled.read.rate:
-              enabled: true
-          sqlserver.resource_pool.disk.throttled.write.rate:
-              enabled: true
-          sqlserver.user.connection.count:
-              enabled: true
-          sqlserver.database.latency:
-            enabled: true  
+      # Using receiver_creator to dynamically create receivers when services are ready
+      # This prevents connection errors when databases are still starting up
+      receiver_creator:
+        watch_observers: [k8s_observer]
+        receivers:
+          # SQL Server for Shop DC Shim - only created when pod is ready
+          sqlserver/shopshim:
+            rule: type == "pod" && name matches "shop-dc-shim-db" && port == 1433
+            config:
+              collection_interval: 10s
+              top_query_collection:
+                lookback_time: 300s
+              username: sa
+              password: ShopPass123!
+              endpoint: '`endpoint`:`port`'
+              resource_attributes:
+                sqlserver.instance.name:
+                  enabled: true
+              events:
+                db.server.query_sample:
+                  enabled: true
+                db.server.top_query:
+                  enabled: true
+              metrics:
+                sqlserver.batch.request.rate:
+                    enabled: true
+                sqlserver.batch.sql_compilation.rate:
+                    enabled: true
+                sqlserver.batch.sql_recompilation.rate:
+                    enabled: true
+                sqlserver.database.count:
+                    enabled: true
+                sqlserver.database.io:
+                    enabled: true
+                sqlserver.database.latency:
+                    enabled: true
+                sqlserver.database.operations:
+                    enabled: true
+                sqlserver.deadlock.rate:
+                    enabled: true
+                sqlserver.lock.wait.count:
+                    enabled: true
+                sqlserver.lock.wait.rate:
+                    enabled: true
+                sqlserver.os.wait.duration:
+                    enabled: true
+                sqlserver.page.buffer_cache.hit_ratio:
+                    enabled: true
+                sqlserver.processes.blocked:
+                    enabled: true
+                sqlserver.resource_pool.disk.operations:
+                    enabled: true
+                sqlserver.resource_pool.disk.throttled.read.rate:
+                    enabled: true
+                sqlserver.resource_pool.disk.throttled.write.rate:
+                    enabled: true
+                sqlserver.user.connection.count:
+                    enabled: true
+          # SQL Server for Fraud Detection - only created when pod is ready
+          sqlserver/fraud:
+            rule: type == "pod" && name matches "sql-server-fraud" && port == 1433
+            config:
+              collection_interval: 10s
+              top_query_collection:
+                lookback_time: 120s
+              username: sa
+              password: "ChangeMe_SuperStrong123!"
+              endpoint: '`endpoint`:`port`'
+              resource_attributes:
+                sqlserver.instance.name:
+                  enabled: true
+              # ADD to ENABLE Database Monitoring
+              events:
+                db.server.query_sample:
+                  enabled: true
+                db.server.top_query:
+                  enabled: true
+              metrics:
+                sqlserver.batch.request.rate:
+                    enabled: true
+                sqlserver.batch.sql_compilation.rate:
+                    enabled: true
+                sqlserver.batch.sql_recompilation.rate:
+                    enabled: true
+                sqlserver.database.count:
+                    enabled: true
+                sqlserver.database.io:
+                    enabled: true
+                sqlserver.database.latency:
+                    enabled: true
+                sqlserver.database.operations:
+                    enabled: true
+                sqlserver.deadlock.rate:
+                    enabled: true
+                sqlserver.lock.wait.count:
+                    enabled: true
+                sqlserver.lock.wait.rate:
+                    enabled: true
+                sqlserver.os.wait.duration:
+                    enabled: true
+                sqlserver.page.buffer_cache.hit_ratio:
+                    enabled: true
+                sqlserver.processes.blocked:
+                    enabled: true
+                sqlserver.resource_pool.disk.operations:
+                    enabled: true
+                sqlserver.resource_pool.disk.throttled.read.rate:
+                    enabled: true
+                sqlserver.resource_pool.disk.throttled.write.rate:
+                    enabled: true
+                sqlserver.user.connection.count:
+                    enabled: true
+                sqlserver.database.latency:
+                  enabled: true
+      # K8s Observer watches for pod endpoints - required for receiver_creator
+      k8s_observer:
+        auth_type: serviceAccount
+        node: ${K8S_NODE_NAME}
+        observe_pods: true
+        observe_nodes: false  
     exporters:
       # Exports dbmon events as logs
       otlphttp/dbmon:
@@ -154,11 +167,10 @@ clusterReceiver:
         metrics:
           exporters: [signalfx]
           processors: [memory_limiter, batch, resourcedetection, resource, resource/k8s_cluster, resource/add_collector_k8s, transform/dbmon]
-          receivers: [k8s_cluster, sqlserver/fraud, sqlserver/shopshim]
+          receivers: [k8s_cluster, receiver_creator]
         logs/dbmon:
           receivers:
-            - sqlserver/fraud
-            - sqlserver/shopshim
+            - receiver_creator
           processors:
             - memory_limiter
             - batch
