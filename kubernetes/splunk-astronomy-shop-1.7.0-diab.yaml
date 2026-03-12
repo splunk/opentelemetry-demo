@@ -1,6 +1,6 @@
 # Splunk Astronomy Shop Kubernetes Manifest
 # Version: 1.7.0
-# Generated on: 2026-03-11T15:04:27Z
+# Generated on: 2026-03-12T15:50:09Z
 #
 # This manifest combines all service deployments for the Splunk Astronomy Shop
 # Services are defined in services.yaml
@@ -3444,6 +3444,7 @@ spec:
                 secretKeyRef:
                   name: workshop-secret
                   key: appd_token
+                  optional: true
             - name: OTEL_INSTRUMENTATION_SPLUNK_JDBC_ENABLED
               value: "true"
           resources:
