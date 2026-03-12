@@ -85,6 +85,50 @@ The demo consists of multiple microservices representing an e-commerce astronomy
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+## Complete Service Reference
+
+This table provides a quick reference for all services in the deployment, including their status and purpose.
+
+| Service | Description | Technology | Status |
+|---------|-------------|------------|--------|
+| **flagd** | Feature flag daemon | Go | Used |
+| **flagd-ui** | Feature flag management UI | TypeScript | Used |
+| **image-provider** | Product image management | Python | Used |
+| **frontend** | User-facing web application | Next.js | Used |
+| **frontend-proxy** | Frontend load balancer and proxy | Envoy | Used |
+| **product-catalog** | Product inventory and catalog | Go | Used |
+| **cart** | Shopping cart management | .NET | Used |
+| **checkout** | Order checkout workflow | Go | Used |
+| **ad** | Advertisement serving | Java | Used |
+| **email** | Order confirmation emails | Ruby | Used |
+| **payment** | Payment processing (dual versions) | Node.js | Used |
+| **shipping** | Shipping cost calculation | Go | Used |
+| **quote** | Price quotations | PHP | Used |
+| **accounting** | Order accounting and reporting | Node.js | Used (Splunk) |
+| **currency** | Currency conversion | C++ | Used |
+| **recommendation** | Product recommendations | Python | Used |
+| **product-reviews** | Product review analysis with LLM | Python | Used (Splunk) |
+| **fraud-detection** | Transaction fraud detection | Java | Used (Splunk) |
+| **sql-server-fraud** | Fraud detection database | SQL Server | Used |
+| **shop-dc-shim** | Datacenter hybrid service | Java Spring Boot | Used (Splunk) |
+| **shop-dc-shim-db** | Datacenter transaction database | SQL Server | Used (Splunk) |
+| **shop-dc-loadgenerator** | Datacenter load simulator | Python | Used (Splunk) |
+| **react-native-app** | Mobile app for Astronomy Shop | React Native | NOT Used |
+| **valkey-cart** | Redis cache for cart | Valkey | Used |
+| **postgres** | Primary database | PostgreSQL | Used |
+| **llm** | LLM proxy (not instrumented) | Python | Used |
+| **kafka** | Message bus service | Apache Kafka | Used |
+| **thousandeyes** | ThousandEyes monitoring agent | ThousandEyes | Used |
+| **astronomy-loadgen** | Puppeteer-based load generator | Python/Puppeteer | Used |
+| **demo-namespace** | Namespace configuration | Kubernetes | Used |
+| **demo-service-account** | Service account for demo | Kubernetes | Used |
+| **ingress** | External access (DIAB variant only) | Traefik | DIAB only |
+
+**Notes:**
+- **Splunk** indicates Splunk-specific enhancements or additions
+- **DIAB only** indicates included only in DIAB manifest variant
+- **NOT Used** indicates services in the repository but not deployed in standard configurations
+
 ## Core Service Components
 
 ### Frontend Services

@@ -2,6 +2,13 @@
 
 This guide covers local development, testing, and building production artifacts for the Splunk OpenTelemetry Demo.
 
+**For deployment instructions**, see [DEPLOYMENT.md](./DEPLOYMENT.md) which covers:
+- Deploying to Kubernetes with Splunk Observability Cloud
+- Configuring the Splunk OTel Collector
+- Setting up secrets and credentials
+- Demo-in-a-Box deployment
+- Publishing packages to GitHub
+
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
