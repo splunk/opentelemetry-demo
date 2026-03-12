@@ -28,15 +28,19 @@ This guide covers local development, testing, and building production artifacts 
 
 - **Git**: Version control
 - **Docker**: Container runtime (v20.10+)
-- **Docker Compose**: Multi-container orchestration (v2.0.0+)
 - **Python 3**: For build scripts (3.8+)
-- **Make**: Build automation (optional but recommended)
-
-### For Kubernetes Development
-
 - **kubectl**: Kubernetes CLI
-- **minikube** or **k3s**: Local Kubernetes cluster
+
+### For Local Development
+
+- **k3d** (recommended): Lightweight Kubernetes in Docker
+- **minikube** (alternative): Local Kubernetes cluster
 - **Helm**: Package manager for Kubernetes (optional)
+
+### For Demo in a Box Testing
+
+- Access to **Splunk Show** for provisioning instances
+- SSH access to provisioned instances
 
 ### For Building Multi-Platform Images
 
@@ -94,79 +98,103 @@ git remote add upstream https://github.com/splunk/opentelemetry-demo.git
 
 ## Local Testing
 
-### Docker Compose
+**Note:** This Splunk fork is Kubernetes-focused and does not use Docker Compose. The recommended testing approaches are:
 
-**Note:** The main OpenTelemetry Demo project uses Docker Compose. The Splunk fork is primarily Kubernetes-focused, but Docker Compose can be used for individual service development.
+1. **Splunk Show Demo in a Box instance** (recommended for full demo testing)
+2. **Local k3d cluster** (recommended for development)
+3. **Local minikube cluster** (alternative for development)
 
-#### Quick Start
+### Recommended: Splunk Show Demo in a Box
 
-1. **Start all services:**
+**Splunk Show Demo in a Box** provides a pre-configured environment with Splunk Observability Cloud integration.
+
+#### Setup
+
+1. **Provision a Demo in a Box instance** from Splunk Show
+
+2. **Build your test images** (if testing code changes):
    ```bash
-   docker compose up -d
+   # Use GitHub Actions TEST workflow to build images
+   # Or build locally and push to your dev registry
    ```
 
-2. **View logs:**
+3. **Generate DIAB manifest with your dev registry**:
    ```bash
-   docker compose logs -f
+   .github/scripts/stitch-manifests.sh dev diab
    ```
 
-3. **Access the demo:**
-   - Webstore: http://localhost:8080/
-   - Jaeger UI: http://localhost:8080/jaeger/ui/
-   - Grafana: http://localhost:8080/grafana/
-
-4. **Stop services:**
+4. **Copy manifest to your Demo in a Box instance**:
    ```bash
-   docker compose down
+   scp kubernetes/splunk-astronomy-shop-{version}-diab.yaml \
+     user@your-diab-instance:/home/splunk/
    ```
 
-#### Development Workflow
+5. **Deploy on the instance**:
+   ```bash
+   ssh user@your-diab-instance
+   kubectl apply -f splunk-astronomy-shop-{version}-diab.yaml
+   ```
 
-**Rebuild a specific service:**
+6. **Access via Ingress**:
+   - The DIAB manifest includes Ingress configuration
+   - Access through the instance's external IP or hostname
+
+### Alternative: Local k3d Cluster
+
+**k3d** is a lightweight wrapper to run k3s in Docker, ideal for local development.
+
+#### 1. Install k3d
+
 ```bash
-docker compose up -d --build frontend
+# macOS
+brew install k3d
+
+# Linux
+curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
 ```
 
-**View service logs:**
+#### 2. Create Cluster
+
 ```bash
-docker compose logs -f frontend
+# Create cluster with port mappings
+k3d cluster create astronomy-shop \
+  --agents 2 \
+  --port "8080:80@loadbalancer" \
+  --port "8443:443@loadbalancer"
+
+# Verify cluster
+kubectl cluster-info
 ```
 
-**Restart a service:**
+#### 3. Deploy Demo
+
+Follow the standard Kubernetes deployment steps below.
+
+### Alternative: Local Kubernetes (minikube)
+
+#### 1. Install and Start minikube
+
 ```bash
-docker compose restart frontend
-```
+# macOS
+brew install minikube
 
-### Kubernetes (Local)
-
-The recommended way to test the Splunk-enhanced demo is with Kubernetes.
-
-#### 1. Start Local Cluster
-
-**Using minikube:**
-```bash
+# Start cluster
 minikube start --cpus=8 --memory=16384
 minikube addons enable ingress
 ```
 
-**Using k3s:**
-```bash
-# Install k3s
-curl -sfL https://get.k3s.io | sh -
+### Standard Kubernetes Deployment Steps
 
-# Get kubeconfig
-sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
-sudo chown $USER ~/.kube/config
-```
+Once you have a cluster running (k3d, minikube, or Demo in a Box), follow these steps:
 
-#### 2. Create Namespace
+#### 1. Create Namespace
 
 ```bash
 kubectl create namespace astronomy-shop
 kubectl config set-context --current --namespace=astronomy-shop
 ```
 
-#### 3. Create Secrets
+#### 2. Create Secrets
 
 **Workshop Secret (required for Splunk-enhanced services):**
 ```bash
@@ -177,7 +205,7 @@ kubectl create secret generic workshop-secret \
 
 **Note:** If you don't have an AppDynamics token, that's fine. Services with `optional: true` in their secret references will start without it.
 
-#### 4. Deploy Services
+#### 3. Deploy Services
 
 **Option A: Using pre-built manifest:**
 ```bash
@@ -193,7 +221,16 @@ kubectl apply -f kubernetes/splunk-astronomy-shop-1.7.1.yaml
 kubectl apply -f kubernetes/splunk-astronomy-shop-1.7.1.yaml
 ```
 
-#### 5. Access Services
+**Option C: Build and deploy DIAB manifest:**
+```bash
+# Build DIAB manifest with ingress
+.github/scripts/stitch-manifests.sh dev diab
+
+# Deploy
+kubectl apply -f kubernetes/splunk-astronomy-shop-1.7.1-diab.yaml
+```
+
+#### 4. Access Services
 
 **Port forward to access frontend:**
 ```bash
@@ -204,9 +241,17 @@ kubectl port-forward svc/frontend-proxy 8080:8080
 - Open browser: http://localhost:8080/
 
 **For DIAB variant with Ingress:**
+
+With k3d:
+```bash
+# Access via localhost (port mapping configured during cluster creation)
+# http://localhost:8080/
+```
+
+With minikube:
 ```bash
 # Get ingress IP
-minikube ip  # or k3s node IP
+minikube ip
 
 # Add to /etc/hosts
 echo "$(minikube ip) astronomy-shop.local" | sudo tee -a /etc/hosts
@@ -215,7 +260,13 @@ echo "$(minikube ip) astronomy-shop.local" | sudo tee -a /etc/hosts
 # http://astronomy-shop.local/
 ```
 
-#### 6. Monitor Deployment
+With Demo in a Box:
+```bash
+# Access via instance hostname or IP
+# http://<instance-ip>/
+```
+
+#### 5. Monitor Deployment
 
 ```bash
 # Watch pods start
