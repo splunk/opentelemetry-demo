@@ -75,3 +75,6 @@ src/react-native-app/.env
 src/react-native-app/.env.backup
 releases/mobile/*.zip
 src/react-native-app/saucelabs-package/ios/astronomy-shop-ios.zip
+# Confluence files (local use only)
+CONFLUENCE-GUIDE.md
+CONFLUENCE-GUIDE.confluence
