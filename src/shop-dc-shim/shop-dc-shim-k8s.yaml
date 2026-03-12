@@ -106,6 +106,7 @@ spec:
                 secretKeyRef:
                   name: workshop-secret
                   key: appd_token
+                  optional: true
             - name: OTEL_INSTRUMENTATION_SPLUNK_JDBC_ENABLED
               value: "true"
           resources:
