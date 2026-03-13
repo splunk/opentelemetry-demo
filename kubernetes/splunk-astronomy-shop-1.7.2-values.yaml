@@ -185,27 +185,27 @@ clusterReceiver:
       transform/dbmon:
         error_mode: ignore
         metric_statements:
-          # SQL Server: use instance name for identification (pod hostname)
+          # SQL Server: use instance name for identification
           - conditions:
               - resource.attributes["sqlserver.instance.name"] != nil
             statements:
               - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["sqlserver.instance.name"]], ""))
-          # PostgreSQL: use database name for identification
+          # PostgreSQL: set static identifier for anything NOT SQL Server that doesn't have service.instance.id yet
           - conditions:
-              - resource.attributes["postgresql.database.name"] != nil
+              - resource.attributes["sqlserver.instance.name"] == nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - postgresql - ", resource.attributes["postgresql.database.name"]], ""))
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - postgresql - otel"], ""))
         log_statements:
-          # SQL Server: use instance name for identification (pod hostname)
+          # SQL Server: use instance name for identification
           - conditions:
               - resource.attributes["sqlserver.instance.name"] != nil
             statements:
               - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["sqlserver.instance.name"]], ""))
-          # PostgreSQL: use database name for identification
+          # PostgreSQL: set static identifier for anything NOT SQL Server
           - conditions:
-              - resource.attributes["postgresql.database.name"] != nil
+              - resource.attributes["sqlserver.instance.name"] == nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - postgresql - ", resource.attributes["postgresql.database.name"]], ""))
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - postgresql - otel"], ""))
     service:
       extensions: [health_check, k8s_observer]
       pipelines:
@@ -251,6 +251,12 @@ agent:
              endpoint: "redis-cart:6379"
              collection_interval: 10s
     processors:
+      # Inject environment as a resource attribute for traces
+      resource/add_environment:
+        attributes:
+          - key: deployment.environment
+            value: ${WORKSHOP_ENVIRONMENT}
+            action: upsert
       filter/drop_flagd:
         traces:
           span:
