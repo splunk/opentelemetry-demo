@@ -1,9 +1,9 @@
 # PostgreSQL Database Initialization ConfigMap
-# This ConfigMap contains the init.sql script that creates schemas and tables
+# This ConfigMap contains scripts that create schemas, tables, and extensions
 # for the accounting and product-reviews services
 #
-# The postgres deployment mounts this as /docker-entrypoint-initdb.d/init.sql
-# which PostgreSQL automatically executes on first startup
+# The postgres deployment mounts these as /docker-entrypoint-initdb.d/
+# which PostgreSQL automatically executes on first startup (alphabetical order)
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -14,11 +14,23 @@ metadata:
     app.kubernetes.io/component: database
     app.kubernetes.io/part-of: opentelemetry-demo
 data:
+  # Shell script runs first (alphabetically) to create extension in postgres database
+  00-pg-stat-statements.sh: |
+    #!/bin/bash
+    # Create pg_stat_statements extension in the postgres database
+    # This is required for PostgreSQL receiver top query monitoring
+    set -e
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<-EOSQL
+        CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+    EOSQL
+    echo "pg_stat_statements extension created in postgres database"
   init.sql: |
     -- Copyright The OpenTelemetry Authors
     -- SPDX-License-Identifier: Apache-2.0
 
     -- Enable pg_stat_statements for database monitoring (top query tracking)
+    -- Note: This runs in the 'otel' database. The extension is also created
+    -- in the 'postgres' database by 00-pg-stat-statements.sh for top query monitoring.
     CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 
     CREATE USER otelu WITH PASSWORD 'otelp';

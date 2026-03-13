@@ -86,6 +86,10 @@ spec:
             memory: 100Mi
         volumeMounts:
         - name: postgres-init
+          mountPath: /docker-entrypoint-initdb.d/00-pg-stat-statements.sh
+          subPath: 00-pg-stat-statements.sh
+          readOnly: true
+        - name: postgres-init
           mountPath: /docker-entrypoint-initdb.d/init.sql
           subPath: init.sql
           readOnly: true
@@ -93,3 +97,4 @@ spec:
       - name: postgres-init
         configMap:
           name: postgres-init-sql
+          defaultMode: 0755
