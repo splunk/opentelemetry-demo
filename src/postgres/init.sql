@@ -1,6 +1,9 @@
 -- Copyright The OpenTelemetry Authors
 -- SPDX-License-Identifier: Apache-2.0
 
+-- Enable pg_stat_statements for database monitoring (top query tracking)
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+
 CREATE USER otelu WITH PASSWORD 'otelp';
 
 -- Accounting Service: create a schema
