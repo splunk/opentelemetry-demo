@@ -32,7 +32,7 @@ registry:
 services:
   - name : ingress
     build: false
-    manifest: true # Hold ingress format for Local/DIAB setup by default. AWS is commented out 
+    manifest: false # Only included in DIAB builds via stitch-manifests.sh 
 
   - name: accounting
     build: true
