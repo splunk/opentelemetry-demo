@@ -40,6 +40,9 @@ spec:
       opentelemetry.io/name: shop-dc-shim-db
   template:
     metadata:
+      annotations:
+        splunk.com/monitor: sqlserver
+        splunk.com/sqlserver.database: shopshim
       labels:
         opentelemetry.io/name: shop-dc-shim-db
         app.kubernetes.io/component: shop-dc-shim-db

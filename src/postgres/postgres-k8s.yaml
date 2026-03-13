@@ -38,6 +38,9 @@ spec:
       opentelemetry.io/name: postgresql
   template:
     metadata:
+      annotations:
+        splunk.com/monitor: postgresql
+        splunk.com/postgresql.database: otel
       labels:
         opentelemetry.io/name: postgresql
         app.kubernetes.io/component: postgresql

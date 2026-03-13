@@ -31,6 +31,9 @@ spec:
       app: sql-server-fraud
   template:
     metadata:
+      annotations:
+        splunk.com/monitor: sqlserver
+        splunk.com/sqlserver.database: fraud
       labels:
         app: sql-server-fraud
     spec:
