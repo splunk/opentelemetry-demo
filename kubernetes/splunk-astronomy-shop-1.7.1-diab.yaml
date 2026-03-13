@@ -1,32 +1,9 @@
 # Splunk Astronomy Shop Kubernetes Manifest
 # Version: 1.7.1
-# Generated on: 2026-03-13T13:30:57Z
+# Generated on: 2026-03-13T14:03:44Z
 #
 # This manifest combines all service deployments for the Splunk Astronomy Shop
 # Services are defined in services.yaml
----
-
-# === ingress ===
-# === ingress for DIAB  ===
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: frontend
-  annotations:
-spec:
-  ingressClassName: traefik
-  rules:
-  - http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: frontend-proxy
-            port:
-              number: 8080
-              
----
 ---
 
 # === accounting ===
