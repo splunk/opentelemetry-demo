@@ -1,10 +1,12 @@
 #!/bin/bash
 
 # Script to stitch together Kubernetes manifests from multiple services
-# Usage: ./stitch-manifests.sh [registry_env] [diab]
+# Usage: ./stitch-manifests.sh [registry_env] [diab] [output_dir] [suffix]
 #   registry_env: Optional - 'dev' or 'prod' to use registry from services.yaml
 #                 If not specified, uses original registry URLs from manifests
 #   diab: Optional - 'diab' to enable DIAB scenario (includes ingress, adds -diab suffix)
+#   output_dir: Optional - output directory (default: kubernetes)
+#   suffix: Optional - additional suffix to add before .yaml (e.g., '-beta')
 #
 # This script reads service configuration from services.yaml
 # ALWAYS stitches ALL services with manifest: true
@@ -15,6 +17,8 @@ set -e
 # Parse optional arguments
 REGISTRY_ENV="${1:-}"
 DIAB_SCENARIO="${2:-}"
+OUTPUT_DIR_ARG="${3:-}"
+EXTRA_SUFFIX="${4:-}"
 
 # Get version from SPLUNK-VERSION file
 VERSION=$(cat SPLUNK-VERSION)
@@ -61,13 +65,17 @@ if [ -n "$REGISTRY_ENV" ]; then
 fi
 
 # Output directory and file
-OUTPUT_DIR="kubernetes"
-# Add -diab suffix if DIAB scenario is enabled
+OUTPUT_DIR="${OUTPUT_DIR_ARG:-kubernetes}"
+# Build filename with optional suffixes
+# Format: splunk-astronomy-shop-{VERSION}[-diab][-beta].yaml
+FILENAME="splunk-astronomy-shop-${VERSION}"
 if [ "$DIAB_SCENARIO" = "diab" ]; then
-    OUTPUT_FILE="$OUTPUT_DIR/splunk-astronomy-shop-${VERSION}-diab.yaml"
-else
-    OUTPUT_FILE="$OUTPUT_DIR/splunk-astronomy-shop-${VERSION}.yaml"
+    FILENAME="${FILENAME}-diab"
 fi
+if [ -n "$EXTRA_SUFFIX" ]; then
+    FILENAME="${FILENAME}${EXTRA_SUFFIX}"
+fi
+OUTPUT_FILE="$OUTPUT_DIR/${FILENAME}.yaml"
 
 # Create output directory if it doesn't exist
 mkdir -p "$OUTPUT_DIR"
@@ -269,6 +277,9 @@ echo "=========================================="
 echo "Version: $VERSION"
 if [ "$DIAB_SCENARIO" = "diab" ]; then
     echo "Scenario: DIAB (includes ingress)"
+fi
+if [ -n "$EXTRA_SUFFIX" ]; then
+    echo "Suffix: $EXTRA_SUFFIX"
 fi
 echo "Output file: $OUTPUT_FILE"
 echo "Services found: $FOUND"
