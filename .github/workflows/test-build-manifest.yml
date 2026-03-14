@@ -13,8 +13,8 @@ name: Build Demo Manifest - TEST
         required: false
         type: string
         default: '-test'
-      diab_scenario:
-        description: 'Enable DIAB scenario (includes ingress, adds -diab suffix)'
+      beta_build:
+        description: 'Beta build (adds -beta suffix, outputs to kubernetes/beta/)'
         required: true
         type: boolean
         default: false
@@ -78,10 +78,13 @@ jobs:
           echo "test_version=$TEST_VERSION" >> $GITHUB_OUTPUT
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
 
-          # Determine manifest filename
-          MANIFEST_SUFFIX=""
-          if [[ "${{ inputs.diab_scenario }}" == "true" ]]; then
-            MANIFEST_SUFFIX="-diab"
+          # Determine output directory and suffix based on beta flag
+          if [[ "${{ inputs.beta_build }}" == "true" ]]; then
+            OUTPUT_DIR="kubernetes/beta"
+            EXTRA_SUFFIX="-beta"
+          else
+            OUTPUT_DIR="kubernetes"
+            EXTRA_SUFFIX=""
           fi
 
           echo "### Test Build Configuration" >> $GITHUB_STEP_SUMMARY
@@ -89,10 +92,12 @@ jobs:
           echo "- **Current Version** (unchanged): \`$CURRENT_VERSION\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Test Version** (fallback): \`$TEST_VERSION\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Version Source**: $VERSION_SOURCE" >> $GITHUB_STEP_SUMMARY
-          if [[ "${{ inputs.diab_scenario }}" == "true" ]]; then
-            echo "- **DIAB Scenario**: ✅ Enabled (includes ingress)" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ inputs.beta_build }}" == "true" ]]; then
+            echo "- **Build Type**: 🧪 Beta (output to kubernetes/beta/)" >> $GITHUB_STEP_SUMMARY
           fi
-          echo "- **Output File**: \`kubernetes/TEST-splunk-astronomy-shop-${TEST_VERSION}${MANIFEST_SUFFIX}.yaml\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Output Files**:" >> $GITHUB_STEP_SUMMARY
+          echo "  - Regular: \`${OUTPUT_DIR}/TEST-splunk-astronomy-shop-${TEST_VERSION}${EXTRA_SUFFIX}.yaml\`" >> $GITHUB_STEP_SUMMARY
+          echo "  - DIAB: \`${OUTPUT_DIR}/TEST-splunk-astronomy-shop-${TEST_VERSION}-diab${EXTRA_SUFFIX}.yaml\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Show per-service versions if available
@@ -117,10 +122,10 @@ jobs:
 
           echo "📝 Temporary version file created" >> $GITHUB_STEP_SUMMARY
 
-      - name: Build/Stitch Kubernetes manifest
+      - name: Build/Stitch Kubernetes manifests
         id: stitch
         run: |
-          echo "### Stitching Manifest" >> $GITHUB_STEP_SUMMARY
+          echo "### Stitching Manifests" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Including all services with manifest: true" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -129,56 +134,89 @@ jobs:
           echo "> If not built, using original/existing tags" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Run stitch script with DIAB option if enabled
-          DIAB_FLAG=""
-          if [[ "${{ inputs.diab_scenario }}" == "true" ]]; then
-            DIAB_FLAG="diab"
-            echo "🔀 **DIAB Scenario Enabled** - Ingress will be included" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
+          VERSION="${{ steps.version.outputs.test_version }}"
+
+          # Determine output directory and suffix based on beta flag
+          if [[ "${{ inputs.beta_build }}" == "true" ]]; then
+            OUTPUT_DIR="kubernetes/beta"
+            EXTRA_SUFFIX="-beta"
+            mkdir -p "$OUTPUT_DIR"
+            echo "🧪 **Beta Build** - Output to kubernetes/beta/ with -beta suffix" >> $GITHUB_STEP_SUMMARY
+          else
+            OUTPUT_DIR="kubernetes"
+            EXTRA_SUFFIX=""
           fi
+          echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Run stitch script WITHOUT registry replacement
-          # This preserves whatever image tags are in the -k8s files
-          # - If images were built by test-build-images workflow, tags are already updated
-          # - If not built, uses existing tags (original upstream or previous builds)
-          # Always includes ALL services with manifest: true from services.yaml
-          .github/scripts/stitch-manifests.sh $DIAB_FLAG
+          # Build BOTH regular and DIAB manifests
+          echo "Building **regular** manifest..." >> $GITHUB_STEP_SUMMARY
+          .github/scripts/stitch-manifests.sh "" "" "$OUTPUT_DIR" "$EXTRA_SUFFIX"
 
-          # Determine manifest filenames (with or without -diab suffix)
-          MANIFEST_SUFFIX=""
-          if [[ "${{ inputs.diab_scenario }}" == "true" ]]; then
-            MANIFEST_SUFFIX="-diab"
-          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Building **DIAB** manifest (includes ingress)..." >> $GITHUB_STEP_SUMMARY
+          .github/scripts/stitch-manifests.sh "" diab "$OUTPUT_DIR" "$EXTRA_SUFFIX"
 
-          GENERATED_FILE="kubernetes/splunk-astronomy-shop-${{ steps.version.outputs.test_version }}${MANIFEST_SUFFIX}.yaml"
-          MANIFEST_FILE="kubernetes/TEST-splunk-astronomy-shop-${{ steps.version.outputs.test_version }}${MANIFEST_SUFFIX}.yaml"
+          # Determine generated filenames and rename to TEST-* format
+          GENERATED_FILE="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}${EXTRA_SUFFIX}.yaml"
+          GENERATED_FILE_DIAB="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-diab${EXTRA_SUFFIX}.yaml"
+          MANIFEST_FILE="${OUTPUT_DIR}/TEST-splunk-astronomy-shop-${VERSION}${EXTRA_SUFFIX}.yaml"
+          MANIFEST_FILE_DIAB="${OUTPUT_DIR}/TEST-splunk-astronomy-shop-${VERSION}-diab${EXTRA_SUFFIX}.yaml"
 
+          # Rename to TEST-* format
           if [ -f "$GENERATED_FILE" ]; then
             mv "$GENERATED_FILE" "$MANIFEST_FILE"
           fi
+          if [ -f "$GENERATED_FILE_DIAB" ]; then
+            mv "$GENERATED_FILE_DIAB" "$MANIFEST_FILE_DIAB"
+          fi
 
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Generated Manifests" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Verify and report on regular manifest
           if [ -f "$MANIFEST_FILE" ]; then
             FILE_SIZE=$(du -h "$MANIFEST_FILE" | cut -f1)
             LINE_COUNT=$(wc -l < "$MANIFEST_FILE")
             RESOURCE_COUNT=$(grep -c "^kind: " "$MANIFEST_FILE" || true)
-            NAMESPACE_COUNT=$(grep -c "namespace: astronomy-shop" "$MANIFEST_FILE" || true)
 
-            echo "✅ **Manifest created successfully**" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Regular manifest created**" >> $GITHUB_STEP_SUMMARY
             echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
             echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
             echo "| File | \`$MANIFEST_FILE\` |" >> $GITHUB_STEP_SUMMARY
             echo "| Size | $FILE_SIZE |" >> $GITHUB_STEP_SUMMARY
             echo "| Lines | $LINE_COUNT |" >> $GITHUB_STEP_SUMMARY
             echo "| Resources | $RESOURCE_COUNT |" >> $GITHUB_STEP_SUMMARY
-            echo "| Namespaced | $NAMESPACE_COUNT |" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-
-            echo "manifest_file=$MANIFEST_FILE" >> $GITHUB_OUTPUT
           else
-            echo "❌ **Manifest file not created**" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **Regular manifest not created**" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
+
+          # Verify and report on DIAB manifest
+          if [ -f "$MANIFEST_FILE_DIAB" ]; then
+            FILE_SIZE_DIAB=$(du -h "$MANIFEST_FILE_DIAB" | cut -f1)
+            LINE_COUNT_DIAB=$(wc -l < "$MANIFEST_FILE_DIAB")
+            RESOURCE_COUNT_DIAB=$(grep -c "^kind: " "$MANIFEST_FILE_DIAB" || true)
+
+            echo "✅ **DIAB manifest created** (includes ingress)" >> $GITHUB_STEP_SUMMARY
+            echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| File | \`$MANIFEST_FILE_DIAB\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Size | $FILE_SIZE_DIAB |" >> $GITHUB_STEP_SUMMARY
+            echo "| Lines | $LINE_COUNT_DIAB |" >> $GITHUB_STEP_SUMMARY
+            echo "| Resources | $RESOURCE_COUNT_DIAB |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **DIAB manifest not created**" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          # Output both filenames for subsequent steps
+          echo "manifest_file=$MANIFEST_FILE" >> $GITHUB_OUTPUT
+          echo "manifest_file_diab=$MANIFEST_FILE_DIAB" >> $GITHUB_OUTPUT
+          echo "output_dir=$OUTPUT_DIR" >> $GITHUB_OUTPUT
+          echo "extra_suffix=$EXTRA_SUFFIX" >> $GITHUB_OUTPUT
 
       - name: Validate manifest YAML syntax
         if: ${{ inputs.validate_manifest }}
@@ -187,15 +225,13 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           MANIFEST_FILE="${{ steps.stitch.outputs.manifest_file }}"
+          MANIFEST_FILE_DIAB="${{ steps.stitch.outputs.manifest_file_diab }}"
 
-          # Validate YAML syntax with Python
+          # Validate regular manifest
+          echo "#### Regular Manifest" >> $GITHUB_STEP_SUMMARY
           if python3 -c "import yaml; list(yaml.safe_load_all(open('$MANIFEST_FILE')))" 2> /tmp/validation.log; then
-            echo "✅ **YAML syntax validation passed**" >> $GITHUB_STEP_SUMMARY
-
-            # Count documents
             DOC_COUNT=$(python3 -c "import yaml; print(len(list(yaml.safe_load_all(open('$MANIFEST_FILE')))))")
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "- **YAML Documents:** $DOC_COUNT" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **YAML syntax validation passed** ($DOC_COUNT documents)" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ **YAML syntax validation failed**" >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
@@ -204,9 +240,24 @@ jobs:
             exit 1
           fi
 
-          # Show resource breakdown
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Resource Types:**" >> $GITHUB_STEP_SUMMARY
+
+          # Validate DIAB manifest
+          echo "#### DIAB Manifest" >> $GITHUB_STEP_SUMMARY
+          if python3 -c "import yaml; list(yaml.safe_load_all(open('$MANIFEST_FILE_DIAB')))" 2> /tmp/validation_diab.log; then
+            DOC_COUNT_DIAB=$(python3 -c "import yaml; print(len(list(yaml.safe_load_all(open('$MANIFEST_FILE_DIAB')))))")
+            echo "✅ **YAML syntax validation passed** ($DOC_COUNT_DIAB documents)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **YAML syntax validation failed**" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            cat /tmp/validation_diab.log >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          # Show resource breakdown for regular manifest
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Resource Types (Regular):**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           grep "^kind: " "$MANIFEST_FILE" | sort | uniq -c | sort -rn >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
@@ -217,32 +268,35 @@ jobs:
           mv SPLUNK-VERSION.backup SPLUNK-VERSION
           echo "🔄 Original SPLUNK-VERSION restored" >> $GITHUB_STEP_SUMMARY
 
-      - name: Commit test manifest (optional)
+      - name: Commit test manifests (optional)
         if: ${{ inputs.commit_manifest }}
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
           MANIFEST_FILE="${{ steps.stitch.outputs.manifest_file }}"
+          MANIFEST_FILE_DIAB="${{ steps.stitch.outputs.manifest_file_diab }}"
 
           # Remove backup and restore original SPLUNK-VERSION
           # IMPORTANT: We never commit changes to SPLUNK-VERSION in test builds
           mv SPLUNK-VERSION.backup SPLUNK-VERSION
 
-          # Force-add the manifest file (TEST-* files are in .gitignore by design)
+          # Force-add both manifest files (TEST-* files are in .gitignore by design)
           # We use -f to explicitly commit test manifests when requested
           git add -f "$MANIFEST_FILE"
+          git add -f "$MANIFEST_FILE_DIAB"
 
           if git diff --staged --quiet; then
             echo "### No Changes" >> $GITHUB_STEP_SUMMARY
             echo "No changes to commit." >> $GITHUB_STEP_SUMMARY
           else
             git commit -m "Test build: ${{ steps.version.outputs.test_version }}" \
-              -m "Generated test manifest for Astronomy Shop" \
+              -m "Generated test manifests for Astronomy Shop (regular + DIAB)" \
               -m "" \
               -m "- Base Version: ${{ steps.version.outputs.current_version }} (unchanged)" \
               -m "- Test Version: ${{ steps.version.outputs.test_version }}" \
-              -m "- Manifest: $MANIFEST_FILE" \
+              -m "- Regular: $MANIFEST_FILE" \
+              -m "- DIAB: $MANIFEST_FILE_DIAB" \
               -m "- Generated by: GitHub Actions (test build)" \
               -m "" \
               -m "Note: SPLUNK-VERSION file was NOT modified."
@@ -252,48 +306,59 @@ jobs:
             echo "### Changes Committed ✅" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Committed:**" >> $GITHUB_STEP_SUMMARY
-            echo "- ✅ Test manifest: \`$MANIFEST_FILE\`" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ Regular manifest: \`$MANIFEST_FILE\`" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ DIAB manifest: \`$MANIFEST_FILE_DIAB\`" >> $GITHUB_STEP_SUMMARY
             echo "- ❌ SPLUNK-VERSION: **NOT modified**" >> $GITHUB_STEP_SUMMARY
           fi
 
-      - name: Upload manifest as artifact
+      - name: Upload manifests as artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: astronomy-shop-manifest-${{ steps.version.outputs.test_version }}${{ inputs.diab_scenario == true && '-diab' || '' }}
-          path: ${{ steps.stitch.outputs.manifest_file }}
+          name: astronomy-shop-manifests-${{ steps.version.outputs.test_version }}${{ inputs.beta_build == true && '-beta' || '' }}
+          path: |
+            ${{ steps.stitch.outputs.manifest_file }}
+            ${{ steps.stitch.outputs.manifest_file_diab }}
           retention-days: 7
 
       - name: Generate deployment command
         run: |
-          ARTIFACT_NAME="astronomy-shop-manifest-${{ steps.version.outputs.test_version }}"
-          if [[ "${{ inputs.diab_scenario }}" == "true" ]]; then
-            ARTIFACT_NAME="${ARTIFACT_NAME}-diab"
+          MANIFEST_FILE="${{ steps.stitch.outputs.manifest_file }}"
+          MANIFEST_FILE_DIAB="${{ steps.stitch.outputs.manifest_file_diab }}"
+          ARTIFACT_NAME="astronomy-shop-manifests-${{ steps.version.outputs.test_version }}"
+          if [[ "${{ inputs.beta_build }}" == "true" ]]; then
+            ARTIFACT_NAME="${ARTIFACT_NAME}-beta"
           fi
-          MANIFEST_BASENAME=$(basename "${{ steps.stitch.outputs.manifest_file }}")
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## 🚀 Deploy to Test Cluster" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Option 1: Deploy from Repository" >> $GITHUB_STEP_SUMMARY
+          echo "### Option 1: Deploy from Repository (Regular)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "# Pull latest changes" >> $GITHUB_STEP_SUMMARY
           echo "git pull" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "# Deploy to cluster" >> $GITHUB_STEP_SUMMARY
-          echo "kubectl apply -f ${{ steps.stitch.outputs.manifest_file }}" >> $GITHUB_STEP_SUMMARY
+          echo "# Deploy regular manifest" >> $GITHUB_STEP_SUMMARY
+          echo "kubectl apply -f $MANIFEST_FILE" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "# Verify deployment" >> $GITHUB_STEP_SUMMARY
           echo "kubectl get all -n astronomy-shop" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Option 2: Download Artifact" >> $GITHUB_STEP_SUMMARY
+          echo "### Option 2: Deploy from Repository (DIAB - includes ingress)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "# Deploy DIAB manifest (includes ingress)" >> $GITHUB_STEP_SUMMARY
+          echo "kubectl apply -f $MANIFEST_FILE_DIAB" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Option 3: Download Artifact" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "1. Download artifact: \`${ARTIFACT_NAME}\`" >> $GITHUB_STEP_SUMMARY
-          echo "2. Extract the YAML file" >> $GITHUB_STEP_SUMMARY
-          echo "3. Deploy: \`kubectl apply -f ${MANIFEST_BASENAME}\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. Extract the YAML files" >> $GITHUB_STEP_SUMMARY
+          echo "3. Deploy: \`kubectl apply -f <manifest-file>.yaml\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -324,9 +389,10 @@ jobs:
           echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| **Current Version** | \`${{ steps.version.outputs.current_version }}\` (unchanged) |" >> $GITHUB_STEP_SUMMARY
           echo "| **Test Version** | \`${{ steps.version.outputs.test_version }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Manifest File** | \`${{ steps.stitch.outputs.manifest_file }}\` |" >> $GITHUB_STEP_SUMMARY
-          if [[ "${{ inputs.diab_scenario }}" == "true" ]]; then
-            echo "| **DIAB Scenario** | ✅ Enabled (includes ingress) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Regular Manifest** | \`${{ steps.stitch.outputs.manifest_file }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **DIAB Manifest** | \`${{ steps.stitch.outputs.manifest_file_diab }}\` |" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ inputs.beta_build }}" == "true" ]]; then
+            echo "| **Build Type** | 🧪 Beta |" >> $GITHUB_STEP_SUMMARY
           fi
           echo "| **SPLUNK-VERSION Modified** | ❌ No |" >> $GITHUB_STEP_SUMMARY
           echo "| **Validated** | ${{ inputs.validate_manifest }} |" >> $GITHUB_STEP_SUMMARY
