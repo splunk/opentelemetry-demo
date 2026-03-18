@@ -1,3 +1,4 @@
+```mermaid
 flowchart TD
 
     A[GitHub Action: Promote<br/>Select Version X.X.X]
@@ -13,7 +14,6 @@ flowchart TD
     D1 --> E1[Overwrite<br/>splunk_astronomy-shop-latest.yaml]
     D1 --> E2[Overwrite<br/>splunk-astronomy-values-latest.yaml]
 
-
     A --> F[Copy DIAB Manifests]
 
     F --> G1[splunk_astronomy-shop-demo-X.X.X-diab.yaml]
@@ -24,3 +24,4 @@ flowchart TD
 
     H1 --> I1[Overwrite<br/>splunk_astronomy-shop-latest.yaml]
     H2 --> I2[Overwrite<br/>splunk-astronomy-values-latest.yaml]
+```
