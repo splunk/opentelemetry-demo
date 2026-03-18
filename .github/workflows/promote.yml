@@ -33,6 +33,43 @@ jobs:
           token: ${{ secrets.GH_PAT }}
           path: target
 
+      - name: List available versions
+        id: available
+        run: |
+          echo "### Available Versions in kubernetes/release/" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Extract unique versions from filenames
+          VERSIONS=$(ls kubernetes/release/splunk-astronomy-shop-*-values.yaml 2>/dev/null | \
+            sed 's/.*splunk-astronomy-shop-\(.*\)-values\.yaml/\1/' | \
+            sort -V | \
+            uniq)
+
+          if [ -z "$VERSIONS" ]; then
+            echo "⚠️ No versions found with values.yaml files" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Files in kubernetes/release/:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            ls -la kubernetes/release/ 2>/dev/null || echo "Directory not found"
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Version | Values | Manifest | DIAB |" >> $GITHUB_STEP_SUMMARY
+            echo "|---------|--------|----------|------|" >> $GITHUB_STEP_SUMMARY
+
+            for V in $VERSIONS; do
+              VALUES_OK="❌"
+              MANIFEST_OK="❌"
+              DIAB_OK="❌"
+
+              [ -f "kubernetes/release/splunk-astronomy-shop-${V}-values.yaml" ] && VALUES_OK="✅"
+              [ -f "kubernetes/release/splunk-astronomy-shop-${V}.yaml" ] && MANIFEST_OK="✅"
+              [ -f "kubernetes/release/splunk-astronomy-shop-${V}-diab.yaml" ] && DIAB_OK="✅"
+
+              echo "| \`${V}\` | ${VALUES_OK} | ${MANIFEST_OK} | ${DIAB_OK} |" >> $GITHUB_STEP_SUMMARY
+            done
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
       - name: Set variables
         id: vars
         run: |
@@ -51,7 +88,7 @@ jobs:
           echo "MANIFEST_DIAB=${MANIFEST_DIAB}" >> $GITHUB_ENV
           echo "VALUES=${VALUES}" >> $GITHUB_ENV
 
-          echo "### Promote Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "### Selected Configuration" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Setting | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|---------|-------|" >> $GITHUB_STEP_SUMMARY
