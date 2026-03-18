@@ -149,6 +149,9 @@ clusterReceiver:
               tls:
                 insecure: true
               collection_interval: 10s
+              resource_attributes:
+                postgresql.database.name:
+                  enabled: true
               events:
                 db.server.query_sample:
                   enabled: true
@@ -182,31 +185,27 @@ clusterReceiver:
       transform/dbmon:
         error_mode: ignore
         metric_statements:
-          # SQL Server: use deployment name for cleaner identification
+          # SQL Server: use instance name for identification
           - conditions:
               - resource.attributes["sqlserver.instance.name"] != nil
-              - resource.attributes["k8s.deployment.name"] != nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["k8s.deployment.name"]], ""))
-          # PostgreSQL: use deployment name for cleaner identification
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["sqlserver.instance.name"]], ""))
+          # PostgreSQL: use database name for identification
           - conditions:
               - resource.attributes["postgresql.database.name"] != nil
-              - resource.attributes["k8s.deployment.name"] != nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["k8s.deployment.name"]], ""))
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["postgresql.database.name"]], ""))
         log_statements:
-          # SQL Server: use deployment name for cleaner identification
+          # SQL Server: use instance name for identification
           - conditions:
               - resource.attributes["sqlserver.instance.name"] != nil
-              - resource.attributes["k8s.deployment.name"] != nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["k8s.deployment.name"]], ""))
-          # PostgreSQL: use deployment name for cleaner identification
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["sqlserver.instance.name"]], ""))
+          # PostgreSQL: use database name for identification
           - conditions:
               - resource.attributes["postgresql.database.name"] != nil
-              - resource.attributes["k8s.deployment.name"] != nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["k8s.deployment.name"]], ""))
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["postgresql.database.name"]], ""))
     service:
       extensions: [health_check, k8s_observer]
       pipelines:
@@ -252,6 +251,12 @@ agent:
              endpoint: "redis-cart:6379"
              collection_interval: 10s
     processors:
+      # Inject environment as a resource attribute for traces
+      resource/add_environment:
+        attributes:
+          - key: deployment.environment
+            value: ${WORKSHOP_ENVIRONMENT}
+            action: upsert
       filter/drop_flagd:
         traces:
           span:
