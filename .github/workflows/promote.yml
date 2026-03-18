@@ -1,85 +1,249 @@
-name: Promote Astronomy Shop Demo
+name: Astronomy Shop - Promote
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to promote (e.g. 1.2.3)"
+        description: "Version to promote (e.g. 1.7.2)"
         required: true
       scope:
         description: "Scope (all | prod | diab)"
         required: true
         default: "all"
+        type: choice
+        options:
+          - all
+          - prod
+          - diab
+      dry_run:
+        description: "Dry run (validate only, no copy to target repo)"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   promote:
+    # Only run in the main splunk/opentelemetry-demo repo, not in forks
+    if: github.repository == 'splunk/opentelemetry-demo'
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout source repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Checkout target repo
-        uses: actions/checkout@v4
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        uses: actions/checkout@v5
         with:
           repository: splunk/o11y-field-demos
           token: ${{ secrets.GH_PAT }}
           path: target
 
-      - name: Set variables
+      - name: List available versions
+        id: available
         run: |
-          echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
-          echo "SCOPE=${{ github.event.inputs.scope }}" >> $GITHUB_ENV
+          echo "### Available Versions in kubernetes/release/" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Extract unique versions from filenames
+          VERSIONS=$(ls kubernetes/release/splunk-astronomy-shop-*-values.yaml 2>/dev/null | \
+            sed 's/.*splunk-astronomy-shop-\(.*\)-values\.yaml/\1/' | \
+            sort -V | \
+            uniq)
+
+          if [ -z "$VERSIONS" ]; then
+            echo "⚠️ No versions found with values.yaml files" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Files in kubernetes/release/:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            ls -la kubernetes/release/ 2>/dev/null || echo "Directory not found"
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Version | Values | Manifest | DIAB |" >> $GITHUB_STEP_SUMMARY
+            echo "|---------|--------|----------|------|" >> $GITHUB_STEP_SUMMARY
+
+            for V in $VERSIONS; do
+              VALUES_OK="❌"
+              MANIFEST_OK="❌"
+              DIAB_OK="❌"
+
+              [ -f "kubernetes/release/splunk-astronomy-shop-${V}-values.yaml" ] && VALUES_OK="✅"
+              [ -f "kubernetes/release/splunk-astronomy-shop-${V}.yaml" ] && MANIFEST_OK="✅"
+              [ -f "kubernetes/release/splunk-astronomy-shop-${V}-diab.yaml" ] && DIAB_OK="✅"
+
+              echo "| \`${V}\` | ${VALUES_OK} | ${MANIFEST_OK} | ${DIAB_OK} |" >> $GITHUB_STEP_SUMMARY
+            done
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Set variables
+        id: vars
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          SCOPE="${{ github.event.inputs.scope }}"
+
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "SCOPE=${SCOPE}" >> $GITHUB_ENV
+
+          # Source files (from kubernetes/release/)
+          MANIFEST="kubernetes/release/splunk-astronomy-shop-${VERSION}.yaml"
+          MANIFEST_DIAB="kubernetes/release/splunk-astronomy-shop-${VERSION}-diab.yaml"
+          VALUES="kubernetes/release/splunk-astronomy-shop-${VERSION}-values.yaml"
+
+          echo "MANIFEST=${MANIFEST}" >> $GITHUB_ENV
+          echo "MANIFEST_DIAB=${MANIFEST_DIAB}" >> $GITHUB_ENV
+          echo "VALUES=${VALUES}" >> $GITHUB_ENV
+
+          echo "### Selected Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Setting | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | \`${VERSION}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Scope | ${SCOPE} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Verify values.yaml exists (required)
+        run: |
+          echo "### Values File Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f "$VALUES" ]; then
+            echo "✅ **Values file found:** \`$VALUES\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "::error::Values file not found: $VALUES"
+            echo "❌ **Values file NOT found:** \`$VALUES\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**The values.yaml file is required for promotion.**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Please ensure the file exists in \`kubernetes/release/\` before running this workflow." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Available files in kubernetes/release/:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            ls -la kubernetes/release/ 2>/dev/null || echo "Directory not found" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Verify manifest files exist
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Manifest Files Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          MISSING=0
+
+          if [[ "$SCOPE" == "all" || "$SCOPE" == "prod" ]]; then
+            if [ -f "$MANIFEST" ]; then
+              echo "✅ PROD manifest: \`$MANIFEST\`" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ PROD manifest missing: \`$MANIFEST\`" >> $GITHUB_STEP_SUMMARY
+              MISSING=1
+            fi
+          fi
+
+          if [[ "$SCOPE" == "all" || "$SCOPE" == "diab" ]]; then
+            if [ -f "$MANIFEST_DIAB" ]; then
+              echo "✅ DIAB manifest: \`$MANIFEST_DIAB\`" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ DIAB manifest missing: \`$MANIFEST_DIAB\`" >> $GITHUB_STEP_SUMMARY
+              MISSING=1
+            fi
+          fi
+
+          if [ $MISSING -eq 1 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "::error::Some manifest files are missing. Check kubernetes/release/ directory."
+            echo "**Error:** Some manifest files are missing." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Available files in kubernetes/release/:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            ls -la kubernetes/release/ 2>/dev/null || echo "Directory not found"
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
 
       # -----------------------------
       # PROD FLOW
       # -----------------------------
       - name: Copy PROD files
-        if: env.SCOPE == 'all' || env.SCOPE == 'prod'
+        if: (env.SCOPE == 'all' || env.SCOPE == 'prod') && github.event.inputs.dry_run != 'true'
         run: |
-          cp splunk_astronomy-shop-demo-${VERSION}.yaml target/splunk-astronomy-shop/
-          cp splunk_astronomy-shop-demo-${VERSION}-values.yaml target/splunk-astronomy-shop/
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### PROD Deployment" >> $GITHUB_STEP_SUMMARY
+
+          # Copy versioned files
+          cp "$MANIFEST" target/splunk-astronomy-shop/
+          cp "$VALUES" target/splunk-astronomy-shop/
+
+          # Update latest symlinks/copies
+          cp "$MANIFEST" target/splunk-astronomy-shop/splunk-astronomy-shop-latest.yaml
+          cp "$VALUES" target/splunk-astronomy-shop/splunk-astronomy-shop-values-latest.yaml
+
+          echo "✅ Copied to \`target/splunk-astronomy-shop/\`" >> $GITHUB_STEP_SUMMARY
 
       # -----------------------------
       # DIAB FLOW
       # -----------------------------
       - name: Copy DIAB files
-        if: env.SCOPE == 'all' || env.SCOPE == 'diab'
+        if: (env.SCOPE == 'all' || env.SCOPE == 'diab') && github.event.inputs.dry_run != 'true'
         run: |
-          cp splunk_astronomy-shop-demo-${VERSION}-diab.yaml target/demo-in-a-box/v3/deployments/
-          cp splunk_astronomy-shop-demo-${VERSION}-values-diab.yaml target/demo-in-a-box/v3/opentelemetry-collector/
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### DIAB Deployment" >> $GITHUB_STEP_SUMMARY
+
+          # Copy versioned files
+          cp "$MANIFEST_DIAB" target/demo-in-a-box/v3/deployments/
+          cp "$VALUES" target/demo-in-a-box/v3/opentelemetry-collector/
+
+          # Update latest symlinks/copies
+          cp "$MANIFEST_DIAB" target/demo-in-a-box/v3/deployments/splunk-astronomy-shop-latest.yaml
+          cp "$VALUES" target/demo-in-a-box/v3/opentelemetry-collector/splunk-astronomy-shop-values-latest.yaml
+
+          echo "✅ Copied to \`target/demo-in-a-box/v3/\`" >> $GITHUB_STEP_SUMMARY
 
       # -----------------------------
       # VERSION HISTORY
       # -----------------------------
       - name: Update version history
+        if: ${{ github.event.inputs.dry_run != 'true' }}
         run: |
-          NOW=$(date +"%Y-%m-%d %H:%M:%S")
-          echo "$NOW - Promoted version ${VERSION}" >> target/version.history.md
-
-      # -----------------------------
-      # OVERWRITE LATEST
-      # -----------------------------
-      - name: Update latest files (PROD)
-        if: env.SCOPE == 'all' || env.SCOPE == 'prod'
-        run: |
-          cp splunk_astronomy-shop-demo-${VERSION}.yaml target/splunk-astronomy-shop/splunk_astronomy-shop-latest.yaml
-          cp splunk_astronomy-shop-demo-${VERSION}-values.yaml target/splunk-astronomy-shop/splunk-astronomy-values-latest.yaml
-
-      - name: Update latest files (DIAB)
-        if: env.SCOPE == 'all' || env.SCOPE == 'diab'
-        run: |
-          cp splunk_astronomy-shop-demo-${VERSION}-diab.yaml target/demo-in-a-box/v3/deployments/splunk_astronomy-shop-latest.yaml
-          cp splunk_astronomy-shop-demo-${VERSION}-values-diab.yaml target/demo-in-a-box/v3/opentelemetry-collector/splunk-astronomy-values-latest.yaml
+          NOW=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          echo "| ${NOW} | ${VERSION} | ${SCOPE} |" >> target/splunk-astronomy-shop/VERSION-HISTORY.md
 
       # -----------------------------
       # COMMIT + PUSH
       # -----------------------------
       - name: Commit & push changes
+        if: ${{ github.event.inputs.dry_run != 'true' }}
         run: |
           cd target
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .
-          git diff --quiet && echo "No changes" || git commit -m "Promote version ${VERSION} (${SCOPE})"
-          git push
+
+          if git diff --staged --quiet; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### No Changes" >> $GITHUB_STEP_SUMMARY
+            echo "No changes to commit - files may already be up to date." >> $GITHUB_STEP_SUMMARY
+          else
+            git commit -m "Promote Astronomy Shop ${VERSION} (${SCOPE})" \
+              -m "" \
+              -m "Promoted from: splunk/opentelemetry-demo" \
+              -m "Version: ${VERSION}" \
+              -m "Scope: ${SCOPE}"
+            git push
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### ✅ Promotion Complete" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Version **${VERSION}** promoted to splunk/o11y-field-demos" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Dry run summary
+        if: ${{ github.event.inputs.dry_run == 'true' }}
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🧪 Dry Run Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Validation passed. No files were copied (dry run mode)." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To actually promote, run again with **Dry run** unchecked." >> $GITHUB_STEP_SUMMARY
