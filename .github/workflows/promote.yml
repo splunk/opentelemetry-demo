@@ -1,0 +1,85 @@
+name: Promote Astronomy Shop Demo
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to promote (e.g. 1.2.3)"
+        required: true
+      scope:
+        description: "Scope (all | prod | diab)"
+        required: true
+        default: "all"
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source repo
+        uses: actions/checkout@v4
+
+      - name: Checkout target repo
+        uses: actions/checkout@v4
+        with:
+          repository: splunk/o11y-field-demos
+          token: ${{ secrets.GH_PAT }}
+          path: target
+
+      - name: Set variables
+        run: |
+          echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+          echo "SCOPE=${{ github.event.inputs.scope }}" >> $GITHUB_ENV
+
+      # -----------------------------
+      # PROD FLOW
+      # -----------------------------
+      - name: Copy PROD files
+        if: env.SCOPE == 'all' || env.SCOPE == 'prod'
+        run: |
+          cp splunk_astronomy-shop-demo-${VERSION}.yaml target/splunk-astronomy-shop/
+          cp splunk_astronomy-shop-demo-${VERSION}-values.yaml target/splunk-astronomy-shop/
+
+      # -----------------------------
+      # DIAB FLOW
+      # -----------------------------
+      - name: Copy DIAB files
+        if: env.SCOPE == 'all' || env.SCOPE == 'diab'
+        run: |
+          cp splunk_astronomy-shop-demo-${VERSION}-diab.yaml target/demo-in-a-box/v3/deployments/
+          cp splunk_astronomy-shop-demo-${VERSION}-values-diab.yaml target/demo-in-a-box/v3/opentelemetry-collector/
+
+      # -----------------------------
+      # VERSION HISTORY
+      # -----------------------------
+      - name: Update version history
+        run: |
+          NOW=$(date +"%Y-%m-%d %H:%M:%S")
+          echo "$NOW - Promoted version ${VERSION}" >> target/version.history.md
+
+      # -----------------------------
+      # OVERWRITE LATEST
+      # -----------------------------
+      - name: Update latest files (PROD)
+        if: env.SCOPE == 'all' || env.SCOPE == 'prod'
+        run: |
+          cp splunk_astronomy-shop-demo-${VERSION}.yaml target/splunk-astronomy-shop/splunk_astronomy-shop-latest.yaml
+          cp splunk_astronomy-shop-demo-${VERSION}-values.yaml target/splunk-astronomy-shop/splunk-astronomy-values-latest.yaml
+
+      - name: Update latest files (DIAB)
+        if: env.SCOPE == 'all' || env.SCOPE == 'diab'
+        run: |
+          cp splunk_astronomy-shop-demo-${VERSION}-diab.yaml target/demo-in-a-box/v3/deployments/splunk_astronomy-shop-latest.yaml
+          cp splunk_astronomy-shop-demo-${VERSION}-values-diab.yaml target/demo-in-a-box/v3/opentelemetry-collector/splunk-astronomy-values-latest.yaml
+
+      # -----------------------------
+      # COMMIT + PUSH
+      # -----------------------------
+      - name: Commit & push changes
+        run: |
+          cd target
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add .
+          git diff --quiet && echo "No changes" || git commit -m "Promote version ${VERSION} (${SCOPE})"
+          git push
