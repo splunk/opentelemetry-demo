@@ -15,11 +15,6 @@ on:
           - all
           - prod
           - diab
-      confirm_values_exists:
-        description: "I confirm a values.yaml exists for this version in kubernetes/release/"
-        required: true
-        type: boolean
-        default: false
 
 jobs:
   promote:
@@ -35,19 +30,6 @@ jobs:
           repository: splunk/o11y-field-demos
           token: ${{ secrets.GH_PAT }}
           path: target
-
-      - name: Validate confirmation
-        run: |
-          if [[ "${{ github.event.inputs.confirm_values_exists }}" != "true" ]]; then
-            echo "::error::You must confirm that a values.yaml exists for version ${{ github.event.inputs.version }}"
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### ❌ Promotion Cancelled" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "You must check the confirmation box to verify that a values.yaml exists for this version." >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Required file:** \`kubernetes/release/splunk-astronomy-shop-${{ github.event.inputs.version }}-values.yaml\`" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
 
       - name: Set variables
         id: vars
