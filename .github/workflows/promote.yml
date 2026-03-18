@@ -1,4 +1,4 @@
-name: Promote Astronomy Shop Demo
+name: Astronomy Shop - Promote
 
 on:
   workflow_dispatch:
@@ -15,6 +15,11 @@ on:
           - all
           - prod
           - diab
+      dry_run:
+        description: "Dry run (validate only, no copy to target repo)"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   promote:
@@ -24,10 +29,11 @@ jobs:
 
     steps:
       - name: Checkout source repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Checkout target repo
-        uses: actions/checkout@v4
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        uses: actions/checkout@v5
         with:
           repository: splunk/o11y-field-demos
           token: ${{ secrets.GH_PAT }}
@@ -160,7 +166,7 @@ jobs:
       # PROD FLOW
       # -----------------------------
       - name: Copy PROD files
-        if: env.SCOPE == 'all' || env.SCOPE == 'prod'
+        if: (env.SCOPE == 'all' || env.SCOPE == 'prod') && github.event.inputs.dry_run != 'true'
         run: |
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### PROD Deployment" >> $GITHUB_STEP_SUMMARY
@@ -179,7 +185,7 @@ jobs:
       # DIAB FLOW
       # -----------------------------
       - name: Copy DIAB files
-        if: env.SCOPE == 'all' || env.SCOPE == 'diab'
+        if: (env.SCOPE == 'all' || env.SCOPE == 'diab') && github.event.inputs.dry_run != 'true'
         run: |
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### DIAB Deployment" >> $GITHUB_STEP_SUMMARY
@@ -198,6 +204,7 @@ jobs:
       # VERSION HISTORY
       # -----------------------------
       - name: Update version history
+        if: ${{ github.event.inputs.dry_run != 'true' }}
         run: |
           NOW=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
           echo "| ${NOW} | ${VERSION} | ${SCOPE} |" >> target/splunk-astronomy-shop/VERSION-HISTORY.md
@@ -206,6 +213,7 @@ jobs:
       # COMMIT + PUSH
       # -----------------------------
       - name: Commit & push changes
+        if: ${{ github.event.inputs.dry_run != 'true' }}
         run: |
           cd target
           git config user.name "github-actions[bot]"
@@ -229,3 +237,13 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "Version **${VERSION}** promoted to splunk/o11y-field-demos" >> $GITHUB_STEP_SUMMARY
           fi
+
+      - name: Dry run summary
+        if: ${{ github.event.inputs.dry_run == 'true' }}
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🧪 Dry Run Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Validation passed. No files were copied (dry run mode)." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To actually promote, run again with **Dry run** unchecked." >> $GITHUB_STEP_SUMMARY
