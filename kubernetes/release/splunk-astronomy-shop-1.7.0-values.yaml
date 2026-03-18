@@ -5,11 +5,6 @@ clusterReceiver:
       secretKeyRef:
         name: workshop-secret
         key: realm
-  - name: WORKSHOP_ENVIRONMENT
-    valueFrom:
-      secretKeyRef:
-        name: workshop-secret
-        key: instance
   eventsEnabled: true
   k8sObjects:
     - name: events
@@ -149,9 +144,6 @@ clusterReceiver:
               tls:
                 insecure: true
               collection_interval: 10s
-              resource_attributes:
-                postgresql.database.name:
-                  enabled: true
               events:
                 db.server.query_sample:
                   enabled: true
@@ -176,42 +168,26 @@ clusterReceiver:
             max_size: 10485760 # 10 MiB
             sizer: bytes 
     processors:
-      # Inject environment as a resource attribute for use in transforms
-      resource/add_environment:
-        attributes:
-          - key: deployment.environment
-            value: ${WORKSHOP_ENVIRONMENT}
-            action: upsert
       transform/dbmon:
         error_mode: ignore
         metric_statements:
-          # SQL Server: use instance name for identification
           - conditions:
               - resource.attributes["sqlserver.instance.name"] != nil
+              - resource.attributes["k8s.pod.name"] != nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["sqlserver.instance.name"]], ""))
-          # PostgreSQL: use database name for identification
-          - conditions:
-              - resource.attributes["postgresql.database.name"] != nil
-            statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["postgresql.database.name"]], ""))
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["k8s.pod.name"], " - ", resource.attributes["sqlserver.instance.name"]], ""))
         log_statements:
-          # SQL Server: use instance name for identification
           - conditions:
               - resource.attributes["sqlserver.instance.name"] != nil
+              - resource.attributes["k8s.pod.name"] != nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["sqlserver.instance.name"]], ""))
-          # PostgreSQL: use database name for identification
-          - conditions:
-              - resource.attributes["postgresql.database.name"] != nil
-            statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["postgresql.database.name"]], ""))
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["k8s.pod.name"], " - ", resource.attributes["sqlserver.instance.name"]], ""))
     service:
       extensions: [health_check, k8s_observer]
       pipelines:
         metrics:
           exporters: [signalfx]
-          processors: [memory_limiter, batch, resourcedetection, resource, resource/k8s_cluster, resource/add_collector_k8s, resource/add_environment, transform/dbmon]
+          processors: [memory_limiter, batch, resourcedetection, resource, resource/k8s_cluster, resource/add_collector_k8s, transform/dbmon]
           receivers: [k8s_cluster, receiver_creator]
         logs/dbmon:
           receivers:
@@ -222,7 +198,6 @@ clusterReceiver:
             - resourcedetection
             - resource
             - resource/add_collector_k8s
-            - resource/add_environment
             - transform/dbmon
           exporters:
             - otlphttp/dbmon                
@@ -251,12 +226,6 @@ agent:
              endpoint: "redis-cart:6379"
              collection_interval: 10s
     processors:
-      # Inject environment as a resource attribute for traces
-      resource/add_environment:
-        attributes:
-          - key: deployment.environment
-            value: ${WORKSHOP_ENVIRONMENT}
-            action: upsert
       filter/drop_flagd:
         traces:
           span:
