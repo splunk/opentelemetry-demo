@@ -31,12 +31,24 @@ jobs:
       - name: Checkout source repo
         uses: actions/checkout@v5
 
+      - name: Check deploy token
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          DEPLOY_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          if [ -z "$DEPLOY_TOKEN" ]; then
+            echo "::error::GHCR_TOKEN secret is not configured. Please add it to repository secrets."
+            echo "The token needs 'repo' scope to push to splunk/o11y-field-demos"
+            exit 1
+          fi
+          echo "GHCR_TOKEN secret is configured"
+
       - name: Checkout target repo
         if: ${{ github.event.inputs.dry_run != 'true' }}
         uses: actions/checkout@v5
         with:
           repository: splunk/o11y-field-demos
-          token: ${{ secrets.GH_PAT }}
+          token: ${{ secrets.GHCR_TOKEN }}
           path: target
 
       - name: List available versions
