@@ -77,6 +77,10 @@ spec:
         - name: PAYMENT_VERSION
           value: "350.9"
 
+        # Service version for logger (must match image tag)
+        - name: SERVICE_VERSION
+          value: "1.7.2-a"
+
         # Token from dedicated secret for version A
         - name: PAYMENT_API_TOKEN
           valueFrom:
@@ -115,7 +119,7 @@ spec:
 
         # Resource attributes (includes version-specific tags)
         - name: OTEL_RESOURCE_ATTRIBUTES
-          value: "service.name=payment,service.version=350.9,payment.variant=350.9"
+          value: "service.name=payment,service.version=1.7.2-a,payment.variant=A"
 
         # Splunk OpenTelemetry configuration
         - name: SPLUNK_INSTRUMENTATION_METRICS_ENABLED
