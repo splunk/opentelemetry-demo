@@ -15,6 +15,11 @@ on:
           - all
           - prod
           - diab
+      confirm_values_exists:
+        description: "I confirm a values.yaml exists for this version in kubernetes/release/"
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   promote:
@@ -30,6 +35,19 @@ jobs:
           repository: splunk/o11y-field-demos
           token: ${{ secrets.GH_PAT }}
           path: target
+
+      - name: Validate confirmation
+        run: |
+          if [[ "${{ github.event.inputs.confirm_values_exists }}" != "true" ]]; then
+            echo "::error::You must confirm that a values.yaml exists for version ${{ github.event.inputs.version }}"
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### ❌ Promotion Cancelled" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "You must check the confirmation box to verify that a values.yaml exists for this version." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Required file:** \`kubernetes/release/splunk-astronomy-shop-${{ github.event.inputs.version }}-values.yaml\`" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
 
       - name: Set variables
         id: vars
@@ -57,41 +75,63 @@ jobs:
           echo "| Scope | ${SCOPE} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-      - name: Verify source files exist
+      - name: Verify values.yaml exists (required)
         run: |
-          echo "### Source Files" >> $GITHUB_STEP_SUMMARY
+          echo "### Values File Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f "$VALUES" ]; then
+            echo "✅ **Values file found:** \`$VALUES\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "::error::Values file not found: $VALUES"
+            echo "❌ **Values file NOT found:** \`$VALUES\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**The values.yaml file is required for promotion.**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Please ensure the file exists in \`kubernetes/release/\` before running this workflow." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Available files in kubernetes/release/:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            ls -la kubernetes/release/ 2>/dev/null || echo "Directory not found" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Verify manifest files exist
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Manifest Files Check" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           MISSING=0
 
           if [[ "$SCOPE" == "all" || "$SCOPE" == "prod" ]]; then
             if [ -f "$MANIFEST" ]; then
-              echo "✅ Found: \`$MANIFEST\`" >> $GITHUB_STEP_SUMMARY
+              echo "✅ PROD manifest: \`$MANIFEST\`" >> $GITHUB_STEP_SUMMARY
             else
-              echo "❌ Missing: \`$MANIFEST\`" >> $GITHUB_STEP_SUMMARY
+              echo "❌ PROD manifest missing: \`$MANIFEST\`" >> $GITHUB_STEP_SUMMARY
               MISSING=1
             fi
           fi
 
           if [[ "$SCOPE" == "all" || "$SCOPE" == "diab" ]]; then
             if [ -f "$MANIFEST_DIAB" ]; then
-              echo "✅ Found: \`$MANIFEST_DIAB\`" >> $GITHUB_STEP_SUMMARY
+              echo "✅ DIAB manifest: \`$MANIFEST_DIAB\`" >> $GITHUB_STEP_SUMMARY
             else
-              echo "❌ Missing: \`$MANIFEST_DIAB\`" >> $GITHUB_STEP_SUMMARY
+              echo "❌ DIAB manifest missing: \`$MANIFEST_DIAB\`" >> $GITHUB_STEP_SUMMARY
               MISSING=1
             fi
           fi
 
-          if [ -f "$VALUES" ]; then
-            echo "✅ Found: \`$VALUES\`" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ Missing: \`$VALUES\`" >> $GITHUB_STEP_SUMMARY
-            MISSING=1
-          fi
-
           if [ $MISSING -eq 1 ]; then
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Error:** Some source files are missing. Check kubernetes/release/ directory." >> $GITHUB_STEP_SUMMARY
+            echo "::error::Some manifest files are missing. Check kubernetes/release/ directory."
+            echo "**Error:** Some manifest files are missing." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Available files in kubernetes/release/:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            ls -la kubernetes/release/ 2>/dev/null || echo "Directory not found"
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
 
