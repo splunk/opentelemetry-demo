@@ -190,22 +190,22 @@ clusterReceiver:
               - resource.attributes["sqlserver.instance.name"] != nil
             statements:
               - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["sqlserver.instance.name"]], ""))
-          # PostgreSQL: set static identifier for anything NOT SQL Server that doesn't have service.instance.id yet
+          # PostgreSQL: use database name for identification
           - conditions:
-              - resource.attributes["sqlserver.instance.name"] == nil
+              - resource.attributes["postgresql.database.name"] != nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - postgresql - otel"], ""))
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["postgresql.database.name"]], ""))
         log_statements:
           # SQL Server: use instance name for identification
           - conditions:
               - resource.attributes["sqlserver.instance.name"] != nil
             statements:
               - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["sqlserver.instance.name"]], ""))
-          # PostgreSQL: set static identifier for anything NOT SQL Server
+          # PostgreSQL: use database name for identification
           - conditions:
-              - resource.attributes["sqlserver.instance.name"] == nil
+              - resource.attributes["postgresql.database.name"] != nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - postgresql - otel"], ""))
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["postgresql.database.name"]], ""))
     service:
       extensions: [health_check, k8s_observer]
       pipelines:
