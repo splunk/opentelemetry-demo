@@ -1735,7 +1735,7 @@ spec:
           value: '4318'
         - name: OTEL_RESOURCE_ATTRIBUTES
           value: service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version=1.7.2,service.kafka=no
-        - name: FEATURE_AUTH
+        - name: FEATURE_AUTH_ENABLED
           valueFrom:
             secretKeyRef:
               name: workshop-secret
