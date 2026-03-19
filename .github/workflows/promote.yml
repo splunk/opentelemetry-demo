@@ -26,6 +26,7 @@ jobs:
     # Only run in the main splunk/opentelemetry-demo repo, not in forks
     if: github.repository == 'splunk/opentelemetry-demo'
     runs-on: ubuntu-latest
+    environment: production
 
     steps:
       - name: Checkout source repo
