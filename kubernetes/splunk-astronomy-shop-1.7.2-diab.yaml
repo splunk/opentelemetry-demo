@@ -1217,7 +1217,7 @@ data:
             "10%": 0.1,
             "off": 0
           },
-          "defaultVariant": "off"
+          "defaultVariant": "50%"
         },
         "paymentUnreachable": {
           "description": "Payment service is unavailable",
@@ -1735,6 +1735,12 @@ spec:
           value: '4318'
         - name: OTEL_RESOURCE_ATTRIBUTES
           value: service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version=1.7.2,service.kafka=no
+        - name: FEATURE_AUTH_ENABLED
+          valueFrom:
+            secretKeyRef:
+              name: workshop-secret
+              key: flagd_auth
+              optional: true
         - name: FEATURE_USER
           valueFrom:
             secretKeyRef:
