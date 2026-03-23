@@ -127,7 +127,7 @@ function getSplunkGlobalAttributes() {
     'deployment.type': window.ENV.DEPLOYMENT_TYPE || 'green',
 
     // NEW: user.* namespace format to test custom user tags
-    'user.id': user.id,
+    'user.customer_id': user.id,
     'user.role': user.role,
     'user.deployment_type': window.ENV.DEPLOYMENT_TYPE || 'green'
   };
