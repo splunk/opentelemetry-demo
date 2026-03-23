@@ -6,6 +6,7 @@ import { useCallback, useState } from 'react';
 import CartItems from '../CartItems';
 import CheckoutForm from '../CheckoutForm';
 import { IFormData } from '../CheckoutForm/CheckoutForm';
+import Modal from '../Modal';
 import SessionGateway from '../../gateways/Session.gateway';
 import { useCart } from '../../providers/Cart.provider';
 import { useCurrency } from '../../providers/Currency.provider';
@@ -22,6 +23,7 @@ const CartDetail = () => {
   const { selectedCurrency } = useCurrency();
   const { push } = useRouter();
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
 
   const onPlaceOrder = useCallback(
     async ({
