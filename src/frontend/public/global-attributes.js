@@ -121,9 +121,15 @@ function getSplunkGlobalAttributes() {
   var user = sessionId ? randomUser(sessionId) : { id: '99999', role: 'Guest' };
 
   var attributes = {
+    // Original format (keep for comparison)
     'enduser.id': user.id,
     'enduser.role': user.role,
-    'deployment.type': window.ENV.DEPLOYMENT_TYPE || 'green'
+    'deployment.type': window.ENV.DEPLOYMENT_TYPE || 'green',
+
+    // NEW: user.* namespace format to test custom user tags
+    'user.id': user.id,
+    'user.role': user.role,
+    'user.deployment_type': window.ENV.DEPLOYMENT_TYPE || 'green'
   };
 
   console.log('Generated Splunk RUM User Attributes:', attributes);
