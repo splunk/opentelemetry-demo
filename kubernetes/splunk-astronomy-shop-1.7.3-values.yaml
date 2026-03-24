@@ -197,37 +197,37 @@ clusterReceiver:
       transform/dbmon:
         error_mode: ignore
         metric_statements:
-          # SQL Server: use instance name for identification
+          # SQL Server: use instance name for identification (-S- marker)
           - conditions:
               - resource.attributes["sqlserver.instance.name"] != nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["sqlserver.instance.name"]], ""))
-          # PostgreSQL database-level metrics: use database name for identification
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " -S- ", resource.attributes["sqlserver.instance.name"]], ""))
+          # PostgreSQL database-level metrics: use database name for identification (-D- marker)
           - conditions:
               - resource.attributes["postgresql.database.name"] != nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["postgresql.database.name"]], ""))
-          # PostgreSQL instance-level metrics: use instance name for identification
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " -D- ", resource.attributes["postgresql.database.name"]], ""))
+          # PostgreSQL instance-level metrics: use instance name for identification (-I- marker)
           - conditions:
               - resource.attributes["postgresql.instance.name"] != nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["postgresql.instance.name"]], ""))
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " -I- ", resource.attributes["postgresql.instance.name"]], ""))
         log_statements:
-          # SQL Server: use instance name for identification
+          # SQL Server: use instance name for identification (-S- marker)
           - conditions:
               - resource.attributes["sqlserver.instance.name"] != nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["sqlserver.instance.name"]], ""))
-          # PostgreSQL database-level metrics: use database name for identification
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " -S- ", resource.attributes["sqlserver.instance.name"]], ""))
+          # PostgreSQL database-level metrics: use database name for identification (-D- marker)
           - conditions:
               - resource.attributes["postgresql.database.name"] != nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["postgresql.database.name"]], ""))
-          # PostgreSQL instance-level logs: use instance name for identification
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " -D- ", resource.attributes["postgresql.database.name"]], ""))
+          # PostgreSQL instance-level logs: use instance name for identification (-I- marker)
           - conditions:
               - resource.attributes["postgresql.instance.name"] != nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["postgresql.instance.name"]], ""))
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " -I- ", resource.attributes["postgresql.instance.name"]], ""))
     service:
       extensions: [health_check, k8s_observer]
       pipelines:
