@@ -200,14 +200,6 @@ clusterReceiver:
               - resource.attributes["postgresql.database.name"] != nil
             statements:
               - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["postgresql.database.name"]], ""))
-          # PostgreSQL instance-level metrics (bgwriter, backends): these don't have database.name
-          # Explicitly exclude SQL Server to prevent misidentification
-          - conditions:
-              - resource.attributes["postgresql.database.name"] == nil
-              - resource.attributes["sqlserver.instance.name"] == nil
-              - IsMatch(resource.attributes["service.instance.id"], ".*:5432$")
-            statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - PostgreSQL Instance"], ""))
         log_statements:
           # SQL Server: use instance name for identification
           - conditions:
@@ -219,14 +211,6 @@ clusterReceiver:
               - resource.attributes["postgresql.database.name"] != nil
             statements:
               - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["postgresql.database.name"]], ""))
-          # PostgreSQL instance-level logs: these don't have database.name
-          # Explicitly exclude SQL Server to prevent misidentification
-          - conditions:
-              - resource.attributes["postgresql.database.name"] == nil
-              - resource.attributes["sqlserver.instance.name"] == nil
-              - IsMatch(resource.attributes["service.instance.id"], ".*:5432$")
-            statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - PostgreSQL Instance"], ""))
     service:
       extensions: [health_check, k8s_observer]
       pipelines:
