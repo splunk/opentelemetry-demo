@@ -16,13 +16,7 @@ clusterReceiver:
   # Disabled eventsEnabled and k8sObjects - these generate non-HEC data
   # that gets refused by Splunk Platform endpoints
   eventsEnabled: false
-  # k8sObjects:
-  #   - name: events
-  #     mode: watch
-  #     namespaces: [default, splunk]
-  #   - name: pods
-  #     mode: watch
-  #     namespaces: [default, splunk]
+  k8sObjects: []
   config:
     receivers:
       # Using receiver_creator to dynamically create receivers when services are ready
@@ -160,14 +154,21 @@ clusterReceiver:
                 insecure: true
               collection_interval: 10s
               resource_attributes:
-                postgresql.instance.name:
-                  enabled: true
                 postgresql.database.name:
                   enabled: true
               events:
                 db.server.query_sample:
                   enabled: true
                 db.server.top_query:
+                  enabled: true
+                metrics:
+                postgresql.commits:
+                  enabled: true
+                postgresql.operations:
+                  enabled: true   
+                postgresql.deadlocks:
+                  enabled: true   
+                postgresql.connection.max:
                   enabled: true
     extensions:
       # K8s Observer watches for pod endpoints - required for receiver_creator
