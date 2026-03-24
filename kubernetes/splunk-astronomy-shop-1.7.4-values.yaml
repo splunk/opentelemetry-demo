@@ -1,6 +1,3 @@
-
-
-
 clusterReceiver:
   extraEnvs:
   - name: WORKSHOP_REALM
@@ -144,6 +141,11 @@ clusterReceiver:
           # Note: PostgreSQL endpoint format is host:port which works with `endpoint`
           postgresql/main:
             rule: type == "port" && pod.name matches "postgres" && port == 5432
+            resource_attributes:
+              # Inject pod name for fallback identification in transform rules
+              k8s.pod.name: '`pod.name`'
+              # Inject database name from pod annotation
+              db.name: '`pod.annotations["splunk.com/postgresql.database"]`'
             config:
               endpoint: '`endpoint`'
               transport: tcp
@@ -198,37 +200,57 @@ clusterReceiver:
       transform/dbmon:
         error_mode: ignore
         metric_statements:
-          # SQL Server: use instance name for identification (-S- marker)
+          # SQL Server: use instance name for identification
           - conditions:
               - resource.attributes["sqlserver.instance.name"] != nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " -S- ", resource.attributes["sqlserver.instance.name"]], ""))
-          # PostgreSQL database-level metrics: use database name for identification (-D- marker)
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["sqlserver.instance.name"]], ""))
+          # PostgreSQL database-level metrics: use database name for identification
           - conditions:
               - resource.attributes["postgresql.database.name"] != nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " -D- ", resource.attributes["postgresql.database.name"]], ""))
-          # PostgreSQL instance-level metrics: use instance name for identification (-I- marker)
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["postgresql.database.name"]], ""))
+          # PostgreSQL fallback: use injected db.name from pod annotation
           - conditions:
-              - resource.attributes["postgresql.instance.name"] != nil
+              - resource.attributes["db.name"] != nil
+              - resource.attributes["postgresql.database.name"] == nil
+              - resource.attributes["sqlserver.instance.name"] == nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " -I- ", resource.attributes["postgresql.instance.name"]], ""))
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["db.name"]], ""))
+          # PostgreSQL last resort: use k8s pod name
+          - conditions:
+              - resource.attributes["k8s.pod.name"] != nil
+              - resource.attributes["postgresql.database.name"] == nil
+              - resource.attributes["db.name"] == nil
+              - resource.attributes["sqlserver.instance.name"] == nil
+            statements:
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["k8s.pod.name"]], ""))
         log_statements:
-          # SQL Server: use instance name for identification (-S- marker)
+          # SQL Server: use instance name for identification
           - conditions:
               - resource.attributes["sqlserver.instance.name"] != nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " -S- ", resource.attributes["sqlserver.instance.name"]], ""))
-          # PostgreSQL database-level metrics: use database name for identification (-D- marker)
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["sqlserver.instance.name"]], ""))
+          # PostgreSQL database-level logs: use database name for identification
           - conditions:
               - resource.attributes["postgresql.database.name"] != nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " -D- ", resource.attributes["postgresql.database.name"]], ""))
-          # PostgreSQL instance-level logs: use instance name for identification (-I- marker)
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["postgresql.database.name"]], ""))
+          # PostgreSQL fallback: use injected db.name from pod annotation
           - conditions:
-              - resource.attributes["postgresql.instance.name"] != nil
+              - resource.attributes["db.name"] != nil
+              - resource.attributes["postgresql.database.name"] == nil
+              - resource.attributes["sqlserver.instance.name"] == nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " -I- ", resource.attributes["postgresql.instance.name"]], ""))
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["db.name"]], ""))
+          # PostgreSQL last resort: use k8s pod name
+          - conditions:
+              - resource.attributes["k8s.pod.name"] != nil
+              - resource.attributes["postgresql.database.name"] == nil
+              - resource.attributes["db.name"] == nil
+              - resource.attributes["sqlserver.instance.name"] == nil
+            statements:
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["k8s.pod.name"]], ""))
     service:
       extensions: [health_check, k8s_observer]
       pipelines:
