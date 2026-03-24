@@ -10,14 +10,16 @@ clusterReceiver:
       secretKeyRef:
         name: workshop-secret
         key: instance
-  eventsEnabled: true
-  k8sObjects:
-    - name: events
-      mode: watch
-      namespaces: [default, splunk]
-    - name: pods
-      mode: watch
-      namespaces: [default, splunk]
+  # Disabled eventsEnabled and k8sObjects - these generate non-HEC data
+  # that gets refused by Splunk Platform endpoints
+  eventsEnabled: false
+  # k8sObjects:
+  #   - name: events
+  #     mode: watch
+  #     namespaces: [default, splunk]
+  #   - name: pods
+  #     mode: watch
+  #     namespaces: [default, splunk]
   config:
     receivers:
       # Using receiver_creator to dynamically create receivers when services are ready
@@ -26,8 +28,9 @@ clusterReceiver:
         watch_observers: [k8s_observer]
         receivers:
           # SQL Server for Shop DC Shim - only created when pod is ready
+          # Uses type == "port" for more precise endpoint matching
           sqlserver/shopshim:
-            rule: type == "pod.container" && pod.annotations["splunk.com/monitor"] == "sqlserver" && pod.annotations["splunk.com/sqlserver.database"] == "shopshim"
+            rule: type == "port" && pod.name matches "shop-dc-shim-db" && port == 1433
             config:
               collection_interval: 10s
               top_query_collection:
@@ -80,8 +83,9 @@ clusterReceiver:
                 sqlserver.user.connection.count:
                     enabled: true
           # SQL Server for Fraud Detection - only created when pod is ready
+          # Uses type == "port" for more precise endpoint matching
           sqlserver/fraud:
-            rule: type == "pod.container" && pod.annotations["splunk.com/monitor"] == "sqlserver" && pod.annotations["splunk.com/sqlserver.database"] == "fraud"
+            rule: type == "port" && pod.name matches "sql-server-fraud" && port == 1433
             config:
               collection_interval: 10s
               top_query_collection:
@@ -137,15 +141,16 @@ clusterReceiver:
                 sqlserver.database.latency:
                   enabled: true
           # PostgreSQL for Main Database - only created when pod is ready
+          # Uses type == "port" for more precise endpoint matching
+          # Database name is read dynamically from pod annotation
           postgresql/main:
-            rule: type == "pod.container" && pod.annotations["splunk.com/monitor"] == "postgresql" && pod.annotations["splunk.com/postgresql.database"] == "otel"
+            rule: type == "port" && pod.name matches "postgres" && port == 5432
             config:
-              endpoint: '`endpoint`:5432'
+              endpoint: '`endpoint`'
               transport: tcp
               username: root
               password: otel
-              databases:
-                - otel
+              databases: '`pod.annotations["splunk.com/postgresql.database"]`'
               tls:
                 insecure: true
               collection_interval: 10s
@@ -174,7 +179,7 @@ clusterReceiver:
           batch:
             flush_timeout: 15s
             max_size: 10485760 # 10 MiB
-            sizer: bytes 
+            sizer: bytes
     processors:
       # Inject environment as a resource attribute for use in transforms
       resource/add_environment:
@@ -241,7 +246,7 @@ clusterReceiver:
             - resource/add_environment
             - transform/dbmon
           exporters:
-            - otlphttp/dbmon                
+            - otlphttp/dbmon
 agent:
   extraEnvs:
   - name: WORKSHOP_ENVIRONMENT
