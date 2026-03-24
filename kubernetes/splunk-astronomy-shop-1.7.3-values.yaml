@@ -161,13 +161,13 @@ clusterReceiver:
                   enabled: true
                 db.server.top_query:
                   enabled: true
-                metrics:
+              metrics:
                 postgresql.commits:
                   enabled: true
                 postgresql.operations:
-                  enabled: true   
+                  enabled: true
                 postgresql.deadlocks:
-                  enabled: true   
+                  enabled: true
                 postgresql.connection.max:
                   enabled: true
     extensions:
