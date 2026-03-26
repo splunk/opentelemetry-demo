@@ -23,9 +23,9 @@ The frontend service has been enhanced with comprehensive observability features
 - All attributes are sent to Splunk RUM for analytics and filtering
 
 **Key attributes:**
-- `enduser.id`**: User ID (Admin: 34/37/41, Member: 1000-6000, Guest: 99999)
-- `enduser.role`**: User role (Admin, Member, or Guest)
-- `deployment.type`**: Deployment environment identifier (default: "green")
+- `user.customer_id`**: User ID (Admin: 34/37/41, Member: 1000-6000, Guest: 99999)
+- `user.role`**: User role (Admin, Member, or Guest)
+- `user.deployment_type`**: Deployment environment identifier (default: "green")
 
 **Reference:** See `GLOBAL_ATTRIBUTES.md` for complete details.
 
