@@ -263,8 +263,21 @@ data:
         console.log('🖱️ Clicking "Place Order"');
         await page.click(placeSel);
 
-        await waitForText(page, 'Your order is complete!');
-        console.log('🎉 Order completed message detected.');
+        // Wait for either success message or error modal
+        console.log('⏳ Waiting for order result...');
+        const orderResult = await Promise.race([
+          waitForText(page, 'Your order is complete!').then(() => 'success'),
+          page.waitForSelector('#modal-close-btn', { timeout: 30000, visible: true }).then(() => 'error-modal')
+        ]);
+
+        if (orderResult === 'success') {
+          console.log('🎉 Order completed successfully!');
+        } else if (orderResult === 'error-modal') {
+          console.log('⚠️ Error modal detected - closing it to continue...');
+          await page.click('#modal-close-btn');
+          await delay(500);
+          console.log('✅ Error modal closed.');
+        }
       } finally {
         console.log('🧹 Cleaning up page resources...');
         try {
