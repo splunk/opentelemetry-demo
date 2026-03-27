@@ -75,7 +75,7 @@ spec:
         - name: FLAGD_HOST
           value: flagd
         - name: FLAGD_PORT
-          value: '8013'
+          value: '8016'
         - name: FLAGD_UI_HOST
           value: flagd-ui
         - name: FLAGD_UI_PORT

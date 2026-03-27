@@ -17,12 +17,13 @@
  *   - Checkout service makes its own payment routing decision using paymentFailure flag
  *
  * When rumBlueGreen flag is ON:
- *   - Determines payment path ('payment-a' or 'payment-b') at session creation
- *   - Uses paymentFailure flag probability to decide (e.g., 0.5 = 50% payment-b)
- *   - Decision is deterministic per session (same session always gets same path)
+ *   - Default payment path is 'payment-a' (routes to stable payment service)
+ *   - Clicking logo on homepage resets user AND toggles payment path
+ *   - First reset: switches to 'payment-b', second reset: back to 'payment-a', etc.
  *   - Stored in session and passed to checkout service via X-Payment-Path header
  *   - Checkout service honors the header instead of making its own decision
  *   - Enables RUM tracking of payment path throughout entire user journey
+ *   - Reset message shows current path (A or B) for visibility
  */
 
 // Simple hash function for session ID
@@ -150,13 +151,17 @@ async function getFlagValue(flagName, defaultValue) {
   }
 }
 
-// Determine payment path based on session ID and paymentFailure probability
-function determinePaymentPath(sessionId, paymentFailureProb) {
-  var hash = simpleHash(sessionId + '-payment');
-  var rng = new SeededRandom(hash);
-  var path = rng.random() < paymentFailureProb ? 'payment-b' : 'payment-a';
-  console.log('Determined payment path for session:', sessionId, '-> Path:', path, '(prob:', paymentFailureProb + ')');
-  return path;
+// Get default payment path (always starts with payment-a)
+function getDefaultPaymentPath() {
+  return 'payment-a';
+}
+
+// Toggle payment path between A and B
+function togglePaymentPath() {
+  var currentPath = getStoredPaymentPath() || 'payment-a';
+  var newPath = currentPath === 'payment-a' ? 'payment-b' : 'payment-a';
+  console.log('Toggling payment path:', currentPath, '->', newPath);
+  return newPath;
 }
 
 // Store payment path in session for checkout to use
@@ -194,14 +199,13 @@ async function initPaymentPath() {
     console.log('rumBlueGreen flag:', rumBlueGreenEnabled);
 
     if (rumBlueGreenEnabled) {
-      var sessionId = getSessionId();
       var storedPath = getStoredPaymentPath();
 
-      // Use stored path if available, otherwise determine new one
+      // Use stored path if available, otherwise default to payment-a
       if (!storedPath) {
-        var paymentFailureProb = await getFlagValue('paymentFailure', 0);
-        storedPath = determinePaymentPath(sessionId, paymentFailureProb);
+        storedPath = getDefaultPaymentPath();
         storePaymentPath(storedPath);
+        console.log('Initialized default payment path:', storedPath);
       }
 
       // Update RUM with payment path as deployment type
@@ -216,6 +220,30 @@ async function initPaymentPath() {
     console.warn('Failed to initialize payment path:', e);
   }
   return null;
+}
+
+// Toggle payment path and update RUM (called on user reset when rumBlueGreen is ON)
+async function toggleAndStorePaymentPath() {
+  try {
+    var rumBlueGreenEnabled = await getFlagValue('rumBlueGreen', false);
+    if (!rumBlueGreenEnabled) {
+      return null;
+    }
+
+    var newPath = togglePaymentPath();
+    storePaymentPath(newPath);
+
+    // Update RUM with new payment path
+    if (typeof window.SplunkRum !== 'undefined' && window.SplunkRum.setGlobalAttributes) {
+      window.SplunkRum.setGlobalAttributes({ 'user.deployment_type': newPath });
+      console.log('Toggled RUM deployment_type to:', newPath);
+    }
+
+    return newPath;
+  } catch (e) {
+    console.warn('Failed to toggle payment path:', e);
+    return null;
+  }
 }
 
 // Main function to generate Splunk RUM global attributes (synchronous for initial RUM setup)
