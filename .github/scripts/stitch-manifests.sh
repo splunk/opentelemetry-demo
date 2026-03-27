@@ -199,8 +199,45 @@ for svc in config.get('services', []):
                 fi
             fi
         done
+    # Special handling for flagd-config - read JSON from single source
+    elif [ "$SERVICE" = "flagd-config" ]; then
+        FLAGD_JSON="src/flagd/demo.flagd.json"
+        FLAGD_PVC="src/flagd-config/flagd-config-k8s.yaml"
+
+        if [ -f "$FLAGD_JSON" ]; then
+            echo "Adding manifest for: $SERVICE (version: $VERSION)"
+            echo "  (using src/flagd/demo.flagd.json as single source)"
+            echo "" >> "$OUTPUT_FILE"
+            echo "# === $SERVICE ===" >> "$OUTPUT_FILE"
+
+            # Add PVC from flagd-config-k8s.yaml
+            if [ -f "$FLAGD_PVC" ]; then
+                cat "$FLAGD_PVC" >> "$OUTPUT_FILE"
+            fi
+
+            # Generate ConfigMap with embedded JSON
+            cat >> "$OUTPUT_FILE" << 'CONFIGMAP_HEADER'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: flagd-config
+  labels:
+    app.kubernetes.io/part-of: opentelemetry-demo
+data:
+  demo.flagd.json: |
+CONFIGMAP_HEADER
+            # Indent the JSON content by 4 spaces for YAML embedding
+            sed 's/^/    /' "$FLAGD_JSON" >> "$OUTPUT_FILE"
+
+            echo "" >> "$OUTPUT_FILE"
+            echo "---" >> "$OUTPUT_FILE"
+            FOUND=$((FOUND + 1))
+        else
+            echo "Warning: Flagd JSON not found at $FLAGD_JSON"
+            MISSING+=("$SERVICE")
+        fi
     else
-        # Standard processing for all non-payment services
+        # Standard processing for all other services
         if [ -f "$MANIFEST_FILE" ]; then
             # Check if service has replace_registry flag set to false
             SHOULD_REPLACE="true"
