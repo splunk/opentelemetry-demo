@@ -53,11 +53,12 @@ const Apis = () => ({
   },
 
   placeOrder({ currencyCode, ...order }: PlaceOrderRequest & { currencyCode: string }) {
+    const paymentPath = SessionGateway.getPaymentPath();
     return request<IProductCheckout>({
       url: `${basePath}/checkout`,
       method: 'POST',
       queryParams: { currencyCode },
-      body: order,
+      body: { ...order, paymentPath },
     });
   },
 
