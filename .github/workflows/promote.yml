@@ -207,7 +207,7 @@ jobs:
           cp "$VALUES" target/demo-in-a-box/v3/opentelemetry-collector/
 
           # Update latest symlinks/copies
-          cp "$MANIFEST_DIAB" target/demo-in-a-box/v3/deployments/splunk-astronomy-shop-latest.yaml
+          cp "$MANIFEST_DIAB" target/demo-in-a-box/v3/deployments/splunk-astronomy-shop-latest-diab.yaml
           cp "$VALUES" target/demo-in-a-box/v3/opentelemetry-collector/splunk-astronomy-shop-values-latest.yaml
 
           echo "✅ Copied to \`target/demo-in-a-box/v3/\`" >> $GITHUB_STEP_SUMMARY
