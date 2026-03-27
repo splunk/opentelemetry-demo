@@ -15,11 +15,12 @@ const handler = async ({ method, body, query }: NextApiRequest, res: NextApiResp
   switch (method) {
     case 'POST': {
       const { currencyCode = '' } = query;
-      const orderData = body as PlaceOrderRequest;
+      const { paymentPath, ...orderFields } = body;
+      const orderData = orderFields as PlaceOrderRequest;
 
       let placeOrderResponse;
       try {
-        placeOrderResponse = await CheckoutGateway.placeOrder(orderData);
+        placeOrderResponse = await CheckoutGateway.placeOrder(orderData, paymentPath);
       } catch (error: any) {
         // Handle gRPC errors and return appropriate HTTP status
         const errorMessage = error?.message || 'Checkout failed';

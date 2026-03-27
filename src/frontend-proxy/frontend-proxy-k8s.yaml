@@ -47,7 +47,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: frontend-proxy
-        image: ghcr.io/splunk/opentelemetry-demo/otel-frontend-proxy:1.7.2
+        image: ghcr.io/hagen-p/opentelemetry-demo-splunk/otel-frontend-proxy:1.8.0-test
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -75,7 +75,7 @@ spec:
         - name: FLAGD_HOST
           value: flagd
         - name: FLAGD_PORT
-          value: '8013'
+          value: '8016'
         - name: FLAGD_UI_HOST
           value: flagd-ui
         - name: FLAGD_UI_PORT

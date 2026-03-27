@@ -51,6 +51,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
@@ -548,6 +549,16 @@ func (cs *checkout) convertCurrency(ctx context.Context, from *pb.Money, toCurre
 	return result, err
 }
 
+// chargeCard routes payment requests to payment-va or payment-vb service.
+//
+// Payment Routing Behavior:
+//   - If x-payment-path header is present (rumBlueGreen flag ON in frontend):
+//     Uses the header value ('payment-a' -> payment-va, 'payment-b' -> payment-vb)
+//     This enables RUM to track payment path from session start to checkout.
+//   - If header is absent (rumBlueGreen flag OFF or missing):
+//     Uses paymentFailure flag probability to randomly route requests.
+//     e.g., paymentFailure=0.5 means 50% go to payment-vb.
+//     Default (paymentFailure=0) routes 100% to payment-va.
 func (cs *checkout) chargeCard(ctx context.Context, amount *pb.Money, paymentInfo *pb.CreditCardInfo) (string, error) {
 	paymentService := cs.paymentSvcClient
 
@@ -557,22 +568,44 @@ func (cs *checkout) chargeCard(ctx context.Context, amount *pb.Money, paymentInf
 		c := mustCreateClient(badAddress)
 		paymentService = pb.NewPaymentServiceClient(c)
 	} else {
-		// Use paymentFailure flag to route between payment version A and B
-		// paymentFailure=0   → 100% to version A
-		// paymentFailure=0.5 → 50% to A, 50% to B
-		// paymentFailure=1   → 100% to version B
-		paymentFailureProbability := cs.getFeatureFlagFloat(ctx, "paymentFailure", 0.0)
-
-		// Generate random number to determine routing
-		shouldRouteToB := rand.Float64() < paymentFailureProbability
-
 		var paymentAddr string
-		if shouldRouteToB {
-			// Route to version B (optimized/faster)
+
+		// Check for frontend-determined payment path (from RUM blue/green feature)
+		// This header is set when rumBlueGreen flag is enabled in frontend
+		paymentPath := ""
+		if md, ok := metadata.FromIncomingContext(ctx); ok {
+			if values := md.Get("x-payment-path"); len(values) > 0 {
+				paymentPath = values[0]
+			}
+		}
+
+		if paymentPath == "payment-b" {
+			// Frontend determined: route to version B
 			paymentAddr = "payment-vb:8080"
-		} else {
-			// Route to version A (stable/conservative)
+			logger.Info("Using frontend-determined payment path: B (from x-payment-path header)")
+		} else if paymentPath == "payment-a" {
+			// Frontend determined: route to version A
 			paymentAddr = "payment-va:8080"
+			logger.Info("Using frontend-determined payment path: A (from x-payment-path header)")
+		} else {
+			// Fallback: existing flag-based decision (rumBlueGreen not enabled or header missing)
+			// Use paymentFailure flag to route between payment version A and B
+			// paymentFailure=0   → 100% to version A
+			// paymentFailure=0.5 → 50% to A, 50% to B
+			// paymentFailure=1   → 100% to version B
+			paymentFailureProbability := cs.getFeatureFlagFloat(ctx, "paymentFailure", 0.0)
+
+			// Generate random number to determine routing
+			shouldRouteToB := rand.Float64() < paymentFailureProbability
+
+			if shouldRouteToB {
+				// Route to version B (optimized/faster)
+				paymentAddr = "payment-vb:8080"
+			} else {
+				// Route to version A (stable/conservative)
+				paymentAddr = "payment-va:8080"
+			}
+			logger.Info(fmt.Sprintf("Using backend flag-based payment path decision: %s", paymentAddr))
 		}
 
 		// Create client for selected version

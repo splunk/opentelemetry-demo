@@ -10,16 +10,37 @@ import * as S from './Header.styled';
 const Header = () => {
   const router = useRouter();
   const [isResetting, setIsResetting] = useState(false);
+  const [resetMessage, setResetMessage] = useState('🔄 Resetting User...');
 
-  const handleLogoClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+  const handleLogoClick = async (e: React.MouseEvent<HTMLAnchorElement>) => {
     // Only reset session if currently on home page (for demo purposes)
     if (router.pathname === '/' && typeof window !== 'undefined' && window.localStorage) {
       e.preventDefault(); // Prevent navigation
 
+      // Toggle payment path first (before clearing session) if rumBlueGreen is enabled
+      let newPath: string | null = null;
+      if (typeof (window as any).toggleAndStorePaymentPath === 'function') {
+        newPath = await (window as any).toggleAndStorePaymentPath();
+      }
+
+      // Build reset message with path info
+      const pathLabel = newPath ? (newPath === 'payment-a' ? 'A' : 'B') : null;
+      const message = pathLabel
+        ? `🔄 Resetting User - ${pathLabel}`
+        : '🔄 Resetting User...';
+      setResetMessage(message);
+
       // Flash "resetting" message
       setIsResetting(true);
 
-      // Remove old session
+      // Remove old session (but keep payment path which was just toggled)
+      const currentSession = localStorage.getItem('session');
+      let paymentPath = null;
+      if (currentSession) {
+        try {
+          paymentPath = JSON.parse(currentSession).paymentPath;
+        } catch (e) {}
+      }
       localStorage.removeItem('session');
       console.log('🔄 Session reset - generating new user...');
 
@@ -27,6 +48,17 @@ const Header = () => {
       // This calls the same function from global-attributes.js
       if (typeof (window as any).getSplunkGlobalAttributes === 'function') {
         const newAttributes = (window as any).getSplunkGlobalAttributes();
+
+        // Restore the toggled payment path to the new session
+        if (paymentPath) {
+          const session = localStorage.getItem('session');
+          if (session) {
+            const sessionObj = JSON.parse(session);
+            sessionObj.paymentPath = paymentPath;
+            localStorage.setItem('session', JSON.stringify(sessionObj));
+          }
+        }
+
         console.log('✅ New user generated:', newAttributes);
 
         // Update RUM with new attributes if possible
@@ -74,7 +106,7 @@ const Header = () => {
           fontSize: '24px',
           fontWeight: 'bold'
         }}>
-          🔄 Resetting User...
+          {resetMessage}
         </div>
       )}
       <S.NavBar>

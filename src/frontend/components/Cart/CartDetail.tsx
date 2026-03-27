@@ -66,7 +66,9 @@ const CartDetail = () => {
           // Set friendly error message for user and show modal, log technical details to console
           setCheckoutError("Oh Dear, there seems to be a problem with your order. Please contact a sales representative at 1-800-ASTRONOMY (1-800-278-766-669)");
           setIsErrorModalOpen(true);
-          console.error('Checkout failed:', errorMessage);
+          // Use console.log instead of console.error to avoid RUM capturing this as a JS error
+          // The error is already tracked via custom RUM workflow events below
+          console.log('Checkout failed (expected in demo):', errorMessage);
 
           // Determine if this is a payment failure specifically
           const isPaymentFailure = errorMessage.toLowerCase().includes('payment') ||
