@@ -96,6 +96,15 @@
       },
       "defaultVariant": "off"
     },
+    "rumBlueGreen": {
+      "description": "Enable RUM-based payment path (A/B) tracking in user.deployment_type attribute",
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "off"
+    },
     "paymentUnreachable": {
       "description": "Payment service is unavailable",
       "state": "ENABLED",

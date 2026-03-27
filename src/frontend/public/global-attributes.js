@@ -5,6 +5,24 @@
  * Splunk RUM User Attributes Generator
  * This script generates deterministic user attributes based on session ID
  * Ported from the original Go implementation
+ *
+ * user.deployment_type Behavior:
+ * ==============================
+ * This attribute controls how payment routing is tracked in RUM.
+ *
+ * When rumBlueGreen flag is OFF (default):
+ *   - Uses DEPLOYMENT_TYPE environment variable if set (e.g., 'blue', 'canary')
+ *   - Falls back to 'green' as the default value
+ *   - Change DEPLOYMENT_TYPE env var on the fly to update all new sessions
+ *   - Checkout service makes its own payment routing decision using paymentFailure flag
+ *
+ * When rumBlueGreen flag is ON:
+ *   - Determines payment path ('payment-a' or 'payment-b') at session creation
+ *   - Uses paymentFailure flag probability to decide (e.g., 0.5 = 50% payment-b)
+ *   - Decision is deterministic per session (same session always gets same path)
+ *   - Stored in session and passed to checkout service via X-Payment-Path header
+ *   - Checkout service honors the header instead of making its own decision
+ *   - Enables RUM tracking of payment path throughout entire user journey
  */
 
 // Simple hash function for session ID
@@ -112,7 +130,95 @@ function getSessionId() {
   }
 }
 
-// Main function to generate Splunk RUM global attributes
+// Fetch flag value from flagd OFREP API
+async function getFlagValue(flagName, defaultValue) {
+  try {
+    var response = await fetch('/flagservice/ofrep/v1/evaluate/flags/' + flagName, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ context: {} })
+    });
+    if (!response.ok) {
+      console.warn('Flag fetch failed for ' + flagName + ':', response.status);
+      return defaultValue;
+    }
+    var data = await response.json();
+    return data.value !== undefined ? data.value : defaultValue;
+  } catch (e) {
+    console.warn('Failed to fetch ' + flagName + ' flag:', e);
+    return defaultValue;
+  }
+}
+
+// Determine payment path based on session ID and paymentFailure probability
+function determinePaymentPath(sessionId, paymentFailureProb) {
+  var hash = simpleHash(sessionId + '-payment');
+  var rng = new SeededRandom(hash);
+  var path = rng.random() < paymentFailureProb ? 'payment-b' : 'payment-a';
+  console.log('Determined payment path for session:', sessionId, '-> Path:', path, '(prob:', paymentFailureProb + ')');
+  return path;
+}
+
+// Store payment path in session for checkout to use
+function storePaymentPath(path) {
+  try {
+    var session = localStorage.getItem('session');
+    if (session) {
+      var sessionObj = JSON.parse(session);
+      sessionObj.paymentPath = path;
+      localStorage.setItem('session', JSON.stringify(sessionObj));
+    }
+  } catch (e) {
+    console.warn('Failed to store payment path:', e);
+  }
+}
+
+// Get stored payment path from session
+function getStoredPaymentPath() {
+  try {
+    var session = localStorage.getItem('session');
+    if (session) {
+      var sessionObj = JSON.parse(session);
+      return sessionObj.paymentPath || null;
+    }
+  } catch (e) {
+    console.warn('Failed to get stored payment path:', e);
+  }
+  return null;
+}
+
+// Initialize payment path based on rumBlueGreen flag (async, called after page load)
+async function initPaymentPath() {
+  try {
+    var rumBlueGreenEnabled = await getFlagValue('rumBlueGreen', false);
+    console.log('rumBlueGreen flag:', rumBlueGreenEnabled);
+
+    if (rumBlueGreenEnabled) {
+      var sessionId = getSessionId();
+      var storedPath = getStoredPaymentPath();
+
+      // Use stored path if available, otherwise determine new one
+      if (!storedPath) {
+        var paymentFailureProb = await getFlagValue('paymentFailure', 0);
+        storedPath = determinePaymentPath(sessionId, paymentFailureProb);
+        storePaymentPath(storedPath);
+      }
+
+      // Update RUM with payment path as deployment type
+      if (typeof window.SplunkRum !== 'undefined' && window.SplunkRum.setGlobalAttributes) {
+        window.SplunkRum.setGlobalAttributes({ 'user.deployment_type': storedPath });
+        console.log('Updated RUM deployment_type to:', storedPath);
+      }
+
+      return storedPath;
+    }
+  } catch (e) {
+    console.warn('Failed to initialize payment path:', e);
+  }
+  return null;
+}
+
+// Main function to generate Splunk RUM global attributes (synchronous for initial RUM setup)
 function getSplunkGlobalAttributes() {
   // Get session ID and generate user attributes
   var sessionId = getSessionId();
@@ -120,12 +226,25 @@ function getSplunkGlobalAttributes() {
 
   var user = sessionId ? randomUser(sessionId) : { id: '99999', role: 'Guest' };
 
+  // Determine deployment type with fallback chain:
+  // 1. Stored payment path (set by initPaymentPath when rumBlueGreen is ON) - 'payment-a' or 'payment-b'
+  // 2. DEPLOYMENT_TYPE env var (allows on-the-fly changes when rumBlueGreen is OFF)
+  // 3. Default: 'green'
+  var storedPath = getStoredPaymentPath();
+  var deploymentType = storedPath || window.ENV.DEPLOYMENT_TYPE || 'green';
+
   var attributes = {
     'user.customer_id': user.id,
     'user.role': user.role,
-    'user.deployment_type': window.ENV.DEPLOYMENT_TYPE || 'green'
+    'user.deployment_type': deploymentType
   };
 
   console.log('Generated Splunk RUM User Attributes:', attributes);
+
+  // Async: Initialize payment path after initial load (will update RUM if needed)
+  setTimeout(function() {
+    initPaymentPath();
+  }, 100);
+
   return attributes;
 }
