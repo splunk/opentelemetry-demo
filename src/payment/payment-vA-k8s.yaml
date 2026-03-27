@@ -65,7 +65,7 @@ spec:
 
       containers:
       - name: payment
-        image: ghcr.io/hagen-p/opentelemetry-demo-splunk/otel-payment:1.8.0-test-a
+        image: ghcr.io/splunk/opentelemetry-demo/otel-payment:1.8.0-a
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
