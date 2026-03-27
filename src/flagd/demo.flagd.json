@@ -94,7 +94,7 @@
         "10%": 0.1,
         "off": 0
       },
-      "defaultVariant": "off"
+      "defaultVariant": "50%"
     },
     "rumBlueGreen": {
       "description": "Enable RUM-based payment path (A/B) tracking in user.deployment_type attribute",
