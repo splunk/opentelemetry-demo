@@ -40,9 +40,9 @@ agent:
               password: root
               database: LxvGChW075
           redis:
-            rule: type == "port" && pod.name matches "redis-cart" && port == 6379
+            rule: type == "port" && pod.name matches "(redis|valkey)-cart" && port == 6379
             config:
-              endpoint: "redis-cart:6379"
+              endpoint: '`endpoint`'
               collection_interval: 10s
           # SQL Server receivers - discovered by agent on same node as database pod
           sqlserver/shopshim:
