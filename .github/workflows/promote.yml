@@ -202,6 +202,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### DIAB Deployment" >> $GITHUB_STEP_SUMMARY
 
+          # V3 targets
           # Copy versioned files
           cp "$MANIFEST_DIAB" target/demo-in-a-box/v3/deployments/
           cp "$VALUES" target/demo-in-a-box/v3/opentelemetry-collector/
@@ -211,6 +212,15 @@ jobs:
           cp "$VALUES" target/demo-in-a-box/v3/opentelemetry-collector/splunk-astronomy-shop-values-latest.yaml
 
           echo "✅ Copied to \`target/demo-in-a-box/v3/\`" >> $GITHUB_STEP_SUMMARY
+
+          # V4 targets
+          mkdir -p target/demo-in-a-box/v4/demo-manifests/splunk-astronomy-shop-latest-diab
+          mkdir -p target/demo-in-a-box/v4/collector
+
+          cp "$MANIFEST_DIAB" target/demo-in-a-box/v4/demo-manifests/splunk-astronomy-shop-latest-diab/splunk-astronomy-shop-latest-diab.yaml
+          cp "$VALUES" target/demo-in-a-box/v4/collector/splunk-astronomy-shop-latest-values.yaml
+
+          echo "✅ Copied to \`target/demo-in-a-box/v4/\`" >> $GITHUB_STEP_SUMMARY
 
       # -----------------------------
       # VERSION HISTORY
