@@ -1,6 +1,6 @@
 # Splunk Astronomy Shop Kubernetes Manifest
 # Version: 1.8.0
-# Generated on: 2026-03-27T16:00:42Z
+# Generated on: 2026-03-30T15:12:08Z
 #
 # This manifest combines all service deployments for the Splunk Astronomy Shop
 # Services are defined in services.yaml
@@ -1080,8 +1080,8 @@ spec:
 
 # === flagd-config ===
 # Kubernetes manifest for flagd-config
-# Auto-generated from opentelemetry-demo.yaml
-# Contains 2 resource(s): PVC and ConfigMap
+# NOTE: The ConfigMap is generated at stitch time from src/flagd/demo.flagd.json
+# This file only contains the PVC definition
 ---
 # PersistentVolumeClaim for shared flagd configuration
 # This PVC is shared between flagd and flagd-ui to enable dynamic flag updates
@@ -1106,13 +1106,30 @@ kind: ConfigMap
 metadata:
   name: flagd-config
   labels:
-    app.kubernetes.io/version: 1.8.0
     app.kubernetes.io/part-of: opentelemetry-demo
 data:
   demo.flagd.json: |
     {
       "$schema": "https://flagd.dev/schema/v0/flags.json",
       "flags": {
+        "llmInaccurateResponse": {
+          "defaultVariant": "off",
+          "description": "LLM returns an inaccurate product summary for product ID L9ECAV7KIM",
+          "state": "ENABLED",
+          "variants": {
+            "off": false,
+            "on": true
+          }
+        },
+        "llmRateLimitError": {
+          "defaultVariant": "off",
+          "description": "LLM intermittently returns a rate limit error",
+          "state": "ENABLED",
+          "variants": {
+            "off": false,
+            "on": true
+          }
+        },
         "productCatalogFailure": {
           "description": "Fail product catalog service on a specific product",
           "state": "ENABLED",
@@ -1167,49 +1184,6 @@ data:
           },
           "defaultVariant": "off"
         },
-        "paymentRetryMax": {
-          "description": "Maximum number of payment retry attempts",
-          "state": "ENABLED",
-          "variants": {
-            "10": 10,
-            "5": 5,
-            "4": 4,
-            "2": 2,
-            "1": 1
-          },
-          "defaultVariant": "4"
-        },
-        "fraudDetectionEnabled": {
-          "description": "Enable fraud detection analysis on orders",
-          "state": "ENABLED",
-          "variants": {
-            "on": 1,
-            "off": 0
-          },
-          "defaultVariant": "on"
-        },
-        "mutateFraudOrders": {
-          "description": "Percentage of orders to mutate for fraud alerts (0-100%)",
-          "state": "ENABLED",
-          "variants": {
-            "off": 0,
-            "medium": 40,
-            "high": 60,
-            "veryhigh": 90
-          },
-          "defaultVariant": "off"
-        },
-        "executeBadQueries": {
-          "description": "Percentage of orders that trigger bad database queries (0-100%)",
-          "state": "ENABLED",
-          "variants": {
-            "off": 0,
-            "low": 20,
-            "medium": 40,
-            "high": 60
-          },
-          "defaultVariant": "off"
-        },
         "cartFailure": {
           "description": "Fail cart service",
           "state": "ENABLED",
@@ -1220,15 +1194,25 @@ data:
           "defaultVariant": "off"
         },
         "paymentFailure": {
-          "description": "Route payment requests to version A (stable) or B (canary/error testing) - percentage routes to B",
+          "description": "Fail payment service charge requests n%",
           "state": "ENABLED",
           "variants": {
-            "90%": 0.9,
+            "100%": 1,
+            "90%": 0.95,
             "75%": 0.75,
             "50%": 0.5,
             "25%": 0.25,
             "10%": 0.1,
             "off": 0
+          },
+          "defaultVariant": "50%"
+        },
+        "rumBlueGreen": {
+          "description": "Enable RUM-based payment path (A/B) tracking in user.deployment_type attribute",
+          "state": "ENABLED",
+          "variants": {
+            "on": true,
+            "off": false
           },
           "defaultVariant": "off"
         },
@@ -1260,23 +1244,18 @@ data:
           },
           "defaultVariant": "off"
         },
-        "llmInaccurateResponse": {
-          "defaultVariant": "off",
-          "description": "LLM returns an inaccurate product summary for product ID L9ECAV7KIM",
+        "emailMemoryLeak": {
+          "description": "Memory leak in the email service.",
           "state": "ENABLED",
           "variants": {
-            "off": false,
-            "on": true
-          }
-        },
-        "llmRateLimitError": {
-          "defaultVariant": "off",
-          "description": "LLM intermittently returns a rate limit error",
-          "state": "ENABLED",
-          "variants": {
-            "off": false,
-            "on": true
-          }
+            "off": 0,
+            "1x": 1,
+            "10x": 10,
+            "100x": 100,
+            "1000x": 1000,
+            "10000x": 10000
+          },
+          "defaultVariant": "off"
         }
       }
     }
@@ -3377,7 +3356,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: shop-dc-shim
-  namespace: default
   labels:
     opentelemetry.io/name: shop-dc-shim
     app.kubernetes.io/component: shop-dc-shim
@@ -3397,7 +3375,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: shop-dc-shim
-  namespace: default
   labels:
     opentelemetry.io/name: shop-dc-shim
     app.kubernetes.io/component: shop-dc-shim
@@ -3514,7 +3491,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: shop-dc-shim-db
-  namespace: default
+
   labels:
     opentelemetry.io/name: shop-dc-shim-db
     app.kubernetes.io/component: shop-dc-shim-db
@@ -3534,7 +3511,6 @@ apiVersion: apps/v1
 kind: Deployment 
 metadata:
   name: shop-dc-shim-db
-  namespace: default
   labels:
     opentelemetry.io/name: shop-dc-shim-db
     app.kubernetes.io/component: shop-dc-shim-db
@@ -3593,7 +3569,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: shop-dc-load-generator
-  namespace: default
   labels:
     opentelemetry.io/name: shop-dc-load-generator
     app.kubernetes.io/component: shop-dc-load-generator
