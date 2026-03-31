@@ -1,0 +1,22 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# OpenTelemetry core
+opentelemetry-api==1.29.0
+opentelemetry-sdk==1.29.0
+
+# OpenTelemetry exporters
+opentelemetry-exporter-otlp-proto-grpc==1.29.0
+
+# AWS X-Ray propagator (for AWS native tracing integration)
+opentelemetry-propagator-aws-xray==1.0.1
+
+# Lambda and botocore instrumentation
+opentelemetry-instrumentation-aws-lambda==0.50b0
+opentelemetry-instrumentation-botocore==0.50b0
+
+# AWS Lambda Powertools (optional but recommended)
+aws-lambda-powertools==3.7.0
+
+# AWS SDK
+boto3==1.36.0
