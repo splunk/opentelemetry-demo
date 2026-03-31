@@ -48,9 +48,9 @@ const Checkout: NextPage = () => {
         span.end();
       } else if (orderId) {
         // Success case - order confirmed
-        const span = tracer.startSpan('OrderConfirmed', {
+        const span = tracer.startSpan('order.confirmed', {
           attributes: {
-            'workflow.name': 'OrderConfirmed',
+            'workflow.name': 'order.confirmed',
             'order.id': orderId,
             'order.items_count': items.length,
             'order.total_items': items.reduce((sum, item) => sum + item.item.quantity, 0),

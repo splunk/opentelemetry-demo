@@ -47,7 +47,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: frontend-proxy
-        image: ghcr.io/splunk/opentelemetry-demo/otel-frontend-proxy:1.7.1
+        image: ghcr.io/splunk/opentelemetry-demo/otel-frontend-proxy:1.8.0
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -75,7 +75,7 @@ spec:
         - name: FLAGD_HOST
           value: flagd
         - name: FLAGD_PORT
-          value: '8013'
+          value: '8016'
         - name: FLAGD_UI_HOST
           value: flagd-ui
         - name: FLAGD_UI_PORT
@@ -100,6 +100,12 @@ spec:
           value: '4318'
         - name: OTEL_RESOURCE_ATTRIBUTES
           value: service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version=2.1.3,service.kafka=no
+        - name: FEATURE_AUTH_ENABLED
+          valueFrom:
+            secretKeyRef:
+              name: workshop-secret
+              key: flagd_auth
+              optional: true
         - name: FEATURE_USER
           valueFrom:
             secretKeyRef:

@@ -65,7 +65,7 @@ spec:
 
       containers:
       - name: payment
-        image: ghcr.io/splunk/opentelemetry-demo/otel-payment:1.7.0-b
+        image: ghcr.io/splunk/opentelemetry-demo/otel-payment:1.8.0-b
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
@@ -76,6 +76,10 @@ spec:
         # Version configuration (baked into image, can override)
         - name: PAYMENT_VERSION
           value: "350.10"
+
+        # Service version for logger (must match image tag)
+        - name: SERVICE_VERSION
+          value: "1.7.2-b"
 
         # Token from dedicated secret for version B
         - name: PAYMENT_API_TOKEN
@@ -115,7 +119,7 @@ spec:
 
         # Resource attributes (includes version-specific tags)
         - name: OTEL_RESOURCE_ATTRIBUTES
-          value: "service.name=payment,service.version=350.10,payment.variant=350.10"
+          value: "service.name=payment,service.version=1.7.2-b,payment.variant=B"
 
         # Splunk OpenTelemetry configuration
         - name: SPLUNK_INSTRUMENTATION_METRICS_ENABLED

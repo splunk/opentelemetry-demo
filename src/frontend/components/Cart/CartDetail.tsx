@@ -6,6 +6,7 @@ import { useCallback, useState } from 'react';
 import CartItems from '../CartItems';
 import CheckoutForm from '../CheckoutForm';
 import { IFormData } from '../CheckoutForm/CheckoutForm';
+import Modal from '../Modal';
 import SessionGateway from '../../gateways/Session.gateway';
 import { useCart } from '../../providers/Cart.provider';
 import { useCurrency } from '../../providers/Currency.provider';
@@ -22,6 +23,7 @@ const CartDetail = () => {
   const { selectedCurrency } = useCurrency();
   const { push } = useRouter();
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
 
   const onPlaceOrder = useCallback(
     async ({
@@ -61,9 +63,12 @@ const CartDetail = () => {
         // Check if the order response contains an error (backend returned error as 200)
         if ((order as any).error) {
           const errorMessage = (order as any).error;
-          // Set friendly error message for user, log technical details to console
+          // Set friendly error message for user and show modal, log technical details to console
           setCheckoutError("Oh Dear, there seems to be a problem with your order. Please contact a sales representative at 1-800-ASTRONOMY (1-800-278-766-669)");
-          console.error('Checkout failed:', errorMessage);
+          setIsErrorModalOpen(true);
+          // Use console.log instead of console.error to avoid RUM capturing this as a JS error
+          // The error is already tracked via custom RUM workflow events below
+          console.log('Checkout failed (expected in demo):', errorMessage);
 
           // Determine if this is a payment failure specifically
           const isPaymentFailure = errorMessage.toLowerCase().includes('payment') ||
@@ -110,6 +115,7 @@ const CartDetail = () => {
         // Log technical details but show friendly message to user
         const errorMessage = error?.message || 'Failed to place order. Please try again.';
         setCheckoutError("Oh Dear, there seems to be a problem with your order. Please contact a sales representative at 1-800-ASTRONOMY (1-800-278-766-669)");
+        setIsErrorModalOpen(true);
         console.error('Checkout error:', error);
 
         // Create RUM custom event for checkout errors
@@ -153,26 +159,17 @@ const CartDetail = () => {
         <CartItems productList={items} />
       </div>
       <div>
-        {checkoutError && (
-          <div style={{
-            backgroundColor: '#fff3cd',
-            border: '1px solid #ffc107',
-            borderRadius: '8px',
-            padding: '16px 20px',
-            marginBottom: '16px',
-            color: '#856404',
-            fontSize: '14px',
-            lineHeight: '1.5'
-          }}>
-            <div style={{ marginBottom: '8px' }}>
-              <strong>⚠️ Order Issue</strong>
-            </div>
-            <div>{checkoutError}</div>
-            <div style={{ marginTop: '12px', fontSize: '12px', fontStyle: 'italic' }}>
-              Note: This is a demonstration phone number and is not in service.
-            </div>
+        <Modal
+          isOpen={isErrorModalOpen}
+          onClose={() => setIsErrorModalOpen(false)}
+          title="Order Issue"
+          type="warning"
+        >
+          <div>{checkoutError}</div>
+          <div style={{ marginTop: '12px', fontSize: '12px', fontStyle: 'italic' }}>
+            Note: This is a demonstration phone number and is not in service.
           </div>
-        )}
+        </Modal>
         <CheckoutForm onSubmit={onPlaceOrder} />
       </div>
     </S.Container>

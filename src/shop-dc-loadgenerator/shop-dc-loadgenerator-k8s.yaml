@@ -7,7 +7,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: shop-dc-load-generator
-  namespace: default
   labels:
     opentelemetry.io/name: shop-dc-load-generator
     app.kubernetes.io/component: shop-dc-load-generator
@@ -47,7 +46,7 @@ spec:
               cpu: "50m"
       containers:
         - name: load-generator
-          image: ghcr.io/splunk/opentelemetry-demo/otel-shop-dc-loadgenerator:1.7.0
+          image: ghcr.io/splunk/opentelemetry-demo/otel-shop-dc-loadgenerator:1.8.0
           env:
             - name: TPM
               value: "10"  # Transactions Per Minute - adjust to control load (e.g., 5, 10, 25, 50)

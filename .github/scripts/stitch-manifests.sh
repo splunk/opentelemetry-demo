@@ -1,10 +1,12 @@
 #!/bin/bash
 
 # Script to stitch together Kubernetes manifests from multiple services
-# Usage: ./stitch-manifests.sh [registry_env] [diab]
+# Usage: ./stitch-manifests.sh [registry_env] [diab] [output_dir] [suffix]
 #   registry_env: Optional - 'dev' or 'prod' to use registry from services.yaml
 #                 If not specified, uses original registry URLs from manifests
 #   diab: Optional - 'diab' to enable DIAB scenario (includes ingress, adds -diab suffix)
+#   output_dir: Optional - output directory (default: kubernetes)
+#   suffix: Optional - additional suffix to add before .yaml (e.g., '-beta')
 #
 # This script reads service configuration from services.yaml
 # ALWAYS stitches ALL services with manifest: true
@@ -15,6 +17,8 @@ set -e
 # Parse optional arguments
 REGISTRY_ENV="${1:-}"
 DIAB_SCENARIO="${2:-}"
+OUTPUT_DIR_ARG="${3:-}"
+EXTRA_SUFFIX="${4:-}"
 
 # Get version from SPLUNK-VERSION file
 VERSION=$(cat SPLUNK-VERSION)
@@ -61,13 +65,17 @@ if [ -n "$REGISTRY_ENV" ]; then
 fi
 
 # Output directory and file
-OUTPUT_DIR="kubernetes"
-# Add -diab suffix if DIAB scenario is enabled
+OUTPUT_DIR="${OUTPUT_DIR_ARG:-kubernetes}"
+# Build filename with optional suffixes
+# Format: splunk-astronomy-shop-{VERSION}[-diab][-beta].yaml
+FILENAME="splunk-astronomy-shop-${VERSION}"
 if [ "$DIAB_SCENARIO" = "diab" ]; then
-    OUTPUT_FILE="$OUTPUT_DIR/splunk-astronomy-shop-${VERSION}-diab.yaml"
-else
-    OUTPUT_FILE="$OUTPUT_DIR/splunk-astronomy-shop-${VERSION}.yaml"
+    FILENAME="${FILENAME}-diab"
 fi
+if [ -n "$EXTRA_SUFFIX" ]; then
+    FILENAME="${FILENAME}${EXTRA_SUFFIX}"
+fi
+OUTPUT_FILE="$OUTPUT_DIR/${FILENAME}.yaml"
 
 # Create output directory if it doesn't exist
 mkdir -p "$OUTPUT_DIR"
@@ -191,8 +199,45 @@ for svc in config.get('services', []):
                 fi
             fi
         done
+    # Special handling for flagd-config - read JSON from single source
+    elif [ "$SERVICE" = "flagd-config" ]; then
+        FLAGD_JSON="src/flagd/demo.flagd.json"
+        FLAGD_PVC="src/flagd-config/flagd-config-k8s.yaml"
+
+        if [ -f "$FLAGD_JSON" ]; then
+            echo "Adding manifest for: $SERVICE (version: $VERSION)"
+            echo "  (using src/flagd/demo.flagd.json as single source)"
+            echo "" >> "$OUTPUT_FILE"
+            echo "# === $SERVICE ===" >> "$OUTPUT_FILE"
+
+            # Add PVC from flagd-config-k8s.yaml
+            if [ -f "$FLAGD_PVC" ]; then
+                cat "$FLAGD_PVC" >> "$OUTPUT_FILE"
+            fi
+
+            # Generate ConfigMap with embedded JSON
+            cat >> "$OUTPUT_FILE" << 'CONFIGMAP_HEADER'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: flagd-config
+  labels:
+    app.kubernetes.io/part-of: opentelemetry-demo
+data:
+  demo.flagd.json: |
+CONFIGMAP_HEADER
+            # Indent the JSON content by 4 spaces for YAML embedding
+            sed 's/^/    /' "$FLAGD_JSON" >> "$OUTPUT_FILE"
+
+            echo "" >> "$OUTPUT_FILE"
+            echo "---" >> "$OUTPUT_FILE"
+            FOUND=$((FOUND + 1))
+        else
+            echo "Warning: Flagd JSON not found at $FLAGD_JSON"
+            MISSING+=("$SERVICE")
+        fi
     else
-        # Standard processing for all non-payment services
+        # Standard processing for all other services
         if [ -f "$MANIFEST_FILE" ]; then
             # Check if service has replace_registry flag set to false
             SHOULD_REPLACE="true"
@@ -269,6 +314,9 @@ echo "=========================================="
 echo "Version: $VERSION"
 if [ "$DIAB_SCENARIO" = "diab" ]; then
     echo "Scenario: DIAB (includes ingress)"
+fi
+if [ -n "$EXTRA_SUFFIX" ]; then
+    echo "Suffix: $EXTRA_SUFFIX"
 fi
 echo "Output file: $OUTPUT_FILE"
 echo "Services found: $FOUND"
