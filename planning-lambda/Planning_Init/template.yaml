@@ -76,8 +76,15 @@ Resources:
           OTEL_EXPORTER_OTLP_ENDPOINT: !Ref OtelCollectorEndpoint
           DOWNSTREAM_LAMBDA_ARN: !Ref DownstreamLambdaArn
           STAGE: !Ref Stage
+      VpcConfig:
+        SecurityGroupIds:
+          - sg-0f67076d7425fd810
+        SubnetIds:
+          - subnet-02cd39d6beb29495e
       Policies:
         - AWSLambdaBasicExecutionRole
+        # Required for Lambda in VPC
+        - AWSLambdaVPCAccessExecutionRole
         # Allow invoking other Lambda functions
         - Version: '2012-10-17'
           Statement:
