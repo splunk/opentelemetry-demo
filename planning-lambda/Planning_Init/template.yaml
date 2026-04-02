@@ -24,12 +24,13 @@ Globals:
 Parameters:
   Stage:
     Type: String
-    Default: prod
+    Default: planning
     AllowedValues:
       - dev
       - staging
       - prod
       - demo
+      - planning
     Description: Deployment stage
 
   OtelCollectorEndpoint:

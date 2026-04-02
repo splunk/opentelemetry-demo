@@ -9,7 +9,7 @@ resolve_s3 = true
 s3_prefix = "splunk-astronomy-planning"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "Stage=\"demo\" OtelCollectorEndpoint=\"\" DownstreamLambdaArn=\"\""
+parameter_overrides = "Stage=\"planning\" OtelCollectorEndpoint=\"\" DownstreamLambdaArn=\"\""
 image_repositories = []
 
 [default.build.parameters]
