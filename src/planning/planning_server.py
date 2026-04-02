@@ -59,9 +59,10 @@ lambda_calls_counter = meter.create_counter(
 # Propagator for extracting trace context
 propagator = TraceContextTextMapPropagator()
 
-# Thread-safe queue for collected orders
+# Thread-safe queue for collected orders and their span links
 orders_lock = threading.Lock()
 collected_orders = deque(maxlen=1000)  # Keep last 1000 orders
+collected_links = deque(maxlen=1000)   # Span links from original checkout traces
 
 # Shutdown flag
 shutdown_event = threading.Event()
@@ -138,9 +139,11 @@ def process_order(record):
                 "processed_at": datetime.utcnow().isoformat()
             }
 
-            # Add to collected orders (thread-safe)
+            # Add to collected orders and span links (thread-safe)
             with orders_lock:
                 collected_orders.append(order_data)
+                if link:
+                    collected_links.append(link)
 
             span.set_attribute("planning.orders_collected", len(collected_orders))
             orders_consumed_counter.add(1, {"kafka.topic": KAFKA_TOPIC})
@@ -158,19 +161,21 @@ def call_lambda():
         logger.warning("LAMBDA_ENDPOINT not configured, skipping Lambda call")
         return
 
+    # Get orders and links to send (thread-safe copy)
+    with orders_lock:
+        orders_to_send = list(collected_orders)
+        links_to_send = list(collected_links)
+
+    if not orders_to_send:
+        logger.info("No orders to send to Lambda")
+        return
+
     with tracer.start_as_current_span(
         "planning.call_lambda",
-        kind=SpanKind.CLIENT
+        kind=SpanKind.CLIENT,
+        links=links_to_send
     ) as span:
         try:
-            # Get orders to send (thread-safe copy)
-            with orders_lock:
-                orders_to_send = list(collected_orders)
-
-            if not orders_to_send:
-                logger.info("No orders to send to Lambda")
-                span.set_attribute("planning.orders_sent", 0)
-                return
 
             span.set_attribute("http.method", "POST")
             span.set_attribute("http.url", LAMBDA_ENDPOINT)
@@ -200,13 +205,28 @@ def call_lambda():
             span.set_attribute("http.status_code", response.status_code)
 
             if response.ok:
+                # Parse Lambda response for handshake confirmation
+                try:
+                    resp_data = response.json()
+                    lambda_info = resp_data.get("lambda", {})
+                    span.set_attribute("lambda.confirmed", True)
+                    span.set_attribute("lambda.function_name", lambda_info.get("function_name", "unknown"))
+                    span.set_attribute("lambda.trace_id", lambda_info.get("trace_id", ""))
+                    span.set_attribute("lambda.span_id", lambda_info.get("span_id", ""))
+                    span.set_attribute("lambda.processed_count", resp_data.get("processed_count", 0))
+                    span.set_attribute("lambda.status", resp_data.get("status", "unknown"))
+                except Exception as e:
+                    span.set_attribute("lambda.confirmed", False)
+                    logger.warning(f"Could not parse Lambda response: {e}")
+
                 span.set_status(StatusCode.OK)
                 lambda_calls_counter.add(1, {"status": "success"})
                 logger.info(f"Lambda call successful: {response.status_code}")
 
-                # Clear sent orders
+                # Clear sent orders and links
                 with orders_lock:
                     collected_orders.clear()
+                    collected_links.clear()
             else:
                 span.set_status(StatusCode.ERROR, f"HTTP {response.status_code}")
                 lambda_calls_counter.add(1, {"status": "error"})
@@ -240,6 +260,8 @@ def kafka_consumer_loop():
 
     logger.info(f"Kafka consumer started, subscribing to '{KAFKA_TOPIC}'")
 
+    initial_call_done = False
+
     try:
         while not shutdown_event.is_set():
             msg = consumer.poll(timeout=1.0)
@@ -252,6 +274,12 @@ def kafka_consumer_loop():
                 continue
 
             process_order(msg)
+
+            # Call Lambda immediately after first order so a restart produces a trace
+            if not initial_call_done and len(collected_orders) > 0:
+                initial_call_done = True
+                logger.info("First order received, calling Lambda immediately")
+                call_lambda()
 
     except KafkaException as e:
         logger.error(f"Kafka exception: {e}")
@@ -284,7 +312,6 @@ def main():
         'interval',
         minutes=LAMBDA_CALL_INTERVAL_MINUTES,
         id='lambda_caller',
-        next_run_time=datetime.now()  # Run immediately on start
     )
     scheduler.start()
     logger.info(f"Scheduler started, Lambda will be called every {LAMBDA_CALL_INTERVAL_MINUTES} minutes")
