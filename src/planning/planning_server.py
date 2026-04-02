@@ -59,9 +59,10 @@ lambda_calls_counter = meter.create_counter(
 # Propagator for extracting trace context
 propagator = TraceContextTextMapPropagator()
 
-# Thread-safe queue for collected orders
+# Thread-safe queue for collected orders and their span links
 orders_lock = threading.Lock()
 collected_orders = deque(maxlen=1000)  # Keep last 1000 orders
+collected_links = deque(maxlen=1000)   # Span links from original checkout traces
 
 # Shutdown flag
 shutdown_event = threading.Event()
@@ -138,9 +139,11 @@ def process_order(record):
                 "processed_at": datetime.utcnow().isoformat()
             }
 
-            # Add to collected orders (thread-safe)
+            # Add to collected orders and span links (thread-safe)
             with orders_lock:
                 collected_orders.append(order_data)
+                if link:
+                    collected_links.append(link)
 
             span.set_attribute("planning.orders_collected", len(collected_orders))
             orders_consumed_counter.add(1, {"kafka.topic": KAFKA_TOPIC})
@@ -158,19 +161,21 @@ def call_lambda():
         logger.warning("LAMBDA_ENDPOINT not configured, skipping Lambda call")
         return
 
+    # Get orders and links to send (thread-safe copy)
+    with orders_lock:
+        orders_to_send = list(collected_orders)
+        links_to_send = list(collected_links)
+
+    if not orders_to_send:
+        logger.info("No orders to send to Lambda")
+        return
+
     with tracer.start_as_current_span(
         "planning.call_lambda",
-        kind=SpanKind.CLIENT
+        kind=SpanKind.CLIENT,
+        links=links_to_send
     ) as span:
         try:
-            # Get orders to send (thread-safe copy)
-            with orders_lock:
-                orders_to_send = list(collected_orders)
-
-            if not orders_to_send:
-                logger.info("No orders to send to Lambda")
-                span.set_attribute("planning.orders_sent", 0)
-                return
 
             span.set_attribute("http.method", "POST")
             span.set_attribute("http.url", LAMBDA_ENDPOINT)
@@ -204,9 +209,10 @@ def call_lambda():
                 lambda_calls_counter.add(1, {"status": "success"})
                 logger.info(f"Lambda call successful: {response.status_code}")
 
-                # Clear sent orders
+                # Clear sent orders and links
                 with orders_lock:
                     collected_orders.clear()
+                    collected_links.clear()
             else:
                 span.set_status(StatusCode.ERROR, f"HTTP {response.status_code}")
                 lambda_calls_counter.add(1, {"status": "error"})
