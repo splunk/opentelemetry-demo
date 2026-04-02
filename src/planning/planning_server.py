@@ -240,6 +240,8 @@ def kafka_consumer_loop():
 
     logger.info(f"Kafka consumer started, subscribing to '{KAFKA_TOPIC}'")
 
+    initial_call_done = False
+
     try:
         while not shutdown_event.is_set():
             msg = consumer.poll(timeout=1.0)
@@ -252,6 +254,12 @@ def kafka_consumer_loop():
                 continue
 
             process_order(msg)
+
+            # Call Lambda immediately after first order so a restart produces a trace
+            if not initial_call_done and len(collected_orders) > 0:
+                initial_call_done = True
+                logger.info("First order received, calling Lambda immediately")
+                call_lambda()
 
     except KafkaException as e:
         logger.error(f"Kafka exception: {e}")
@@ -284,7 +292,6 @@ def main():
         'interval',
         minutes=LAMBDA_CALL_INTERVAL_MINUTES,
         id='lambda_caller',
-        next_run_time=datetime.now()  # Run immediately on start
     )
     scheduler.start()
     logger.info(f"Scheduler started, Lambda will be called every {LAMBDA_CALL_INTERVAL_MINUTES} minutes")
