@@ -1,0 +1,37 @@
+# SAM CLI configuration for Planning_Init Lambda deployment
+# Run 'sam deploy --guided' for interactive deployment
+
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "splunk-astronomy-planning"
+resolve_s3 = true
+s3_prefix = "splunk-astronomy-planning"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Stage=\"demo\" OtelCollectorEndpoint=\"\" DownstreamLambdaArn=\"\""
+image_repositories = []
+
+[default.build.parameters]
+use_container = false
+
+
+[default.global.parameters]
+region = "eu-west-1"
+[dev.deploy.parameters]
+stack_name = "planning-init-lambda-dev"
+resolve_s3 = true
+s3_prefix = "planning-init-lambda-dev"
+region = "us-west-2"
+confirm_changeset = false
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Stage=dev"
+
+[staging.deploy.parameters]
+stack_name = "planning-init-lambda-staging"
+resolve_s3 = true
+s3_prefix = "planning-init-lambda-staging"
+region = "us-west-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Stage=staging"
