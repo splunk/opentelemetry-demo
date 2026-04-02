@@ -179,6 +179,9 @@ def call_lambda():
 
             span.set_attribute("http.method", "POST")
             span.set_attribute("http.url", LAMBDA_ENDPOINT)
+            span.set_attribute("peer.service", "Planning_Init")
+            span.set_attribute("faas.invoked_name", "splunk-astronomy-demo-planning-init")
+            span.set_attribute("faas.invoked_provider", "aws")
             span.set_attribute("planning.orders_count", len(orders_to_send))
 
             # Prepare payload
