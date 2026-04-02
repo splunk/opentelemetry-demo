@@ -12,7 +12,7 @@ from opentelemetry.trace import SpanKind, Tracer
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
 
-from shared.tracing import create_span
+from shared.tracing import create_span, get_current_trace_id, get_current_span_id
 from shared.logging import get_logger
 from shared.lambda_client import invoke_lambda
 
@@ -80,13 +80,19 @@ def handle(body: Dict[str, Any], context: Any, tracer: Tracer) -> Dict[str, Any]
                     logger.error(f"Failed to forward to downstream: {e}")
                     fwd_span.set_attribute("error.message", str(e))
 
-        # Build response
+        # Build response with Lambda identity for handshake confirmation
+        function_name = context.function_name if context else "Planning_Init"
         response_body = {
             "status": "success",
             "message": f"Processed {len(processed)} orders",
             "processed_count": len(processed),
             "source_service": service,
             "downstream_forwarded": bool(DOWNSTREAM_LAMBDA_ARN),
+            "lambda": {
+                "function_name": function_name,
+                "trace_id": get_current_trace_id(),
+                "span_id": get_current_span_id(),
+            },
             "orders_summary": [
                 {
                     "order_id": o.get("order_id"),

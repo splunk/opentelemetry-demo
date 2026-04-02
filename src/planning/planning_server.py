@@ -205,6 +205,20 @@ def call_lambda():
             span.set_attribute("http.status_code", response.status_code)
 
             if response.ok:
+                # Parse Lambda response for handshake confirmation
+                try:
+                    resp_data = response.json()
+                    lambda_info = resp_data.get("lambda", {})
+                    span.set_attribute("lambda.confirmed", True)
+                    span.set_attribute("lambda.function_name", lambda_info.get("function_name", "unknown"))
+                    span.set_attribute("lambda.trace_id", lambda_info.get("trace_id", ""))
+                    span.set_attribute("lambda.span_id", lambda_info.get("span_id", ""))
+                    span.set_attribute("lambda.processed_count", resp_data.get("processed_count", 0))
+                    span.set_attribute("lambda.status", resp_data.get("status", "unknown"))
+                except Exception as e:
+                    span.set_attribute("lambda.confirmed", False)
+                    logger.warning(f"Could not parse Lambda response: {e}")
+
                 span.set_status(StatusCode.OK)
                 lambda_calls_counter.add(1, {"status": "success"})
                 logger.info(f"Lambda call successful: {response.status_code}")
