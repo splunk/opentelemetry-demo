@@ -7,10 +7,13 @@ Description: >
 Globals:
   Function:
     Timeout: 30
+    Tags:
+      splunkit_data_classification: public
+      splunkit_environment_type: non-prd
     MemorySize: 256
-    Runtime: python3.12
+    Runtime: python3.13
     Architectures:
-      - x86_64
+      - arm64
     Environment:
       Variables:
         LOG_LEVEL: INFO
@@ -26,6 +29,7 @@ Parameters:
       - dev
       - staging
       - prod
+      - demo
     Description: Deployment stage
 
   OtelCollectorEndpoint:
@@ -63,10 +67,10 @@ Resources:
   PlanningInitFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "Planning_Init-${Stage}"
+      FunctionName: !Sub "splunk-astronomy-${Stage}-planning-init"
       Description: Planning service entry point - processes orders from K8s
-      CodeUri: .
-      Handler: lambda_function.lambda_handler
+      CodeUri: ../
+      Handler: Planning_Init.lambda_function.lambda_handler
       Environment:
         Variables:
           OTEL_EXPORTER_OTLP_ENDPOINT: !Ref OtelCollectorEndpoint

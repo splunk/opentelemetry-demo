@@ -13,15 +13,13 @@ import os
 import sys
 from typing import Any, Dict
 
-# Add shared utilities to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from shared.tracing import init_tracer, extract_context, create_span
 from shared.logging import get_logger
 from opentelemetry.trace import SpanKind
 
 # Import handlers
-from handlers import orders, analytics, forecasting
+from Planning_Init.handlers import orders, analytics, forecasting
 
 # Initialize
 logger = get_logger("Planning_Init")
@@ -57,6 +55,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     method = http_info.get("method", "POST")
     path = http_info.get("path", "/")
 
+    # Strip the stage prefix from path (e.g., /demo/orders -> /orders)
+    stage = request_context.get("stage", "")
+    if stage and path.startswith(f"/{stage}"):
+        path = path[len(f"/{stage}") :] or "/"
+
     # Create root span for this Lambda invocation
     span_attributes = {
         "faas.trigger": "http",
@@ -75,16 +78,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         parent_context=parent_context
     ) as span:
         try:
-            # Log request
-            logger.info(
-                f"Received request: {method} {path}",
-                extra={
-                    "method": method,
-                    "path": path,
-                    "request_id": request_context.get("requestId"),
-                }
-            )
-
             # Parse body
             body = event.get("body", "{}")
             if isinstance(body, str):
@@ -95,6 +88,28 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     body = {"raw": body}
 
             span.set_attribute("request.body_size", len(json.dumps(body)))
+
+            # Log request info
+            headers = event.get("headers", {}) or {}
+            logger.info(
+                f"Received request: {method} {path}",
+                extra={
+                    "method": method,
+                    "path": path,
+                    "request_id": request_context.get("requestId"),
+                    "traceparent": headers.get("traceparent", "none"),
+                }
+            )
+
+            # Log full received data at DEBUG level
+            logger.debug(
+                "Request data",
+                extra={
+                    "headers": headers,
+                    "body": body,
+                    "raw_event": event,
+                }
+            )
 
             # Find handler for route
             route_key = (method.upper(), path)

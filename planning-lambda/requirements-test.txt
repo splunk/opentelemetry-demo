@@ -1,0 +1,9 @@
+# Test dependencies for planning-lambda
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-mock>=3.10.0
+moto>=4.0.0
+freezegun>=1.2.0
+
+# Include main dependencies
+-r Planning_Init/requirements.txt

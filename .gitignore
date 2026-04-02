@@ -78,3 +78,6 @@ src/react-native-app/saucelabs-package/ios/astronomy-shop-ios.zip
 # Confluence files (local use only)
 CONFLUENCE-GUIDE.md
 CONFLUENCE-GUIDE.confluence
+
+# AWS SAM build artifacts
+.aws-sam/
