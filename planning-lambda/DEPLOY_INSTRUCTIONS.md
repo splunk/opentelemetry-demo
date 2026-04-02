@@ -82,18 +82,17 @@ curl -X POST https://<YOUR-API-ENDPOINT>/orders \
 ```
 
 ### 5. Configure K8s Planning Service
-Update the planning service with the Lambda endpoint:
+Update the planning service with the Lambda endpoint URL from step 3.
 
-```bash
-# Edit the K8s manifest
-vim src/planning/planning-k8s.yaml
-
-# Change LAMBDA_ENDPOINT from "" to your API Gateway URL:
-# - name: LAMBDA_ENDPOINT
-#   value: "https://xxxxxx.execute-api.<region>.amazonaws.com/dev/orders"
+In `src/planning/planning-k8s.yaml`, set the `LAMBDA_ENDPOINT` env var:
+```yaml
+- name: LAMBDA_ENDPOINT
+  value: "https://<unique-id>.execute-api.<region>.amazonaws.com/<stage>/orders"
 ```
 
-Or set via kubectl:
+The planning service injects a `traceparent` header when calling the Lambda, which connects the K8s trace to the Lambda trace for end-to-end distributed tracing.
+
+If the service is already running, you can update it without redeploying:
 ```bash
 kubectl set env deployment/planning LAMBDA_ENDPOINT=https://<YOUR-API-ENDPOINT>/orders
 ```
@@ -122,6 +121,110 @@ aws lambda update-function-configuration \
 ```
 
 Or change `LOG_LEVEL` in `template.yaml` and redeploy.
+
+## Sending Telemetry to Splunk Observability Cloud
+
+The Lambda functions send traces, metrics, and logs to a **Splunk OpenTelemetry Collector running in gateway mode** within the same VPC. The gateway collector receives OTLP from all Lambda functions and forwards to Splunk via HEC.
+
+### Architecture
+
+```
+Lambda Functions ──OTLP/gRPC──▶ OTel Collector (Gateway) ──HEC──▶ Splunk Cloud / O11y
+                                  (EC2 in VPC)
+```
+
+### Prerequisites
+- An EC2 instance (or ECS/Fargate task) in the same VPC as the Lambda functions
+- Splunk Observability Cloud access token and realm
+- Splunk Cloud/Enterprise HEC endpoint and token (for logs)
+- Security group allowing inbound gRPC (port 4317) and HTTP (port 4318) from Lambda
+
+### 1. Set Up the EC2 Gateway Instance
+
+Launch an EC2 instance in the same VPC and subnet as your Lambda functions:
+
+1. **AMI:** Amazon Linux 2023 (or Ubuntu 22.04+)
+2. **Instance type:** `t3.small` (sufficient for demo workloads)
+3. **VPC/Subnet:** Same VPC as the Lambda; use a private subnet
+4. **Security group:** Create or use one that allows:
+   - Inbound TCP **4317** (gRPC) and **4318** (HTTP) from the Lambda security group
+   - Inbound TCP **13133** (health check) for monitoring
+   - Outbound HTTPS **443** to Splunk endpoints
+5. **IAM role:** No special permissions needed — the collector talks to Splunk, not AWS services
+
+SSH into the instance and install the Splunk OTel Collector:
+
+```bash
+curl -sSL https://dl.signalfx.com/splunk-otel-collector.sh > /tmp/splunk-otel-collector.sh
+sudo sh /tmp/splunk-otel-collector.sh \
+  --realm <your-realm> \
+  --access-token <your-access-token> \
+  --mode gateway
+```
+
+Replace the default config with the gateway config from this repo:
+
+```bash
+sudo cp planning-lambda/collector/gateway-config.yaml /etc/otel/collector/splunk-otel-collector.conf
+```
+
+Set the required environment variables in `/etc/otel/collector/splunk-otel-collector.conf.d/env`:
+
+```bash
+SPLUNK_ACCESS_TOKEN=<your-access-token>
+SPLUNK_REALM=<your-realm>
+SPLUNK_HEC_URL=https://http-inputs-<instance>.splunkcloud.com
+SPLUNK_HEC_TOKEN=<your-hec-token>
+SPLUNK_INDEX=main
+```
+
+Restart the collector:
+
+```bash
+sudo systemctl restart splunk-otel-collector
+```
+
+Verify it's running:
+
+```bash
+curl http://localhost:13133  # health check
+sudo systemctl status splunk-otel-collector
+```
+
+See `planning-lambda/collector/gateway-config.yaml` for the full pipeline configuration (receivers, processors, exporters).
+
+### 2. Configure the Lambda
+
+Set the `OtelCollectorEndpoint` parameter during deployment to the gateway's private IP or DNS:
+
+```bash
+sam deploy --guided \
+  --parameter-overrides OtelCollectorEndpoint=http://<gateway-private-ip>:4317 \
+  --tags "splunkit_data_classification=public splunkit_environment_type=non-prd"
+```
+
+Or update an existing deployment:
+```bash
+aws lambda update-function-configuration \
+  --function-name splunk-astronomy-demo-planning-init \
+  --environment "Variables={LOG_LEVEL=INFO,OTEL_SERVICE_NAME=Planning_Init,OTEL_EXPORTER_OTLP_ENDPOINT=http://<gateway-private-ip>:4317}" \
+  --region eu-west-1
+```
+
+### 3. VPC Configuration for Lambda
+
+The Lambda must be in the same VPC as the collector. Add a VPC config to `template.yaml` under the function properties:
+
+```yaml
+VpcConfig:
+  SecurityGroupIds:
+    - sg-xxxxxxxx
+  SubnetIds:
+    - subnet-xxxxxxxx
+    - subnet-yyyyyyyy
+```
+
+**Note:** Lambda functions in a VPC need a NAT gateway to reach external services (API Gateway, etc.).
 
 ## Troubleshooting
 

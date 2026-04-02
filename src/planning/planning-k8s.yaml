@@ -62,7 +62,7 @@ spec:
           value: planning
         # Lambda configuration
         - name: LAMBDA_ENDPOINT
-          value: ""  # Configure with API Gateway URL
+          value: "https://61d4vss237.execute-api.eu-west-1.amazonaws.com/demo/orders"
         - name: LAMBDA_CALL_INTERVAL_MINUTES
           value: "5"
         # OpenTelemetry configuration
