@@ -24,6 +24,7 @@ except ImportError:
 
 # Global tracer instance
 _tracer: Optional[trace.Tracer] = None
+_provider: Optional[TracerProvider] = None
 _propagator = TraceContextTextMapPropagator()
 
 
@@ -37,7 +38,7 @@ def init_tracer(service_name: str = None) -> trace.Tracer:
     Returns:
         Configured tracer instance.
     """
-    global _tracer
+    global _tracer, _provider
 
     if _tracer is not None:
         return _tracer
@@ -69,8 +70,15 @@ def init_tracer(service_name: str = None) -> trace.Tracer:
     trace.set_tracer_provider(provider)
     set_global_textmap(_propagator)
 
+    _provider = provider
     _tracer = trace.get_tracer(service_name)
     return _tracer
+
+
+def force_flush(timeout_millis: int = 5000):
+    """Force flush all pending spans. Must be called before Lambda freezes."""
+    if _provider is not None:
+        _provider.force_flush(timeout_millis)
 
 
 def get_tracer() -> trace.Tracer:
