@@ -6,6 +6,7 @@ import { v4 } from 'uuid';
 interface ISession {
   userId: string;
   currencyCode: string;
+  paymentPath?: string;
 }
 
 const sessionKey = 'session';
@@ -27,6 +28,10 @@ const SessionGateway = () => ({
     const session = this.getSession();
 
     localStorage.setItem(sessionKey, JSON.stringify({ ...session, [key]: value }));
+  },
+  getPaymentPath(): string | undefined {
+    const session = this.getSession();
+    return session.paymentPath;
   },
 });
 

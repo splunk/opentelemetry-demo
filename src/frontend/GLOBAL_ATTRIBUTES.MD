@@ -10,9 +10,9 @@ The application generates deterministic user attributes based on session IDs, pr
 
 The following attributes are automatically set for each user session:
 
-- **`enduser.id`**: User ID (Admin: 34/37/41, Member: 1000-6000, Guest: 99999)
-- **`enduser.role`**: User role (Admin, Member, or Guest)
-- **`deployment.type`**: Deployment environment identifier (default: "green")
+- **`user.customer_id`**: User ID (Admin: 34/37/41, Member: 1000-6000, Guest: 99999)
+- **`user.role`**: User role (Admin, Member, or Guest)
+- **`user.deployment_type`**: Deployment environment identifier (default: "green")
 
 ## User Generation
 
@@ -29,7 +29,7 @@ Users are generated deterministically from a UUID session ID using a seeded rand
 ```
 Session ID for RUM: 2dfb9f2e-1b01-4dea-bb4d-a34a34f74f99
 Generated user from session ID: 2dfb9f2e-1b01-4dea-bb4d-a34a34f74f99 -> User ID: 3912 Role: Member
-Generated Splunk RUM User Attributes: { "enduser.id": "3912", "enduser.role": "Member", "deployment.type": "green" }
+Generated Splunk RUM User Attributes: { "user.customer_id": "3912", "user.role": "Member", "user.deployment_type": "green" }
 ```
 
 ## Session Management
@@ -78,7 +78,7 @@ When you reset the session via logo click, you'll see:
 🔄 Session reset - generating new user...
 Session ID for RUM: 8a3c2d1e-4f5a-6b7c-8d9e-0f1a2b3c4d5e
 Generated user from session ID: 8a3c2d1e-4f5a-6b7c-8d9e-0f1a2b3c4d5e -> User ID: 41 Role: Admin
-✅ New user generated: { "enduser.id": "41", "enduser.role": "Admin", "deployment.type": "green" }
+✅ New user generated: { "user.customer_id": "41", "user.role": "Admin", "user.deployment_type": "green" }
 ✅ RUM global attributes updated for current session
 ```
 

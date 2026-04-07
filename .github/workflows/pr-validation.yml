@@ -10,7 +10,7 @@ jobs:
   check-prod-workflow-restrictions:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Check PROD workflows have repository restrictions
         id: check_restrictions
@@ -113,7 +113,7 @@ jobs:
   check-test-manifests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -211,7 +211,7 @@ jobs:
     # Only run this check if PR is from a fork
     if: github.event.pull_request.head.repo.full_name != github.repository
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -338,7 +338,7 @@ jobs:
   check-splunk-version:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -448,7 +448,7 @@ jobs:
   check-dev-repo-file:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 

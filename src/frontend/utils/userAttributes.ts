@@ -104,7 +104,7 @@ export function getSplunkUserAttributes(sessionID: string): Record<string, strin
   const user = randomUser(sessionID);
 
   return {
-    'enduser.id': user.id.toString(),
-    'enduser.role': user.role,
+    'user.customer_id': user.id.toString(),
+    'user.role': user.role,
   };
 }

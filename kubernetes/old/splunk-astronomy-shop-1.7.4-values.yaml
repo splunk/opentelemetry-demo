@@ -5,14 +5,15 @@ clusterReceiver:
       secretKeyRef:
         name: workshop-secret
         key: realm
-  eventsEnabled: true
-  k8sObjects:
-    - name: events
-      mode: watch
-      namespaces: [default, splunk]
-    - name: pods
-      mode: watch
-      namespaces: [default, splunk]
+  - name: WORKSHOP_ENVIRONMENT
+    valueFrom:
+      secretKeyRef:
+        name: workshop-secret
+        key: instance
+  # Disabled eventsEnabled and k8sObjects - these generate non-HEC data
+  # that gets refused by Splunk Platform endpoints
+  eventsEnabled: false
+  k8sObjects: []
   config:
     receivers:
       # Using receiver_creator to dynamically create receivers when services are ready
@@ -21,8 +22,10 @@ clusterReceiver:
         watch_observers: [k8s_observer]
         receivers:
           # SQL Server for Shop DC Shim - only created when pod is ready
+          # Uses type == "pod.container" because endpoint gives just the IP (not IP:port)
+          # SQL Server receiver needs separate server and port fields
           sqlserver/shopshim:
-            rule: type == "pod.container" && pod.annotations["splunk.com/monitor"] == "sqlserver" && pod.annotations["splunk.com/sqlserver.database"] == "shopshim"
+            rule: type == "pod.container" && pod.name matches "shop-dc-shim-db"
             config:
               collection_interval: 10s
               top_query_collection:
@@ -75,8 +78,10 @@ clusterReceiver:
                 sqlserver.user.connection.count:
                     enabled: true
           # SQL Server for Fraud Detection - only created when pod is ready
+          # Uses type == "pod.container" because endpoint gives just the IP (not IP:port)
+          # SQL Server receiver needs separate server and port fields
           sqlserver/fraud:
-            rule: type == "pod.container" && pod.annotations["splunk.com/monitor"] == "sqlserver" && pod.annotations["splunk.com/sqlserver.database"] == "fraud"
+            rule: type == "pod.container" && pod.name matches "sql-server-fraud"
             config:
               collection_interval: 10s
               top_query_collection:
@@ -88,7 +93,6 @@ clusterReceiver:
               resource_attributes:
                 sqlserver.instance.name:
                   enabled: true
-              # ADD to ENABLE Database Monitoring
               events:
                 db.server.query_sample:
                   enabled: true
@@ -132,22 +136,41 @@ clusterReceiver:
                 sqlserver.database.latency:
                   enabled: true
           # PostgreSQL for Main Database - only created when pod is ready
+          # Uses type == "port" for more precise endpoint matching
+          # Database name is read dynamically from pod annotation
+          # Note: PostgreSQL endpoint format is host:port which works with `endpoint`
           postgresql/main:
-            rule: type == "pod.container" && pod.annotations["splunk.com/monitor"] == "postgresql" && pod.annotations["splunk.com/postgresql.database"] == "otel"
+            rule: type == "port" && pod.name matches "postgres" && port == 5432
+            resource_attributes:
+              # Inject pod name for fallback identification in transform rules
+              k8s.pod.name: '`pod.name`'
+              # Inject database name from pod annotation
+              db.name: '`pod.annotations["splunk.com/postgresql.database"]`'
             config:
-              endpoint: '`endpoint`:5432'
+              endpoint: '`endpoint`'
               transport: tcp
               username: root
               password: otel
-              databases:
-                - otel
+              databases: '`pod.annotations["splunk.com/postgresql.database"]`'
               tls:
                 insecure: true
               collection_interval: 10s
+              resource_attributes:
+                postgresql.database.name:
+                  enabled: true
               events:
                 db.server.query_sample:
                   enabled: true
                 db.server.top_query:
+                  enabled: true
+              metrics:
+                postgresql.commits:
+                  enabled: true
+                postgresql.operations:
+                  enabled: true
+                postgresql.deadlocks:
+                  enabled: true
+                postgresql.connection.max:
                   enabled: true
     extensions:
       # K8s Observer watches for pod endpoints - required for receiver_creator
@@ -166,28 +189,74 @@ clusterReceiver:
           batch:
             flush_timeout: 15s
             max_size: 10485760 # 10 MiB
-            sizer: bytes 
+            sizer: bytes
     processors:
+      # Inject environment as a resource attribute for use in transforms
+      resource/add_environment:
+        attributes:
+          - key: deployment.environment
+            value: ${WORKSHOP_ENVIRONMENT}
+            action: upsert
       transform/dbmon:
         error_mode: ignore
         metric_statements:
+          # SQL Server: use instance name for identification
           - conditions:
               - resource.attributes["sqlserver.instance.name"] != nil
-              - resource.attributes["k8s.pod.name"] != nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["k8s.pod.name"], " - ", resource.attributes["sqlserver.instance.name"]], ""))
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["sqlserver.instance.name"]], ""))
+          # PostgreSQL database-level metrics: use database name for identification
+          - conditions:
+              - resource.attributes["postgresql.database.name"] != nil
+            statements:
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["postgresql.database.name"]], ""))
+          # PostgreSQL fallback: use injected db.name from pod annotation
+          - conditions:
+              - resource.attributes["db.name"] != nil
+              - resource.attributes["postgresql.database.name"] == nil
+              - resource.attributes["sqlserver.instance.name"] == nil
+            statements:
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["db.name"]], ""))
+          # PostgreSQL last resort: use k8s pod name
+          - conditions:
+              - resource.attributes["k8s.pod.name"] != nil
+              - resource.attributes["postgresql.database.name"] == nil
+              - resource.attributes["db.name"] == nil
+              - resource.attributes["sqlserver.instance.name"] == nil
+            statements:
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["k8s.pod.name"]], ""))
         log_statements:
+          # SQL Server: use instance name for identification
           - conditions:
               - resource.attributes["sqlserver.instance.name"] != nil
-              - resource.attributes["k8s.pod.name"] != nil
             statements:
-              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["k8s.pod.name"], " - ", resource.attributes["sqlserver.instance.name"]], ""))
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["sqlserver.instance.name"]], ""))
+          # PostgreSQL database-level logs: use database name for identification
+          - conditions:
+              - resource.attributes["postgresql.database.name"] != nil
+            statements:
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["postgresql.database.name"]], ""))
+          # PostgreSQL fallback: use injected db.name from pod annotation
+          - conditions:
+              - resource.attributes["db.name"] != nil
+              - resource.attributes["postgresql.database.name"] == nil
+              - resource.attributes["sqlserver.instance.name"] == nil
+            statements:
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["db.name"]], ""))
+          # PostgreSQL last resort: use k8s pod name
+          - conditions:
+              - resource.attributes["k8s.pod.name"] != nil
+              - resource.attributes["postgresql.database.name"] == nil
+              - resource.attributes["db.name"] == nil
+              - resource.attributes["sqlserver.instance.name"] == nil
+            statements:
+              - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["k8s.pod.name"]], ""))
     service:
       extensions: [health_check, k8s_observer]
       pipelines:
         metrics:
           exporters: [signalfx]
-          processors: [memory_limiter, batch, resourcedetection, resource, resource/k8s_cluster, resource/add_collector_k8s, transform/dbmon]
+          processors: [memory_limiter, batch, resourcedetection, resource, resource/k8s_cluster, resource/add_collector_k8s, resource/add_environment, transform/dbmon]
           receivers: [k8s_cluster, receiver_creator]
         logs/dbmon:
           receivers:
@@ -198,9 +267,10 @@ clusterReceiver:
             - resourcedetection
             - resource
             - resource/add_collector_k8s
+            - resource/add_environment
             - transform/dbmon
           exporters:
-            - otlphttp/dbmon                
+            - otlphttp/dbmon
 agent:
   extraEnvs:
   - name: WORKSHOP_ENVIRONMENT
@@ -226,6 +296,12 @@ agent:
              endpoint: "redis-cart:6379"
              collection_interval: 10s
     processors:
+      # Inject environment as a resource attribute for traces
+      resource/add_environment:
+        attributes:
+          - key: deployment.environment
+            value: ${WORKSHOP_ENVIRONMENT}
+            action: upsert
       filter/drop_flagd:
         traces:
           span:

@@ -1,0 +1,20 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# Splunk OpenTelemetry distribution (includes all OTel core packages)
+splunk-opentelemetry[all]==2.6.0
+
+# Kafka consumer
+confluent-kafka==2.6.1
+
+# Protobuf for message parsing
+protobuf==5.29.4
+
+# HTTP client for Lambda calls
+requests==2.32.3
+
+# Scheduler for periodic Lambda calls
+APScheduler==3.11.0
+
+# JSON logging
+python-json-logger==4.0.0
