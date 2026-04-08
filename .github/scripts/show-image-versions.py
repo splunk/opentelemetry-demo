@@ -26,9 +26,9 @@ def extract_image_from_manifest(manifest_path: Path) -> Tuple[str, str, str]:
         with open(manifest_path, 'r') as f:
             docs = list(yaml.safe_load_all(f))
 
-        # Find Deployment resource
+        # Find Deployment or StatefulSet resource
         for doc in docs:
-            if doc and doc.get('kind') == 'Deployment':
+            if doc and doc.get('kind') in ('Deployment', 'StatefulSet'):
                 service_name = doc.get('metadata', {}).get('name', 'unknown')
                 containers = doc.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])
 
@@ -42,7 +42,10 @@ def extract_image_from_manifest(manifest_path: Path) -> Tuple[str, str, str]:
 
                     return service_name, image, version
 
-        return ('unknown', '', 'unknown')
+        # No Deployment/StatefulSet found — this is an infrastructure manifest
+        # Use the directory name as the service name
+        service_name = manifest_path.parent.name
+        return (service_name, '', '-')
 
     except Exception as e:
         print(f"Warning: Could not parse {manifest_path}: {e}", file=sys.stderr)
@@ -58,6 +61,9 @@ def categorize_version(version: str, base_version: str) -> str:
     """
     if not version or version == 'latest':
         return 'external'
+
+    if version == '-':
+        return 'infrastructure'
 
     # Check if it's a hotfix version (e.g., 1.1.0-payment.1)
     if '-' in version and '.' in version.split('-')[-1]:
@@ -140,6 +146,8 @@ def print_version_table(versions: List[Tuple[str, str, str]], base_version: str,
                 status = f"⚠️ Older"
             elif category == 'newer':
                 status = f"🆕 Newer"
+            elif category == 'infrastructure':
+                status = f"🔧 Infrastructure"
             elif category == 'external':
                 status = f"📦 External"
             else:
@@ -165,6 +173,8 @@ def print_version_table(versions: List[Tuple[str, str, str]], base_version: str,
                 status = f"Older"
             elif category == 'newer':
                 status = f"Newer"
+            elif category == 'infrastructure':
+                status = f"Infrastructure"
             elif category == 'external':
                 status = f"External"
             else:
@@ -185,6 +195,7 @@ def get_version_summary(versions: List[Tuple[str, str, str]], base_version: str)
         'hotfix': 0,
         'older': 0,
         'newer': 0,
+        'infrastructure': 0,
         'external': 0,
         'unknown': 0
     }
@@ -236,6 +247,7 @@ def main():
         print(f"  - Hotfixes: {summary['hotfix']}")
         print(f"  - Older versions: {summary['older']}")
         print(f"  - Newer versions: {summary['newer']}")
+        print(f"  - Infrastructure: {summary['infrastructure']}")
         print(f"  - External images: {summary['external']}")
         if summary['unknown'] > 0:
             print(f"  - Unknown: {summary['unknown']}")
