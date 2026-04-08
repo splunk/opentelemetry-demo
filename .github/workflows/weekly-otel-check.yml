@@ -1,0 +1,137 @@
+name: Weekly OTel Upstream Sync Check
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # Every Monday at 9am UTC
+  workflow_dispatch:       # Allow manual trigger
+
+jobs:
+  check-upstream-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Add OTel remote and fetch
+        run: |
+          git remote add otel https://github.com/open-telemetry/opentelemetry-demo.git
+          git fetch otel --tags --quiet
+
+      - name: Check sync status
+        id: sync_status
+        run: |
+          # Find latest OTel release tag (numeric only, e.g., 2.2.0)
+          LATEST_TAG=$(git tag -l '[0-9]*.[0-9]*.[0-9]*' --sort=-version:refname | head -1)
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+
+          # Count commits behind latest tag
+          BEHIND_TAG=$(git log --oneline HEAD..$LATEST_TAG 2>/dev/null | wc -l | tr -d ' ')
+          echo "behind_tag=$BEHIND_TAG" >> $GITHUB_OUTPUT
+
+          # Count commits behind otel/main
+          BEHIND_MAIN=$(git log --oneline HEAD..otel/main 2>/dev/null | wc -l | tr -d ' ')
+          echo "behind_main=$BEHIND_MAIN" >> $GITHUB_OUTPUT
+
+          # Count commits ahead
+          AHEAD=$(git log --oneline otel/main..HEAD 2>/dev/null | wc -l | tr -d ' ')
+          echo "ahead=$AHEAD" >> $GITHUB_OUTPUT
+
+          # Find merge base to determine which OTel tag we're synced to
+          MERGE_BASE=$(git merge-base HEAD otel/main 2>/dev/null || echo "none")
+          if [ "$MERGE_BASE" != "none" ]; then
+            SYNCED_TO=$(git describe --tags --abbrev=0 $MERGE_BASE 2>/dev/null || echo "unknown")
+          else
+            SYNCED_TO="unknown"
+          fi
+          echo "synced_to=$SYNCED_TO" >> $GITHUB_OUTPUT
+
+          echo "Latest OTel tag: $LATEST_TAG"
+          echo "Currently synced to: $SYNCED_TO"
+          echo "Behind latest tag: $BEHIND_TAG commits"
+          echo "Behind otel/main: $BEHIND_MAIN commits"
+          echo "Ahead of otel/main: $AHEAD commits (Splunk customizations)"
+
+      - name: Dry-run merge to count conflicts
+        id: conflict_check
+        run: |
+          LATEST_TAG=${{ steps.sync_status.outputs.latest_tag }}
+
+          # Attempt merge without committing
+          git merge --no-commit --no-ff $LATEST_TAG 2>/dev/null || true
+
+          # Count conflict files
+          CONFLICTS=$(git diff --name-only --diff-filter=U 2>/dev/null | wc -l | tr -d ' ')
+          echo "conflicts=$CONFLICTS" >> $GITHUB_OUTPUT
+
+          # Capture conflict file list
+          if [ "$CONFLICTS" -gt 0 ]; then
+            CONFLICT_FILES=$(git diff --name-only --diff-filter=U 2>/dev/null | head -30)
+            echo "conflict_files<<EOF" >> $GITHUB_OUTPUT
+            echo "$CONFLICT_FILES" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+          # Abort the merge
+          git merge --abort 2>/dev/null || git reset --hard HEAD
+
+          echo "Conflict files if merged with $LATEST_TAG: $CONFLICTS"
+
+      - name: Generate summary
+        run: |
+          LATEST_TAG=${{ steps.sync_status.outputs.latest_tag }}
+          SYNCED_TO=${{ steps.sync_status.outputs.synced_to }}
+          BEHIND_TAG=${{ steps.sync_status.outputs.behind_tag }}
+          BEHIND_MAIN=${{ steps.sync_status.outputs.behind_main }}
+          AHEAD=${{ steps.sync_status.outputs.ahead }}
+          CONFLICTS=${{ steps.conflict_check.outputs.conflicts }}
+
+          # Determine urgency
+          if [ "$BEHIND_TAG" -eq 0 ]; then
+            URGENCY="✅ Up to date with latest release"
+          elif [ "$BEHIND_TAG" -lt 20 ]; then
+            URGENCY="🟡 Minor drift — sync when convenient"
+          elif [ "$BEHIND_TAG" -lt 100 ]; then
+            URGENCY="🟠 Moderate drift — plan a sync soon"
+          else
+            URGENCY="🔴 Significant drift — sync recommended"
+          fi
+
+          cat >> $GITHUB_STEP_SUMMARY << SUMMARY
+          ## 🔄 OTel Upstream Sync Status
+
+          **Status:** $URGENCY
+
+          | Metric | Value |
+          |--------|-------|
+          | Latest OTel release | \`$LATEST_TAG\` |
+          | Currently synced to | \`$SYNCED_TO\` |
+          | Commits behind \`$LATEST_TAG\` | **$BEHIND_TAG** |
+          | Commits behind \`otel/main\` | **$BEHIND_MAIN** |
+          | Splunk commits ahead | $AHEAD |
+          | Conflict files (dry-run merge with \`$LATEST_TAG\`) | **$CONFLICTS** |
+
+          SUMMARY
+
+          if [ "$CONFLICTS" -gt 0 ]; then
+            cat >> $GITHUB_STEP_SUMMARY << 'CONFLICTS_HEADER'
+
+          <details>
+          <summary>Conflict files (click to expand)</summary>
+
+          ```
+          CONFLICTS_HEADER
+            echo "${{ steps.conflict_check.outputs.conflict_files }}" >> $GITHUB_STEP_SUMMARY
+            cat >> $GITHUB_STEP_SUMMARY << 'CONFLICTS_FOOTER'
+          ```
+
+          </details>
+          CONFLICTS_FOOTER
+          fi
+
+          cat >> $GITHUB_STEP_SUMMARY << FOOTER
+
+          ---
+          *To sync, create a branch from \`main\` and run \`git merge $LATEST_TAG\`.*
+          *Safety: tag the current state first with \`git tag pre-otel-sync-\$(date +%Y%m%d)\`.*
+          FOOTER
