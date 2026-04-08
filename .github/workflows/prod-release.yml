@@ -1,4 +1,4 @@
-name: Production Release (Build + Manifest)
+name: Build Production Release (Build + Manifest)
 # Combined workflow: builds images, updates versions, stitches manifests, creates ONE PR
 # Replaces the two-step flow of prod-build-images.yml → (merge PR) → prod-build-manifest.yml
 
