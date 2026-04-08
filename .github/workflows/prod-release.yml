@@ -330,6 +330,10 @@ jobs:
           chmod +x .github/scripts/stitch-manifests.sh
           chmod +x .github/scripts/get-services.py
 
+      - name: Save current version before bump
+        id: old-version
+        run: echo "old_version=$(cat SPLUNK-VERSION)" >> $GITHUB_OUTPUT
+
       - name: Update SPLUNK-VERSION
         if: ${{ needs.determine-version.outputs.is_hotfix == 'false' && inputs.version_bump != 'none (keep current)' && inputs.version_bump != 'custom' }}
         run: |
@@ -415,6 +419,46 @@ jobs:
           echo "✅ Regular: $MANIFEST_FILE"
           echo "✅ DIAB: $MANIFEST_FILE_DIAB"
 
+      - name: Ensure values.yaml exists for this version
+        id: values
+        run: |
+          VERSION=$(cat SPLUNK-VERSION)
+          OLD_VERSION="${{ steps.old-version.outputs.old_version }}"
+          VALUES_FILE="kubernetes/splunk-astronomy-shop-${VERSION}-values.yaml"
+
+          if [ -f "$VALUES_FILE" ]; then
+            echo "✅ Values file already exists: $VALUES_FILE"
+          else
+            # Find the most recent values file to clone from
+            # Prefer the previous SPLUNK-VERSION, fall back to latest available
+            SOURCE=""
+
+            # Try the version before bump
+            if [ -n "$OLD_VERSION" ] && [ -f "kubernetes/splunk-astronomy-shop-${OLD_VERSION}-values.yaml" ]; then
+              SOURCE="kubernetes/splunk-astronomy-shop-${OLD_VERSION}-values.yaml"
+            else
+              # Find the latest values file by version sort
+              SOURCE=$(ls kubernetes/splunk-astronomy-shop-*-values.yaml 2>/dev/null | sort -V | tail -1)
+            fi
+
+            if [ -n "$SOURCE" ] && [ -f "$SOURCE" ]; then
+              cp "$SOURCE" "$VALUES_FILE"
+              echo "📋 Cloned values file: $SOURCE → $VALUES_FILE"
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "### 📋 Values File" >> $GITHUB_STEP_SUMMARY
+              echo "No values.yaml found for \`${VERSION}\`. Cloned from \`$(basename $SOURCE)\`." >> $GITHUB_STEP_SUMMARY
+              echo "You can update it later via a PR if needed." >> $GITHUB_STEP_SUMMARY
+            else
+              echo "⚠️ No values file found to clone from — promote workflow will need one manually"
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "### ⚠️ Values File Missing" >> $GITHUB_STEP_SUMMARY
+              echo "No values.yaml found for \`${VERSION}\` and no previous version to clone from." >> $GITHUB_STEP_SUMMARY
+              echo "Create one manually before running the promote workflow." >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+          echo "values_file=$VALUES_FILE" >> $GITHUB_OUTPUT
+
       - name: Validate manifest YAML
         run: |
           MANIFEST_FILE="${{ steps.stitch.outputs.manifest_file }}"
@@ -473,9 +517,10 @@ jobs:
             fi
           fi
 
-          # Stage source manifests, stitched manifests
+          # Stage source manifests, stitched manifests, and values file
           git add src/*/*-k8s.yaml
           git add "$MANIFEST_FILE" "$MANIFEST_FILE_DIAB"
+          git add kubernetes/splunk-astronomy-shop-*-values.yaml 2>/dev/null || true
 
           if git diff --staged --quiet; then
             echo "No changes to commit"
