@@ -72,6 +72,8 @@ def categorize_version(version: str, base_version: str) -> str:
         def parse_version(v):
             # Remove any suffix after '-'
             base = v.split('-')[0]
+            # Strip leading 'v' prefix (e.g., v0.12.8 → 0.12.8)
+            base = base.lstrip('v')
             parts = base.split('.')
             return tuple(int(p) for p in parts)
 
@@ -84,8 +86,8 @@ def categorize_version(version: str, base_version: str) -> str:
             return 'newer'
         else:
             return 'current'
-    except:
-        return 'unknown'
+    except (ValueError, TypeError):
+        return 'external'
 
 
 def get_service_versions() -> List[Tuple[str, str, str]]:
