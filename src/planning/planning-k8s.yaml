@@ -1,5 +1,6 @@
 # Kubernetes manifest for planning
-# Planning service: consumes orders from Kafka, calls Lambda periodically
+# Auto-generated from opentelemetry-demo.yaml
+# Contains 1 resource(s)
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -25,16 +26,6 @@ spec:
         app.kubernetes.io/name: planning
     spec:
       serviceAccountName: opentelemetry-demo
-      # DNS Configuration to prevent stale DNS caching
-      dnsPolicy: ClusterFirst
-      dnsConfig:
-        options:
-          - name: ndots
-            value: "2"
-          - name: timeout
-            value: "2"
-          - name: attempts
-            value: "3"
       containers:
       - name: planning
         image: ghcr.io/splunk/opentelemetry-demo/otel-planning:1.8.0
@@ -53,7 +44,6 @@ spec:
           value: $(NODE_IP)
         - name: OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
           value: cumulative
-        # Kafka configuration
         - name: KAFKA_ADDR
           value: kafka:9092
         - name: KAFKA_TOPIC
@@ -65,25 +55,22 @@ spec:
           value: "https://61d4vss237.execute-api.eu-west-1.amazonaws.com/demo/orders"
         - name: LAMBDA_CALL_INTERVAL_MINUTES
           value: "5"
-        # OpenTelemetry configuration
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: http://$(OTEL_COLLECTOR_NAME):4317
+          value: http://$(OTEL_COLLECTOR_NAME):4318
         - name: OTEL_PYTHON_LOG_CORRELATION
           value: 'true'
         - name: OTEL_RESOURCE_ATTRIBUTES
           value: service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version=1.8.0,service.kafka=spanlink
-        # Splunk profiler
         - name: SPLUNK_PROFILER_ENABLED
           value: 'true'
-        - name: SPLUNK_PROFILER_LOGS_ENDPOINT
-          value: http://$(OTEL_COLLECTOR_NAME):4317
-        - name: SPLUNK_PROFILER_CALL_STACK_INTERVAL
-          value: '750'
+        - name: SPLUNK_PROFILER_MEMORY_ENABLED
+          value: 'true'
         resources:
           limits:
             memory: 512Mi
           requests:
             memory: 256Mi
+        volumeMounts: null
       initContainers:
       - command:
         - sh
@@ -91,3 +78,4 @@ spec:
         - until nc -z -v -w30 kafka 9092; do echo waiting for kafka; sleep 2; done;
         image: busybox:latest
         name: wait-for-kafka
+      volumes: null

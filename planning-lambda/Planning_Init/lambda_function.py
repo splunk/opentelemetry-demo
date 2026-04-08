@@ -14,7 +14,7 @@ import sys
 from typing import Any, Dict
 
 
-from shared.tracing import init_tracer, extract_context, create_span
+from shared.tracing import init_tracer, extract_context, create_span, force_flush
 from shared.logging import get_logger
 from opentelemetry.trace import SpanKind
 
@@ -160,6 +160,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 extra={"status_code": response["statusCode"]}
             )
 
+            # Flush spans before Lambda freezes
+            force_flush()
             return response
 
         except Exception as e:
@@ -167,6 +169,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             span.set_attribute("error.type", type(e).__name__)
             span.set_attribute("error.message", str(e))
 
+            # Flush spans before Lambda freezes
+            force_flush()
             return {
                 "statusCode": 500,
                 "headers": {"Content-Type": "application/json"},

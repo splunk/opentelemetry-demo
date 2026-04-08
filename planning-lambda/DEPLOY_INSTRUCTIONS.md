@@ -213,18 +213,34 @@ aws lambda update-function-configuration \
 
 ### 3. VPC Configuration for Lambda
 
-The Lambda must be in the same VPC as the collector. Add a VPC config to `template.yaml` under the function properties:
+**The Lambda must be in the same VPC as the gateway collector.** The collector listens on a private IP (e.g., `10.0.134.189:4317`), which is only reachable from within the VPC. Without VPC configuration, the Lambda runs on AWS's shared network and cannot reach private IPs.
+
+The `template.yaml` already includes a `VpcConfig` block under the function properties. Update the security group and subnet IDs to match the gateway collector's EC2 instance:
 
 ```yaml
 VpcConfig:
   SecurityGroupIds:
-    - sg-xxxxxxxx
+    - sg-xxxxxxxx    # Same SG as the collector, or one that allows egress to it
   SubnetIds:
-    - subnet-xxxxxxxx
-    - subnet-yyyyyyyy
+    - subnet-xxxxxxxx  # Same subnet as the collector (must be a private subnet)
 ```
 
-**Note:** Lambda functions in a VPC need a NAT gateway to reach external services (API Gateway, etc.).
+To find the collector's VPC details, SSH into the EC2 instance and run:
+```bash
+TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 60")
+MAC=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/network/interfaces/macs/ | head -1)
+echo "VPC: $(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/network/interfaces/macs/${MAC}vpc-id)"
+echo "Subnet: $(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/network/interfaces/macs/${MAC}subnet-id)"
+echo "SG: $(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/network/interfaces/macs/${MAC}security-group-ids)"
+```
+
+The SAM template also requires the `AWSLambdaVPCAccessExecutionRole` policy (already included) which grants the Lambda permission to create ENIs in the VPC.
+
+**Important considerations:**
+- The security group must allow **outbound traffic on port 4317** (gRPC) to the collector's security group
+- The collector's security group must allow **inbound traffic on port 4317** from the Lambda's security group
+- Lambda functions in a VPC **lose internet access** unless the subnet has a route to a **NAT gateway**. Without a NAT gateway, the Lambda can reach the collector but not external services (API Gateway, S3, etc.)
+- If you only have a single private subnet, place both the Lambda and the collector in it to avoid cross-AZ data transfer costs
 
 ## Troubleshooting
 

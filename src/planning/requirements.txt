@@ -7,8 +7,8 @@ splunk-opentelemetry[all]==2.6.0
 # Kafka consumer
 confluent-kafka==2.6.1
 
-# Protobuf for message parsing
-protobuf==5.29.4
+# Protobuf for message parsing (version managed by splunk-opentelemetry)
+protobuf
 
 # HTTP client for Lambda calls
 requests==2.32.3

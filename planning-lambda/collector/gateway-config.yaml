@@ -1,48 +1,32 @@
 # Splunk OpenTelemetry Collector - Gateway Mode
 # Receives OTLP from Lambda functions and forwards to Splunk
 #
-# Environment variables required:
-#   SPLUNK_ACCESS_TOKEN    - Splunk Observability Cloud access token
-#   SPLUNK_REALM           - Splunk Observability Cloud realm (e.g., us0, us1, eu0)
-#   SPLUNK_HEC_URL         - Splunk HEC endpoint (e.g., https://http-inputs-<instance>.splunkcloud.com)
-#   SPLUNK_HEC_TOKEN       - Splunk HEC token
-#   SPLUNK_INDEX           - Splunk index for logs (e.g., main)
-
-# Configuration file that uses the Splunk exporters (OTLP HTTP, SignalFx) to push
-# data to Splunk products.
+# Environment variables required (set in /etc/otel/collector/splunk-otel-collector.conf):
+#   SPLUNK_ACCESS_TOKEN      - Splunk Observability Cloud access token
+#   SPLUNK_REALM             - Splunk Observability Cloud realm (e.g., us0, us1, eu0)
+#   SPLUNK_LISTEN_INTERFACE  - Listen interface (default: 0.0.0.0)
+#
+# The splunk_hec exporter uses hardcoded values below — update for your environment.
 
 extensions:
+  health_check:
+    endpoint: "${SPLUNK_LISTEN_INTERFACE}:13133"
+  zpages:
+    endpoint: "${SPLUNK_LISTEN_INTERFACE}:55679"
   headers_setter:
     headers:
       - action: upsert
         key: X-SF-TOKEN
         from_context: X-SF-TOKEN
         default_value: "${SPLUNK_ACCESS_TOKEN}"
-  health_check:
-    endpoint: "${SPLUNK_LISTEN_INTERFACE}:13133"
-  http_forwarder:
-    ingress:
-      endpoint: "${SPLUNK_LISTEN_INTERFACE}:6060"
-    egress:
-      endpoint: "https://api.${SPLUNK_REALM}.signalfx.com"
-  http_forwarder/signalfx:
-    ingress:
-      endpoint: "${SPLUNK_LISTEN_INTERFACE}:9943"
-      # Whether to propagate the client metadata from the incoming requests to the backend.
-      # Should be enabled to preserve incoming access token
-      # include_metadata: true
-    egress:
-      endpoint: "https://ingest.${SPLUNK_REALM}.signalfx.com"
-  zpages:
-    endpoint: "${SPLUNK_LISTEN_INTERFACE}:55679"
-    expvar:
-      enabled: true
 
 receivers:
   otlp:
     protocols:
-      http:
       grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
 
 processors:
   memory_limiter:
@@ -50,21 +34,11 @@ processors:
     limit_mib: 3000
     spike_limit_mib: 1000
 
-  # Optional: The following processor can be used to add a default "deployment.environment" attribute to the traces
-  # when it's not populated by instrumentation libraries.
-  # If enabled, make sure to enable this processor in the pipeline below.
   resource/add_environment:
     attributes:
       - action: insert
-        value: dev-astronomy-shop-demo-lambda
+        value: "demo"
         key: deployment.environment
-
-  # The following processor is used to add "otelcol.service.mode" attribute to the internal metrics
-  resource/add_mode:
-    attributes:
-      - action: insert
-        value: "gateway"
-        key: otelcol.service.mode  
 
   batch:
     timeout: 5s
@@ -80,43 +54,40 @@ processors:
         action: insert
 
 exporters:
-  # Splunk Observability (traces + metrics)
-  otlphttp/splunk:
-    endpoint: https://ingest.${SPLUNK_REALM}.signalfx.com/v2/otlp
-    headers:
-      X-SF-TOKEN: ${SPLUNK_ACCESS_TOKEN}
+  # Traces and metrics to Splunk Observability Cloud via OTLP HTTP
+  otlphttp:
+    auth:
+      authenticator: headers_setter
+    traces_endpoint: "https://ingest.${SPLUNK_REALM}.signalfx.com/v2/trace/otlp"
+    metrics_endpoint: "https://ingest.${SPLUNK_REALM}.signalfx.com/v2/datapoint/otlp"
 
-  # Splunk Cloud (logs via HEC)
+  # Logs to Splunk Cloud/Enterprise via HEC
   splunk_hec:
-    endpoint: https://http-inputs.<your-stack>.splunkcloud.com/services/collector
-    endpoint: https://http-inputs-[redacted].splunkcloud.com:443/services/collector/raw
-    token:  [redacted]
+    endpoint: "${SPLUNK_HEC_URL}"
+    token: "${SPLUNK_HEC_TOKEN}"
     source: otel
     sourcetype: _json
-    index: main
-    max_connections: 20
+    index: "${SPLUNK_INDEX}"
     timeout: 10s
 
-extensions:
-  health_check:
-  pprof:
-  zpages:
+  # Debug exporter for troubleshooting (remove from pipelines when not needed)
+  debug:
+    verbosity: basic
 
 service:
-  extensions: [health_check, pprof, zpages]
-
+  extensions: [health_check, zpages, headers_setter]
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
-      exporters: [otlphttp/splunk]
+      processors: [memory_limiter, batch, resource/add_environment]
+      exporters: [otlphttp, debug]
 
     metrics:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
-      exporters: [otlphttp/splunk]
+      processors: [memory_limiter, batch, resource/add_environment]
+      exporters: [otlphttp, debug]
 
     logs:
       receivers: [otlp]
       processors: [memory_limiter, batch, attributes/logs]
-      exporters: [splunk_hec]
+      exporters: [splunk_hec, debug]
