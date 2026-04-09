@@ -47,7 +47,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: checkout
-        image: ghcr.io/hagen-p/opentelemetry-demo-splunk/checkout:sync-otel2.2
+        image: ghcr.io/hagen-p/opentelemetry-demo-splunk/checkout:test-2.0
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
