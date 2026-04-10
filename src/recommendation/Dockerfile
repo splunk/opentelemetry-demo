@@ -5,7 +5,7 @@
 FROM docker.io/library/python:3.14-alpine3.23 AS build-venv
 
 RUN apk update && \
-    apk add gcc g++ linux-headers
+    apk add gcc g++ linux-headers postgresql-dev
 
 COPY ./src/recommendation/requirements.txt requirements.txt
 
@@ -15,6 +15,8 @@ RUN python -m venv venv && \
 RUN venv/bin/opentelemetry-bootstrap -a install
 
 FROM docker.io/library/python:3.14-alpine3.23
+
+RUN apk add --no-cache libpq
 
 COPY --from=build-venv /venv/ /venv/
 
