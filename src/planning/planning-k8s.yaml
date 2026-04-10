@@ -31,6 +31,11 @@ spec:
         image: ghcr.io/hagen-p/opentelemetry-demo-splunk/planning:test-2.0
         imagePullPolicy: Always
         env:
+        - name: WORKSHOP_ENV
+          valueFrom:
+            secretKeyRef:
+              name: workshop-secret
+              key: env
         - name: OTEL_SERVICE_NAME
           valueFrom:
             fieldRef:
@@ -60,7 +65,7 @@ spec:
         - name: OTEL_PYTHON_LOG_CORRELATION
           value: 'true'
         - name: OTEL_RESOURCE_ATTRIBUTES
-          value: service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version=1.8.0,service.kafka=spanlink
+          value: service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version=1.8.0,service.kafka=spanlink,deployment.environment=$(WORKSHOP_ENV)-lambda
         - name: SPLUNK_PROFILER_ENABLED
           value: 'true'
         - name: SPLUNK_PROFILER_MEMORY_ENABLED
