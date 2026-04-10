@@ -47,7 +47,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: recommendation
-        image: ghcr.io/hagen-p/opentelemetry-demo-splunk/otel-recommendation:test-2.0
+        image: ghcr.io/hagen-p/opentelemetry-demo-splunk/otel-recommendation:splunk2.2.0-beta
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
