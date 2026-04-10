@@ -7,6 +7,7 @@
 # Python
 import os
 import random
+import time
 from concurrent import futures
 
 # Pip
@@ -64,6 +65,41 @@ TAGS = ['beginner', 'advanced', 'astrophotography', 'visual', 'planetary']
 # PostgreSQL connection pool (lazy initialized)
 pg_pool = None
 
+# Cartesian query rate limiter: spread N executions evenly across a window
+CARTESIAN_WINDOW_SECONDS = int(os.environ.get('CARTESIAN_WINDOW_SECONDS', '900'))  # 15 min
+CARTESIAN_MAX_PER_WINDOW = int(os.environ.get('CARTESIAN_MAX_PER_WINDOW', '3'))
+cartesian_last_exec = 0.0
+cartesian_window_count = 0
+cartesian_window_start = 0.0
+
+
+def cartesian_rate_limit_ok():
+    """
+    Spread executions evenly across the window.
+    With defaults (3 per 900s), fires once every ~300s (5 min).
+    First call in a new window always fires immediately.
+    """
+    global cartesian_last_exec, cartesian_window_count, cartesian_window_start
+    now = time.time()
+    min_interval = CARTESIAN_WINDOW_SECONDS / CARTESIAN_MAX_PER_WINDOW
+
+    # New window — reset counters
+    if now - cartesian_window_start >= CARTESIAN_WINDOW_SECONDS:
+        cartesian_window_start = now
+        cartesian_window_count = 0
+
+    # Already hit max for this window
+    if cartesian_window_count >= CARTESIAN_MAX_PER_WINDOW:
+        return False
+
+    # Enforce minimum spacing between executions
+    if cartesian_window_count > 0 and (now - cartesian_last_exec) < min_interval:
+        return False
+
+    cartesian_last_exec = now
+    cartesian_window_count += 1
+    return True
+
 class RecommendationService(demo_pb2_grpc.RecommendationServiceServicer):
     def ListRecommendations(self, request, context):
         span = trace.get_current_span()
@@ -71,10 +107,14 @@ class RecommendationService(demo_pb2_grpc.RecommendationServiceServicer):
         # DBMon Cartesian Demo - check feature flag
         if check_feature_flag("recommendationCartesianQuery"):
             span.set_attribute("app.cartesian_demo.enabled", True)
-            # Execute the slow Cartesian query (bad query = True)
-            cartesian_results = execute_cartesian_query(use_bad_query=True)
-            if cartesian_results:
-                span.set_attribute("app.cartesian_demo.results", len(cartesian_results))
+            if cartesian_rate_limit_ok():
+                span.set_attribute("app.cartesian_demo.rate_limited", False)
+                # Execute the slow Cartesian query (bad query = True)
+                cartesian_results = execute_cartesian_query(use_bad_query=True)
+                if cartesian_results:
+                    span.set_attribute("app.cartesian_demo.results", len(cartesian_results))
+            else:
+                span.set_attribute("app.cartesian_demo.rate_limited", True)
         else:
             span.set_attribute("app.cartesian_demo.enabled", False)
 
