@@ -58,3 +58,5 @@ src/flagd/demo.flagd.json.bak
 
 # BETA manifests (fork/test only, never push to upstream)
 kubernetes/BETA/
+kubernetes/BETA/*
+
