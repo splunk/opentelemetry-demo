@@ -88,6 +88,17 @@ spec:
           value: '750'
         - name: SPLUNK_PROFILER_ENABLED
           value: 'true'
+        # PostgreSQL connection for DBMon Cartesian demo
+        - name: POSTGRES_HOST
+          value: "postgres"
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_DB
+          value: "astronomy_shop"
+        - name: POSTGRES_USER
+          value: "demo_app_user"
+        - name: POSTGRES_PASSWORD
+          value: "demo_password"
         resources:
           limits:
             memory: 500Mi

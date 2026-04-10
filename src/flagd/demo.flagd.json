@@ -155,6 +155,15 @@
         "10000x": 10000
       },
       "defaultVariant": "off"
+    },
+    "recommendationCartesianQuery": {
+      "description": "DBMon Demo: Triggers a Cartesian join query (500M rows) in recommendation service PostgreSQL calls. Query returns correct results but processes 500M intermediate rows, taking 12+ seconds.",
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "off"
     }
   }
 }

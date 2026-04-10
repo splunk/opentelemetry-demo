@@ -11,6 +11,8 @@ from concurrent import futures
 
 # Pip
 import grpc
+import psycopg2
+from psycopg2 import pool
 from opentelemetry import trace, metrics
 from opentelemetry._logs import set_logger_provider
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import (
@@ -39,10 +41,44 @@ from metrics import (
 cached_ids = []
 first_run = True
 
+# DBMon Cartesian Demo - PostgreSQL queries
+# Bad query: ON 1=1 creates Cartesian product (5000 x 100000 = 500M rows)
+CARTESIAN_BAD_QUERY = '''
+    SELECT p.product_id, p.name, p.price, pt.tag, pt.relevance_score
+    FROM products p
+    JOIN product_tags pt ON 1=1
+    WHERE p.category = %s AND pt.tag = %s
+    ORDER BY pt.relevance_score DESC LIMIT 10'''
+
+# Good query: proper JOIN condition
+CARTESIAN_GOOD_QUERY = '''
+    SELECT p.product_id, p.name, p.price, pt.tag, pt.relevance_score
+    FROM products p
+    JOIN product_tags pt ON pt.product_id = p.product_id
+    WHERE p.category = %s AND pt.tag = %s
+    ORDER BY pt.relevance_score DESC LIMIT 10'''
+
+CATEGORIES = ['telescope', 'eyepiece', 'mount', 'camera', 'filter']
+TAGS = ['beginner', 'advanced', 'astrophotography', 'visual', 'planetary']
+
+# PostgreSQL connection pool (lazy initialized)
+pg_pool = None
+
 class RecommendationService(demo_pb2_grpc.RecommendationServiceServicer):
     def ListRecommendations(self, request, context):
-        prod_list = get_product_list(request.product_ids)
         span = trace.get_current_span()
+
+        # DBMon Cartesian Demo - check feature flag
+        if check_feature_flag("recommendationCartesianQuery"):
+            span.set_attribute("app.cartesian_demo.enabled", True)
+            # Execute the slow Cartesian query (bad query = True)
+            cartesian_results = execute_cartesian_query(use_bad_query=True)
+            if cartesian_results:
+                span.set_attribute("app.cartesian_demo.results", len(cartesian_results))
+        else:
+            span.set_attribute("app.cartesian_demo.enabled", False)
+
+        prod_list = get_product_list(request.product_ids)
         span.set_attribute("app.products_recommended.count", len(prod_list))
         logger.info(f"Receive ListRecommendations for product ids:{prod_list}")
 
@@ -123,7 +159,66 @@ def must_map_env(key: str):
 def check_feature_flag(flag_name: str):
     # Initialize OpenFeature
     client = api.get_client()
-    return client.get_boolean_value("recommendationCacheFailure", False)
+    return client.get_boolean_value(flag_name, False)
+
+
+def get_pg_pool():
+    """Initialize PostgreSQL connection pool for DBMon demo."""
+    global pg_pool
+    if pg_pool is None:
+        try:
+            pg_pool = psycopg2.pool.ThreadedConnectionPool(
+                minconn=1,
+                maxconn=5,
+                host=os.environ.get('POSTGRES_HOST', 'postgres'),
+                port=int(os.environ.get('POSTGRES_PORT', '5432')),
+                database=os.environ.get('POSTGRES_DB', 'astronomy_shop'),
+                user=os.environ.get('POSTGRES_USER', 'demo_app_user'),
+                password=os.environ.get('POSTGRES_PASSWORD', 'demo_password')
+            )
+        except Exception as e:
+            logging.getLogger('main').warning(f"Failed to create PostgreSQL pool: {e}")
+            return None
+    return pg_pool
+
+
+def execute_cartesian_query(use_bad_query: bool):
+    """
+    Execute the Cartesian demo query against PostgreSQL.
+    When use_bad_query=True, executes the 500M row Cartesian join.
+    """
+    pool = get_pg_pool()
+    if pool is None:
+        return None
+
+    query = CARTESIAN_BAD_QUERY if use_bad_query else CARTESIAN_GOOD_QUERY
+    category = random.choice(CATEGORIES)
+    tag = random.choice(TAGS)
+
+    tracer = trace.get_tracer_provider().get_tracer('recommendationservice')
+    with tracer.start_as_current_span('db.get_product_recommendations') as span:
+        span.set_attribute('db.system', 'postgresql')
+        span.set_attribute('db.operation', 'SELECT')
+        span.set_attribute('db.statement', query)
+        span.set_attribute('recommendation.category', category)
+        span.set_attribute('recommendation.tag', tag)
+        span.set_attribute('recommendation.cartesian_query', use_bad_query)
+
+        conn = None
+        try:
+            conn = pool.getconn()
+            with conn.cursor() as cur:
+                cur.execute(query, (category, tag))
+                results = cur.fetchall()
+                span.set_attribute('db.rows_returned', len(results))
+                return results
+        except Exception as e:
+            span.record_exception(e)
+            logging.getLogger('main').error(f"Cartesian query failed: {e}")
+            return None
+        finally:
+            if conn:
+                pool.putconn(conn)
 
 
 if __name__ == "__main__":

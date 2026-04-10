@@ -5,3 +5,4 @@ splunk-opentelemetry==2.9.0
 psutil==7.0.0 # Importing this will also import opentelemetry-instrumentation-system-metrics when running opentelemetry-bootstrap
 python-dotenv==1.2.2
 python-json-logger==4.0.0
+psycopg2-binary==2.9.9 # PostgreSQL driver for DBMon Cartesian demo
