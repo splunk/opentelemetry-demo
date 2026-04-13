@@ -47,7 +47,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: frontend-proxy
-        image: ghcr.io/hagen-p/opentelemetry-demo-splunk/otel-frontend-proxy:test-2.0
+        image: ghcr.io/splunk/opentelemetry-demo/otel-frontend-proxy:1.8.2
         imagePullPolicy: Always
         ports:
         - containerPort: 8080

@@ -28,7 +28,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: planning
-        image: ghcr.io/hagen-p/opentelemetry-demo-splunk/planning:test-2.0
+        image: ghcr.io/splunk/opentelemetry-demo/otel-planning:1.8.2
         imagePullPolicy: Always
         env:
         - name: WORKSHOP_ENV
