@@ -1,6 +1,6 @@
 # Splunk Astronomy Shop Kubernetes Manifest
 # Version: 1.8.1
-# Generated on: 2026-04-08T10:17:30Z
+# Generated on: 2026-04-13T16:11:57Z
 #
 # This manifest combines all service deployments for the Splunk Astronomy Shop
 # Services are defined in services.yaml
@@ -50,7 +50,7 @@ spec:
             value: "3"
       containers:
       - name: accounting
-        image: ghcr.io/splunk/opentelemetry-demo/otel-accounting:1.8.1
+        image: ghcr.io/splunk/opentelemetry-demo/otel-accounting:test-2.0
         imagePullPolicy: Always
         env:
         - name: OTEL_SERVICE_NAME
@@ -156,7 +156,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: ad
-        image: ghcr.io/splunk/opentelemetry-demo/otel-ad:1.8.1
+        image: ghcr.io/splunk/opentelemetry-demo/otel-ad:test-2.0
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -626,7 +626,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: cart
-        image: ghcr.io/splunk/opentelemetry-demo/otel-cart:1.8.1
+        image: ghcr.io/splunk/opentelemetry-demo/otel-cart:test-2.0
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -745,7 +745,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: checkout
-        image: ghcr.io/splunk/opentelemetry-demo/otel-checkout:1.8.1
+        image: ghcr.io/splunk/opentelemetry-demo/checkout:test-2.0
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
@@ -855,7 +855,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: currency
-        image: ghcr.io/open-telemetry/demo:2.1.3-currency
+        image: ghcr.io/open-telemetry/demo:2.2.0-currency
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
@@ -940,7 +940,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: email
-        image: ghcr.io/open-telemetry/demo:2.1.3-email
+        image: ghcr.io/open-telemetry/demo:2.2.0-email
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
@@ -1031,7 +1031,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: flagd
-        image: ghcr.io/open-feature/flagd:v0.12.8
+        image: ghcr.io/open-feature/flagd:v0.14.2
         imagePullPolicy: IfNotPresent
         command:
         - /flagd-build
@@ -1244,6 +1244,16 @@ data:
           },
           "defaultVariant": "off"
         },
+        "failedReadinessProbe": {
+          "description": "readiness probe failure for cart service",
+          "state": "ENABLED",
+          "variants": {
+            "on": true,
+            "off": false
+          },
+          "defaultVariant": "off"
+    
+        },
         "emailMemoryLeak": {
           "description": "Memory leak in the email service.",
           "state": "ENABLED",
@@ -1254,6 +1264,15 @@ data:
             "100x": 100,
             "1000x": 1000,
             "10000x": 10000
+          },
+          "defaultVariant": "off"
+        },
+        "recommendationCartesianQuery": {
+          "description": "DBMon Demo: Triggers a Cartesian join query (500M rows) in recommendation service PostgreSQL calls. Query returns correct results but processes 500M intermediate rows, taking 12+ seconds.",
+          "state": "ENABLED",
+          "variants": {
+            "on": true,
+            "off": false
           },
           "defaultVariant": "off"
         }
@@ -1321,7 +1340,7 @@ spec:
             topologyKey: kubernetes.io/hostname
       containers:
       - name: flagd-ui
-        image: ghcr.io/open-telemetry/demo:2.1.3-flagd-ui
+        image: ghcr.io/open-telemetry/demo:2.2.0-flagd-ui
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 4000
@@ -1404,7 +1423,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: fraud-detection
-        image: ghcr.io/splunk/opentelemetry-demo/otel-fraud-detection:1.8.1
+        image: ghcr.io/splunk/opentelemetry-demo/otel-fraud-detection:test-2.0
         imagePullPolicy: Always
         env:
         - name: OTEL_SERVICE_NAME
@@ -1530,7 +1549,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: frontend
-        image: ghcr.io/splunk/opentelemetry-demo/otel-frontend:1.8.1
+        image: ghcr.io/splunk/opentelemetry-demo/otel-frontend:test-2.0
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -1674,7 +1693,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: frontend-proxy
-        image: ghcr.io/splunk/opentelemetry-demo/otel-frontend-proxy:1.8.1
+        image: ghcr.io/splunk/opentelemetry-demo/otel-frontend-proxy:test-2.0
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -1809,7 +1828,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: image-provider
-        image: ghcr.io/splunk/opentelemetry-demo/otel-image-provider:1.8.1
+        image: ghcr.io/splunk/opentelemetry-demo/otel-image-provider:test-2.0
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8081
@@ -1897,7 +1916,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: kafka
-        image: ghcr.io/open-telemetry/demo:2.1.3-kafka
+        image: ghcr.io/open-telemetry/demo:2.2.0-kafka
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9092
@@ -1994,7 +2013,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: llm
-        image: ghcr.io/splunk/opentelemetry-demo/otel-llm:1.8.1
+        image: ghcr.io/splunk/opentelemetry-demo/otel-llm:test-2.0
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
@@ -2111,7 +2130,7 @@ spec:
 
       containers:
       - name: payment
-        image: ghcr.io/splunk/opentelemetry-demo/otel-payment:1.8.1-a
+        image: ghcr.io/splunk/opentelemetry-demo/otel-payment:test-2.0-a
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
@@ -2311,7 +2330,7 @@ spec:
 
       containers:
       - name: payment
-        image: ghcr.io/splunk/opentelemetry-demo/otel-payment:1.8.1-b
+        image: ghcr.io/splunk/opentelemetry-demo/otel-payment:test-2.0-b
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
@@ -2476,9 +2495,14 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: planning
-        image: ghcr.io/splunk/opentelemetry-demo/otel-planning:1.8.1
+        image: ghcr.io/splunk/opentelemetry-demo/planning:test-2.0
         imagePullPolicy: Always
         env:
+        - name: WORKSHOP_ENV
+          valueFrom:
+            secretKeyRef:
+              name: workshop-secret
+              key: env
         - name: OTEL_SERVICE_NAME
           valueFrom:
             fieldRef:
@@ -2504,11 +2528,11 @@ spec:
         - name: LAMBDA_CALL_INTERVAL_MINUTES
           value: "5"
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: http://$(OTEL_COLLECTOR_NAME):4318
+          value: http://$(OTEL_COLLECTOR_NAME):4317
         - name: OTEL_PYTHON_LOG_CORRELATION
           value: 'true'
         - name: OTEL_RESOURCE_ATTRIBUTES
-          value: service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version=1.8.1,service.kafka=spanlink
+          value: service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version=1.8.1,service.kafka=spanlink,deployment.environment=$(WORKSHOP_ENV)-lambda
         - name: SPLUNK_PROFILER_ENABLED
           value: 'true'
         - name: SPLUNK_PROFILER_MEMORY_ENABLED
@@ -2741,7 +2765,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: postgresql
-        image: ghcr.io/open-telemetry/demo:2.1.3-postgresql
+        image: postgres:17.8
         imagePullPolicy: IfNotPresent
         args:
           - "-c"
@@ -2843,7 +2867,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: product-catalog
-        image: ghcr.io/open-telemetry/demo:2.1.3-product-catalog
+        image: ghcr.io/splunk/opentelemetry-demo/otel-product-catalog:TEST-2.2.0
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
@@ -3099,7 +3123,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: product-reviews
-        image: ghcr.io/splunk/opentelemetry-demo/otel-product-reviews:1.8.1
+        image: ghcr.io/splunk/opentelemetry-demo/otel-product-reviews:test-2.0
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3551
@@ -3206,7 +3230,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: quote
-        image: ghcr.io/open-telemetry/demo:2.1.3-quote
+        image: ghcr.io/open-telemetry/demo:2.2.0-quote
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
@@ -3297,7 +3321,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: recommendation
-        image: ghcr.io/splunk/opentelemetry-demo/otel-recommendation:1.8.1
+        image: ghcr.io/splunk/opentelemetry-demo/otel-recommendation:splunk2.2.0-beta
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -3338,6 +3362,17 @@ spec:
           value: '750'
         - name: SPLUNK_PROFILER_ENABLED
           value: 'true'
+        # PostgreSQL connection for DBMon Cartesian demo
+        - name: POSTGRES_HOST
+          value: "postgresql"
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_DB
+          value: "otel"
+        - name: POSTGRES_USER
+          value: "demo_app_user"
+        - name: POSTGRES_PASSWORD
+          value: "demo_password"
         resources:
           limits:
             memory: 500Mi
@@ -3396,7 +3431,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: shipping
-        image: ghcr.io/open-telemetry/demo:2.1.3-shipping
+        image: ghcr.io/open-telemetry/demo:2.2.0-shipping
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
@@ -3483,7 +3518,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
         - name: shop-dc-shim
-          image: ghcr.io/splunk/opentelemetry-demo/otel-shop-dc-shim:1.8.1
+          image: ghcr.io/splunk/opentelemetry-demo/shop-dc-shim:test-2.0
           imagePullPolicy: Always
           ports:
             - containerPort: 8070
@@ -3495,7 +3530,8 @@ spec:
           - -c
           - |
             export OTEL_RESOURCE_ATTRIBUTES="service.name=shop-dc-shim-service,deployment.environment=${ENV_VALUE}-datacenter-b01,service.version=1.8.1,service.namespace=shop-dc-shim"
-            exec /app/start-app-dual.sh    
+            sed -i "s|http://splunk-otel-collector-agent:4318|http://${NODE_IP}:4318|g" /app/start-app-dual.sh
+            exec /app/start-app-dual.sh
           env:
             - name: WORKSHOP_ENV
               valueFrom:
@@ -3523,8 +3559,14 @@ spec:
               value: "checkout:8080"
             - name: EMAIL_SERVICE_URL
               value: "http://email:8080"
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: OTEL_COLLECTOR_NAME
+              value: $(NODE_IP)
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://splunk-otel-collector-agent:4318"
+              value: "http://$(OTEL_COLLECTOR_NAME):4318"
             - name: OTEL_SERVICE_NAME
               value: "shop-dc-shim"
             - name: OTEL_JAVAAGENT_ENABLED
@@ -3693,7 +3735,7 @@ spec:
               cpu: "50m"
       containers:
         - name: load-generator
-          image: ghcr.io/splunk/opentelemetry-demo/otel-shop-dc-loadgenerator:1.8.1
+          image: ghcr.io/splunk/opentelemetry-demo/shop-dc-loadgenerator:test-2.0
           env:
             - name: TPM
               value: "10"  # Transactions Per Minute - adjust to control load (e.g., 5, 10, 25, 50)
@@ -3890,7 +3932,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: valkey-cart
-        image: valkey/valkey:8.1.3-alpine
+        image: valkey/valkey:9.0.2-alpine3.23
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 6379
