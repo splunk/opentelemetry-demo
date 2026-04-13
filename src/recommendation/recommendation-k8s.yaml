@@ -90,11 +90,11 @@ spec:
           value: 'true'
         # PostgreSQL connection for DBMon Cartesian demo
         - name: POSTGRES_HOST
-          value: "postgres"
+          value: "postgresql"
         - name: POSTGRES_PORT
           value: "5432"
         - name: POSTGRES_DB
-          value: "astronomy_shop"
+          value: "otel"
         - name: POSTGRES_USER
           value: "demo_app_user"
         - name: POSTGRES_PASSWORD
