@@ -60,3 +60,6 @@ src/flagd/demo.flagd.json.bak
 kubernetes/BETA/
 kubernetes/BETA/*
 
+# AWS SAM CLI build artifacts
+.aws-sam/
+
