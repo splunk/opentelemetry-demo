@@ -52,9 +52,7 @@ spec:
           value: '8013'
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
           value: http://$(OTEL_COLLECTOR_NAME):4318
-        - name: OTEL_INSTRUMENTATION_KAFKA_EXPERIMENTAL_SPAN_ATTRIBUTES
-          value: 'true'
-        - name: OTEL_INSTRUMENTATION_MESSAGING_EXPERIMENTAL_RECEIVE_TELEMETRY_ENABLED
+        - name: OTEL_INSTRUMENTATION_KAFKA_CLIENTS_ENABLED
           value: 'false'
         - name: OTEL_INSTRUMENTATION_SPLUNK_JDBC_ENABLED
           value: 'true'
