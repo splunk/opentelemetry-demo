@@ -337,7 +337,8 @@ echo "=========================================="
 echo "Building MAIN manifest"
 echo "=========================================="
 
-MAIN_SERVICES=($(python3 .github/scripts/get-services.py --manifest)) || { echo "Error: Failed to read services.yaml"; exit 1; }
+MAIN_SERVICES=()
+for svc in $(python3 .github/scripts/get-services.py --manifest); do MAIN_SERVICES+=("$svc"); done
 
 # Add ingress if DIAB scenario is enabled
 if [ "$DIAB_SCENARIO" = "diab" ]; then
@@ -352,16 +353,17 @@ echo "Services: ${#MAIN_SERVICES[@]}"
 stitch_manifest "$MAIN_FILE" "${MAIN_SERVICES[@]}"
 
 # --- Group manifests (lambda, dc-shim, etc.) ---
-GROUPS=($(python3 .github/scripts/get-services.py --groups))
-
-for GROUP in "${GROUPS[@]}"; do
+GROUPS_STR=$(python3 .github/scripts/get-services.py --groups)
+for GROUP in $GROUPS_STR; do
     [ -z "$GROUP" ] && continue
     echo ""
     echo "=========================================="
     echo "Building ${GROUP} manifest"
     echo "=========================================="
 
-    GROUP_SERVICES=($(python3 .github/scripts/get-services.py --group "$GROUP"))
+    GROUP_SERVICES_STR=$(python3 .github/scripts/get-services.py --group "$GROUP")
+    GROUP_SERVICES=()
+    for svc in $GROUP_SERVICES_STR; do GROUP_SERVICES+=("$svc"); done
 
     GROUP_FILE=$(build_filename "$GROUP")
     create_manifest_header "$GROUP_FILE" "$GROUP"
@@ -389,7 +391,7 @@ fi
 echo ""
 echo "Generated manifests:"
 echo "  Main: $MAIN_FILE"
-for GROUP in "${GROUPS[@]}"; do
+for GROUP in $GROUPS_STR; do
     echo "  ${GROUP}: $(build_filename "$GROUP")"
 done
 
