@@ -16,7 +16,9 @@ COPY ./src/product-catalog/main.go main.go
 
 RUN CGO_ENABLED=0 GOOS=linux GO111MODULE=on go build -ldflags "-s -w" -o product-catalog main.go
 
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app/
 

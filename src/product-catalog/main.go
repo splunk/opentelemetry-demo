@@ -98,9 +98,11 @@ func main() {
 	ctx := context.Background()
 
 	// Initialize OpenTelemetry SDK with otelconf
+	// Note: must use fmt.Fprintf(os.Stderr) here, not logger.Error(), because
+	// the logger depends on the OTel SDK which is what just failed (catch-22).
 	sdk, err := otelconf.NewSDK(otelconf.WithContext(ctx))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to initialize OpenTelemetry SDK: %v\n", err)
+		fmt.Fprintf(os.Stderr, "FATAL: Failed to initialize OpenTelemetry SDK: %v\n", err)
 		os.Exit(1)
 	}
 	defer func() {
