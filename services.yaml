@@ -122,6 +122,7 @@ services:
   - name: planning
     build: true
     manifest: true
+    group: lambda
 
   - name: postgresql-setup
     build: false
@@ -161,15 +162,18 @@ services:
   - name: shop-dc-shim
     build: true
     manifest: true
+    group: dc-shim
 
   - name: shop-dc-shim-db
     build: false
     manifest: true
     replace_registry: false  # Uses mcr.microsoft.com/mssql
+    group: dc-shim
 
   - name: shop-dc-loadgenerator
     build: true
     manifest: true
+    group: dc-shim
 
   - name: sql-server-fraud-setup
     build: false

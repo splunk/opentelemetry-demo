@@ -176,55 +176,41 @@ jobs:
           # Determine manifest filenames
           MANIFEST_FILE="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}${EXTRA_SUFFIX}.yaml"
           MANIFEST_FILE_DIAB="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-diab${EXTRA_SUFFIX}.yaml"
+          MANIFEST_LAMBDA="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-lambda${EXTRA_SUFFIX}.yaml"
+          MANIFEST_DC_SHIM="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-dc-shim${EXTRA_SUFFIX}.yaml"
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "#### Generated Manifests" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Manifest | File | Size | Resources |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|------|------|-----------|" >> $GITHUB_STEP_SUMMARY
 
-          # Verify and report on regular manifest
-          if [ -f "$MANIFEST_FILE" ]; then
-            FILE_SIZE=$(du -h "$MANIFEST_FILE" | cut -f1)
-            LINE_COUNT=$(wc -l < "$MANIFEST_FILE")
-            RESOURCE_COUNT=$(grep -c "^kind: " "$MANIFEST_FILE" || true)
+          for MFILE in "$MANIFEST_FILE" "$MANIFEST_FILE_DIAB" "$MANIFEST_LAMBDA" "$MANIFEST_DC_SHIM"; do
+            MNAME=$(basename "$MFILE")
+            if [ -f "$MFILE" ]; then
+              MSIZE=$(du -h "$MFILE" | cut -f1)
+              MRESOURCES=$(grep -c "^kind: " "$MFILE" || true)
+              echo "| $MNAME | \`$MFILE\` | $MSIZE | $MRESOURCES |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| $MNAME | not generated | - | - |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
 
-            echo "✅ **Regular manifest created**" >> $GITHUB_STEP_SUMMARY
-            echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
-            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-            echo "| File | \`$MANIFEST_FILE\` |" >> $GITHUB_STEP_SUMMARY
-            echo "| Size | $FILE_SIZE |" >> $GITHUB_STEP_SUMMARY
-            echo "| Lines | $LINE_COUNT |" >> $GITHUB_STEP_SUMMARY
-            echo "| Resources | $RESOURCE_COUNT |" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Regular manifest not created**" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
-
-          # Verify and report on DIAB manifest
-          if [ -f "$MANIFEST_FILE_DIAB" ]; then
-            FILE_SIZE_DIAB=$(du -h "$MANIFEST_FILE_DIAB" | cut -f1)
-            LINE_COUNT_DIAB=$(wc -l < "$MANIFEST_FILE_DIAB")
-            RESOURCE_COUNT_DIAB=$(grep -c "^kind: " "$MANIFEST_FILE_DIAB" || true)
-
-            echo "✅ **DIAB manifest created** (includes ingress)" >> $GITHUB_STEP_SUMMARY
-            echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
-            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-            echo "| File | \`$MANIFEST_FILE_DIAB\` |" >> $GITHUB_STEP_SUMMARY
-            echo "| Size | $FILE_SIZE_DIAB |" >> $GITHUB_STEP_SUMMARY
-            echo "| Lines | $LINE_COUNT_DIAB |" >> $GITHUB_STEP_SUMMARY
-            echo "| Resources | $RESOURCE_COUNT_DIAB |" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **DIAB manifest not created**" >> $GITHUB_STEP_SUMMARY
+          # Fail if main manifest wasn't created
+          if [ ! -f "$MANIFEST_FILE" ]; then
+            echo "❌ **Main manifest not created**" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
 
           echo "| Registry | Production (ghcr.io/splunk/opentelemetry-demo) |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Output both filenames for subsequent steps
+          # Output filenames for subsequent steps
           echo "manifest_file=$MANIFEST_FILE" >> $GITHUB_OUTPUT
           echo "manifest_file_diab=$MANIFEST_FILE_DIAB" >> $GITHUB_OUTPUT
+          echo "manifest_lambda=$MANIFEST_LAMBDA" >> $GITHUB_OUTPUT
+          echo "manifest_dc_shim=$MANIFEST_DC_SHIM" >> $GITHUB_OUTPUT
           echo "output_dir=$OUTPUT_DIR" >> $GITHUB_OUTPUT
           echo "extra_suffix=$EXTRA_SUFFIX" >> $GITHUB_OUTPUT
 
@@ -234,43 +220,32 @@ jobs:
           echo "### Validation Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          MANIFEST_FILE="${{ steps.stitch.outputs.manifest_file }}"
-          MANIFEST_FILE_DIAB="${{ steps.stitch.outputs.manifest_file_diab }}"
+          FAILED=0
+          for MFILE in "${{ steps.stitch.outputs.manifest_file }}" \
+                       "${{ steps.stitch.outputs.manifest_file_diab }}" \
+                       "${{ steps.stitch.outputs.manifest_lambda }}" \
+                       "${{ steps.stitch.outputs.manifest_dc_shim }}"; do
+            if [ -f "$MFILE" ]; then
+              MNAME=$(basename "$MFILE")
+              if python3 -c "import yaml; docs=list(yaml.safe_load_all(open('$MFILE'))); print(f'$MNAME: {len(docs)} documents')"; then
+                echo "- ✅ $MNAME: **valid**" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "- ❌ $MNAME: **INVALID**" >> $GITHUB_STEP_SUMMARY
+                FAILED=1
+              fi
+            fi
+          done
 
-          # Validate regular manifest
-          echo "#### Regular Manifest" >> $GITHUB_STEP_SUMMARY
-          if python3 -c "import yaml; list(yaml.safe_load_all(open('$MANIFEST_FILE')))" 2> /tmp/validation.log; then
-            DOC_COUNT=$(python3 -c "import yaml; print(len(list(yaml.safe_load_all(open('$MANIFEST_FILE')))))")
-            echo "✅ **YAML syntax validation passed** ($DOC_COUNT documents)" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **YAML syntax validation failed**" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            cat /tmp/validation.log >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          # Show resource breakdown for main manifest
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Resource Types (Main):**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          grep "^kind: " "${{ steps.stitch.outputs.manifest_file }}" | sort | uniq -c | sort -rn >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$FAILED" -eq 1 ]; then
             exit 1
           fi
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          # Validate DIAB manifest
-          echo "#### DIAB Manifest" >> $GITHUB_STEP_SUMMARY
-          if python3 -c "import yaml; list(yaml.safe_load_all(open('$MANIFEST_FILE_DIAB')))" 2> /tmp/validation_diab.log; then
-            DOC_COUNT_DIAB=$(python3 -c "import yaml; print(len(list(yaml.safe_load_all(open('$MANIFEST_FILE_DIAB')))))")
-            echo "✅ **YAML syntax validation passed** ($DOC_COUNT_DIAB documents)" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **YAML syntax validation failed**" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            cat /tmp/validation_diab.log >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
-
-          # Show resource breakdown for regular manifest
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Resource Types (Regular):**" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          grep "^kind: " "$MANIFEST_FILE" | sort | uniq -c | sort -rn >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
       - name: Show image version breakdown in manifest
         run: |
@@ -321,9 +296,11 @@ jobs:
             git add SPLUNK-VERSION
           fi
 
-          # Add both manifest files
+          # Add all manifest files
           git add "$MANIFEST_FILE"
           git add "$MANIFEST_FILE_DIAB"
+          [ -f "${{ steps.stitch.outputs.manifest_lambda }}" ] && git add "${{ steps.stitch.outputs.manifest_lambda }}"
+          [ -f "${{ steps.stitch.outputs.manifest_dc_shim }}" ] && git add "${{ steps.stitch.outputs.manifest_dc_shim }}"
 
           if git diff --staged --quiet; then
             echo "### No Changes" >> $GITHUB_STEP_SUMMARY
@@ -485,6 +462,8 @@ jobs:
           path: |
             ${{ steps.stitch.outputs.manifest_file }}
             ${{ steps.stitch.outputs.manifest_file_diab }}
+            ${{ steps.stitch.outputs.manifest_lambda }}
+            ${{ steps.stitch.outputs.manifest_dc_shim }}
           retention-days: 90
 
       - name: Generate deployment command
