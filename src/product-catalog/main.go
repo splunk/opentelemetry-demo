@@ -100,7 +100,7 @@ func main() {
 	// Initialize OpenTelemetry SDK with otelconf
 	sdk, err := otelconf.NewSDK(otelconf.WithContext(ctx))
 	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to initialize OpenTelemetry SDK: %v", err))
+		fmt.Fprintf(os.Stderr, "Failed to initialize OpenTelemetry SDK: %v\n", err)
 		os.Exit(1)
 	}
 	defer func() {
@@ -118,7 +118,7 @@ func main() {
 
 	// Initialize database connection
 	if err := initDatabase(); err != nil {
-		logger.Error(fmt.Sprintf("Error initializing database: %v", err))
+		fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
 		os.Exit(1)
 	}
 	defer func() {
