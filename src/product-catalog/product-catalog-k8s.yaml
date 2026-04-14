@@ -75,10 +75,10 @@ spec:
         - name: FLAGD_PORT
           value: '8013'
         - name: DB_CONNECTION_STRING
-          value: "host=postgresql user=otelu password=otelp dbname=otel"
+          value: "host=postgresql user=otelu password=otelp dbname=otel sslmode=disable"
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
           value: http://$(OTEL_COLLECTOR_NAME):4317
-        - name: OTEL_EXPERIMENTAL_CONFIG_FILE
+        - name: OTEL_CONFIG_FILE
           value: /etc/otel/otel-config.yml
         - name: GOMEMLIMIT
           value: 200MiB
