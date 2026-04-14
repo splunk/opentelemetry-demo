@@ -227,6 +227,7 @@ agent:
           - IsMatch(attributes["url.full"], "http://flagd:8016/.*")
           - IsMatch(attributes["otel.scope.name"], "flagd\\..*")
           - attributes["url.path"] == "/live/longpoll"
+          - name == "orders receive" and attributes["messaging.operation"] == "receive"
       transform/dc_not_error:
         error_mode: ignore
         trace_statements:
