@@ -123,14 +123,14 @@ services:
     build: true
     manifest: true
 
-  - name: postgres-setup
+  - name: postgresql-setup
     build: false
     manifest: true
 
-  - name: postgres
+  - name: postgresql
     build: false
     manifest: true
-    replace_registry: false  # Uses ghcr.io/open-telemetry/demo (standard)
+    replace_registry: false  # Uses stock postgres image
 
   - name: product-catalog
     build: true

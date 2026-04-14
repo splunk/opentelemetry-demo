@@ -1,6 +1,12 @@
 -- Copyright The OpenTelemetry Authors
 -- SPDX-License-Identifier: Apache-2.0
 
+-- Enable pg_stat_statements for database monitoring (top query tracking)
+-- Note: This runs in the 'otel' database. The extension must also be created
+-- in the 'postgres' database for top query monitoring to work. This is handled
+-- by the 00-pg-stat-statements.sh script.
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+
 CREATE USER otelu WITH PASSWORD 'otelp';
 
 -- Accounting Service: create a schema
@@ -139,7 +145,7 @@ CREATE TABLE catalog.products (
 );
 
 -- Product Catalog Service: grant permission to schema
-GRANT SELECT ON ALL TABLES IN SCHEMA catalog TO otelu;
+GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA catalog TO otelu;
 
 -- Product Catalog Service: add product data
 INSERT INTO catalog.products (id, name, description, picture, price_currency_code, price_units, price_nanos, categories)
@@ -153,4 +159,62 @@ VALUES
     ('LS4PSXUNUM', 'Red Flashlight', 'This 3-in-1 device features a 3-mode red flashlight, a hand warmer, and a portable power bank for recharging your personal electronics on the go. Whether you use it to light the way at an astronomy star party, a night walk, or wildlife research, ThermoTorch 3 Astro Red''s rugged, IPX4-rated design will withstand your everyday activities.', 'RedFlashlight.jpg', 'USD', 57, 80000000, 'accessories,flashlights'),
     ('9SIQT8TOJO', 'Optical Tube Assembly', 'Capturing impressive deep-sky astroimages is easier than ever with Rowe-Ackermann Schmidt Astrograph (RASA) V2, the perfect companion to today''s top DSLR or astronomical CCD cameras. This fast, wide-field f/2.2 system allows for shorter exposure times compared to traditional f/10 astroimaging, without sacrificing resolution. Because shorter sub-exposure times are possible, your equatorial mount won''t need to accurately track over extended periods. The short focal length also lessens equatorial tracking demands. In many cases, autoguiding will not be required.', 'OpticalTubeAssembly.jpg', 'USD', 3599, 0, 'accessories,telescopes,assembly'),
     ('6E92ZMYYFZ', 'Solar Filter', 'Enhance your viewing experience with EclipSmart Solar Filter for 8" telescopes. With two Velcro straps and four self-adhesive Velcro pads for added safety, you can be assured that the solar filter cannot be accidentally knocked off and will provide Solar Safe, ISO compliant viewing.', 'SolarFilter.jpg', 'USD', 69, 950000000, 'accessories,telescopes'),
-    ('HQTGWGPNH4', 'The Comet Book', 'A 16th-century treatise on comets, created anonymously in Flanders (now northern France) and now held at the Universitätsbibliothek Kassel. Commonly known as The Comet Book (or Kometenbuch in German), its full title translates as "Comets and their General and Particular Meanings, According to Ptolomeé, Albumasar, Haly, Aliquind and other Astrologers". The image is from https://publicdomainreview.org/collection/the-comet-book, made available by the Universitätsbibliothek Kassel under a CC-BY SA 4.0 license (https://creativecommons.org/licenses/by-sa/4.0/)', 'TheCometBook.jpg', 'USD', 0, 990000000, 'books');
+    ('HQTGWGPNH4', 'The Comet Book', 'A 16th-century treatise on comets, created anonymously in Flanders (now northern France) and now held at the Universitätsbibliothek Kassel. Commonly known as The Comet Book (or Kometenbuch in German), its full title translates as "Comets and their General and Particular Meanings, According to Ptolomé, Albumasar, Haly, Aliquind and other Astrologers". The image is from https://publicdomainreview.org/collection/the-comet-book, made available by the Universitätsbibliothek Kassel under a CC-BY SA 4.0 license (https://creativecommons.org/licenses/by-sa/4.0/)', 'TheCometBook.jpg', 'USD', 0, 990000000, 'books');
+
+-- ============================================================
+-- DBMon Cartesian Demo: products + product_tags tables
+-- Used by recommendation service when recommendationCartesianQuery flag is ON
+-- ============================================================
+
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+
+CREATE TABLE IF NOT EXISTS products (
+    id           SERIAL PRIMARY KEY,
+    product_id   VARCHAR(64) UNIQUE NOT NULL,
+    name         VARCHAR(255),
+    category     VARCHAR(64),
+    price        DECIMAL(10,2),
+    created_at   TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS product_tags (
+    id              SERIAL PRIMARY KEY,
+    product_id      VARCHAR(64) NOT NULL,
+    tag             VARCHAR(64),
+    relevance_score DECIMAL(4,3)
+);
+
+-- Seed 5,000 products
+INSERT INTO products (product_id, name, category, price)
+SELECT 'prod_' || gs, 'Product ' || gs,
+       (ARRAY['telescope','eyepiece','mount','camera','filter'])[floor(random()*5+1)],
+       (random() * 2000 + 50)::DECIMAL
+FROM generate_series(1, 5000) gs
+ON CONFLICT (product_id) DO NOTHING;
+
+-- Seed 100,000 tags (~20 per product)
+INSERT INTO product_tags (product_id, tag, relevance_score)
+SELECT 'prod_' || gs,
+       (ARRAY['beginner','advanced','astrophotography','visual','planetary',
+              'deepsky','portable','goto','wifi','budget'])[floor(random()*10+1)],
+       (random())::DECIMAL
+FROM generate_series(1, 5000) gs, generate_series(1, 20);
+
+-- DO NOT create indexes or run ANALYZE — we want worst-case execution plan
+
+-- Create dedicated app user with settings that force Nested Loop Cartesian
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'demo_app_user') THEN
+        CREATE ROLE demo_app_user WITH LOGIN PASSWORD 'demo_password';
+    END IF;
+END
+$$;
+
+GRANT SELECT ON products TO demo_app_user;
+GRANT SELECT ON product_tags TO demo_app_user;
+
+-- Force worst-case execution plan for this user only
+ALTER ROLE demo_app_user SET work_mem = '64kB';
+ALTER ROLE demo_app_user SET enable_hashjoin  = OFF;
+ALTER ROLE demo_app_user SET enable_mergejoin = OFF;

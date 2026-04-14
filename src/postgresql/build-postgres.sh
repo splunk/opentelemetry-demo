@@ -31,7 +31,7 @@ DOCKER_CMD=(
   --build-arg VERSION="$VERSION"
   -t ghcr.io/splunk/opentelemetry-demo/otel-postgres-shop:"$VERSION"
   --load
-  -f src/postgres/Dockerfile
+  -f src/postgresql/Dockerfile
   .
 )
 

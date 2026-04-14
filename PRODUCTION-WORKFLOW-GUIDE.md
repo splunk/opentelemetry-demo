@@ -178,7 +178,7 @@ Run the **Build Demo Manifest - PRODUCTION** workflow to stitch the manifest.
 
 **Manual Edit:**
 ```yaml
-# src/postgres/postgres-k8s.yaml
+# src/postgresql/postgresql-k8s.yaml
 resources:
   limits:
     memory: 1Gi  # Changed from 500Mi
