@@ -47,7 +47,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: product-catalog
-        image: ghcr.io/open-telemetry/demo:2.2.0-product-catalog
+        image: ghcr.io/splunk/opentelemetry-demo/otel-product-catalog:TEST-2.2.0
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
