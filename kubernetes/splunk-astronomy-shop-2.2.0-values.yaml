@@ -214,7 +214,7 @@ agent:
         attributes:
           - key: deployment.environment
             value: ${WORKSHOP_ENVIRONMENT}
-            action: upsert
+            action: insert
       filter/drop_flagd:
         traces:
           span:
