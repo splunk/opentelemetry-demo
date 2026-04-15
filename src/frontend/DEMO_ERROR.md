@@ -17,7 +17,7 @@ There are two ways to trigger the demo error:
 ### Method 1: Hidden Button
 1. Navigate to the home page
 2. Look in the bottom-right corner
-3. Hover over the semi-transparent "🐛 Demo Error" button
+3. Hover over the semi-transparent "Demo Error" button
 4. Click the button
 
 ### Method 2: Keyboard Shortcut
@@ -36,9 +36,9 @@ When triggered, the demo error:
 2. **Creates a multi-level stack trace**:
    ```
    triggerDemoError()
-     → processUserData()
-       → simulateDatabaseError()
-         → throw Error()
+     -> processUserData()
+       -> simulateDatabaseError()
+         -> throw Error()
    ```
 
 3. **Logs to console**:
@@ -87,8 +87,8 @@ After triggering the demo error:
    - Look for errors from the current session
 
 4. **Examine the stack trace**:
-   - ✅ **With working source maps**: You'll see `pages/index.tsx` with correct line numbers
-   - ❌ **Without source maps**: You'll see minified file names like `main-abc123.js`
+   - [x] **With working source maps**: You'll see `pages/index.tsx` with correct line numbers
+   - [FAIL] **Without source maps**: You'll see minified file names like `main-abc123.js`
 
 5. **Check error attributes**:
    - `error.type`: "Error"

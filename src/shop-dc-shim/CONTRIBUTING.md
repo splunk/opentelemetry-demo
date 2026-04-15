@@ -19,13 +19,13 @@ The service follows a standard N-Tier architecture. Here's how a request flows t
 
 ```
 HTTP Request
-    ↓
+    v
 Controller (handles HTTP, validation)
-    ↓
+    v
 Service (business logic, async processing)
-    ↓
+    v
 Repository (database queries)
-    ↓
+    v
 Database (SQL Server)
 ```
 
@@ -713,24 +713,24 @@ public CompletableFuture<String> processInBackground(String id) {
 ### File Structure
 ```
 src/main/java/com/opentelemetry/demo/shopdcshim/
-├── ShopDcShimApplication.java        # Main entry point
-├── config/
-│   └── OpenTelemetryConfig.java      # OTel configuration
-├── controller/
-│   └── ShopController.java           # HTTP endpoints
-├── dto/
-│   └── ShopPurchaseRequest.java      # Request/response objects
-├── entity/
-│   └── ShopTransaction.java          # Database table mapping
-├── repository/
-│   └── ShopTransactionRepository.java # Database queries
-└── service/
-    ├── ShopTransactionService.java   # Business logic
-    └── CloudCheckoutService.java     # gRPC client
+|-- ShopDcShimApplication.java        # Main entry point
+|-- config/
+|   +-- OpenTelemetryConfig.java      # OTel configuration
+|-- controller/
+|   +-- ShopController.java           # HTTP endpoints
+|-- dto/
+|   +-- ShopPurchaseRequest.java      # Request/response objects
+|-- entity/
+|   +-- ShopTransaction.java          # Database table mapping
+|-- repository/
+|   +-- ShopTransactionRepository.java # Database queries
++-- service/
+    |-- ShopTransactionService.java   # Business logic
+    +-- CloudCheckoutService.java     # gRPC client
 
 src/main/resources/
-├── application.properties             # Configuration
-└── schema.sql                        # Database schema
+|-- application.properties             # Configuration
++-- schema.sql                        # Database schema
 ```
 
 ### Annotation Quick Reference
@@ -789,7 +789,6 @@ A: Yes, but you'll need a local SQL Server instance. Update `application.propert
 
 ---
 
-Happy coding! 🚀
-
+Happy coding! 
 
 

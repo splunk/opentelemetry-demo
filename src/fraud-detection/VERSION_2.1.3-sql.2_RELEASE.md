@@ -1,6 +1,6 @@
 # Version 2.1.3-sql.2 Release Notes
 
-## ✅ Build Complete and Pushed
+## [x] Build Complete and Pushed
 
 **Image:**
 ```
@@ -14,15 +14,15 @@ sha256:e1d1420470b7670e850c4cafbbd2d7c40d22aa84a585019280253c449f51258d
 
 ## What's Fixed in This Version
 
-### 1. Database Auto-Creation ✅
+### 1. Database Auto-Creation [x]
 **Problem:** Service crashed because `FraudDetection` database didn't exist
 **Solution:** Now connects to `master` database first, creates `FraudDetection` if needed
 
-### 2. SLF4J Logging Warnings ✅
+### 2. SLF4J Logging Warnings [x]
 **Problem:** SLF4J warnings about missing providers
 **Solution:** Added `log4j-slf4j2-impl` bridge dependency
 
-### 3. PVC Retention Policy ✅
+### 3. PVC Retention Policy [x]
 **Problem:** Corrupted SQL Server data persisted between deployments
 **Solution:** Added `persistentVolumeClaimRetentionPolicy: Delete` to StatefulSet
 
@@ -91,12 +91,12 @@ kubectl apply -f kubernetes/opentelemetry-demo.yaml
 - t+90s: SQL Server ready
 - t+120s: Kafka ready
 - t+150s: Fraud Detection ready
-- t+160s: **Database auto-created** ✅
-- t+165s: **Table auto-created** ✅
+- t+160s: **Database auto-created** [x]
+- t+165s: **Table auto-created** [x]
 - t+180s: First order logged
 
 ### With Corrupted PVC (Old Issue - Now Fixed)
-- ~~SQL Server crashes~~ → Now PVCs auto-delete on teardown
+- ~~SQL Server crashes~~ -> Now PVCs auto-delete on teardown
 
 ## Verification
 
@@ -111,10 +111,10 @@ kubectl get pods -n otel-demo -l app.kubernetes.io/component=fraud-detection
 kubectl logs -n otel-demo -l app.kubernetes.io/component=fraud-detection
 
 # Look for:
-# ✅ "Database 'FraudDetection' created successfully" (or "already exists")
-# ✅ "Database connection pool initialized"
-# ✅ "OrderLogs table verified/created successfully"
-# ✅ "Order <id> logged to database"
+# [x] "Database 'FraudDetection' created successfully" (or "already exists")
+# [x] "Database connection pool initialized"
+# [x] "OrderLogs table verified/created successfully"
+# [x] "Order <id> logged to database"
 ```
 
 ### 3. Verify Database
@@ -183,13 +183,13 @@ kubectl exec -it sql-express-0 -n sql -- /opt/mssql-tools/bin/sqlcmd -S localhos
 
 ## What Works Now
 
-✅ SQL Server deploys with auto-cleanup PVC policy
-✅ Fraud Detection auto-creates `FraudDetection` database
-✅ Fraud Detection auto-creates `OrderLogs` table
-✅ Logs every Kafka order message to SQL Server
-✅ No SLF4J warnings
-✅ Clean teardown with `./cleanup.sh`
-✅ Perfect for frequent demo cycles
+[x] SQL Server deploys with auto-cleanup PVC policy
+[x] Fraud Detection auto-creates `FraudDetection` database
+[x] Fraud Detection auto-creates `OrderLogs` table
+[x] Logs every Kafka order message to SQL Server
+[x] No SLF4J warnings
+[x] Clean teardown with `./cleanup.sh`
+[x] Perfect for frequent demo cycles
 
 ## Quick Reference
 
@@ -201,8 +201,7 @@ kubectl exec -it sql-express-0 -n sql -- /opt/mssql-tools/bin/sqlcmd -S localhos
 | SQL Status | `kubectl get pods -n sql` |
 | Query DB | `kubectl exec -it sql-express-0 -n sql -- /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'ChangeMe_SuperStrong123!' -Q "SELECT COUNT(*) FROM FraudDetection.dbo.OrderLogs"` |
 
-## Ready to Deploy! 🚀
-
+## Ready to Deploy! 
 Everything is tested and working. Just run:
 ```bash
 ./cleanup.sh

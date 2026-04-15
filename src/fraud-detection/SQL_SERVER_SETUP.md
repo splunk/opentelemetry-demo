@@ -7,7 +7,7 @@ The fraud-detection service now logs every Kafka message to a SQL Server databas
 ## Architecture
 
 ```
-Kafka (orders topic) → Fraud Detection Service → SQL Server (OrderLogs table)
+Kafka (orders topic) -> Fraud Detection Service -> SQL Server (OrderLogs table)
 ```
 
 ## Database Schema
@@ -28,7 +28,7 @@ Kafka (orders topic) → Fraud Detection Service → SQL Server (OrderLogs table
 | shipping_country | NVARCHAR(255) | Shipping country |
 | shipping_zip | NVARCHAR(50) | Shipping ZIP code |
 | items_count | INT | Number of items in order |
-| items_json | NVARCHAR(MAX) | Full order JSON (protobuf → JSON) |
+| items_json | NVARCHAR(MAX) | Full order JSON (protobuf -> JSON) |
 | consumed_at | DATETIME2 | Timestamp when message was consumed |
 | created_at | DATETIME2 | Timestamp when record was created |
 

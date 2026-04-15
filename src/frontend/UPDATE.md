@@ -49,7 +49,7 @@ The frontend service has been enhanced with comprehensive observability features
 - Separate pageview for conversion tracking
 - Custom spans for business analytics
 - Order ID tracking across backend and frontend
-- Funnel tracking: Home → Product → Cart → Checkout → Confirmation
+- Funnel tracking: Home -> Product -> Cart -> Checkout -> Confirmation
 
 **Reference:** See `ORDER_CONFIRMATION.MD` for implementation details.
 
@@ -90,7 +90,7 @@ The frontend service has been enhanced with comprehensive observability features
 - Perfect for demos and testing RUM error tracking
 
 **Usage:**
-- **Method 1:** Click the semi-transparent "🐛 Demo Error" button in bottom-right corner
+- **Method 1:** Click the semi-transparent "Demo Error" button in bottom-right corner
 - **Method 2:** Press **Ctrl+Shift+E** (Windows/Linux) or **Cmd+Shift+E** (Mac)
 
 **Error details:**

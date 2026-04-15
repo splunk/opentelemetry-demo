@@ -21,7 +21,7 @@ The order confirmation flow has been enhanced to:
 **Benefits:**
 - Distinct pageview in RUM analytics separate from checkout flow
 - Clear page title: "Order Confirmation" vs "Checkout"
-- Better funnel tracking: Homepage → Product → Cart → Checkout → **Order Confirmation**
+- Better funnel tracking: Homepage -> Product -> Cart -> Checkout -> **Order Confirmation**
 - Conversion tracking: Pageviews to `/order/confirmation/*` indicate successful purchases
 
 ### 2. Updated Redirect Logic
@@ -135,11 +135,11 @@ In your APM, you'll see backend traces with the following structure:
 
 ```
 POST /api/checkout
-├─ order.confirmed (custom span)
-├─ CheckoutGateway.placeOrder
-│  └─ gRPC call to checkout service
-└─ ProductCatalogService.getProduct (for each item)
-   └─ gRPC call to product catalog service
+|- order.confirmed (custom span)
+|- CheckoutGateway.placeOrder
+|  +- gRPC call to checkout service
++- ProductCatalogService.getProduct (for each item)
+   +- gRPC call to product catalog service
 ```
 
 ### RUM Traces

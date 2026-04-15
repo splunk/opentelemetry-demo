@@ -496,7 +496,7 @@ These workflows run **only in forks**, not in the main `splunk/opentelemetry-dem
 **When to use:** Testing manifest generation with dev registry
 
 **Steps:**
-1. Go to: Actions → **"Build Demo Manifest - TEST"**
+1. Go to: Actions -> **"Build Demo Manifest - TEST"**
 2. Click: **"Run workflow"**
 3. Configure:
    - **test_version_suffix**: `-test` (or custom)
@@ -535,9 +535,9 @@ These workflows run **only in `splunk/opentelemetry-demo`**, not in forks.
 
 **Version Bumping:**
 - `none`: Creates hotfix version for single service
-- `patch`: 1.7.1 → 1.7.2
-- `minor`: 1.7.1 → 1.8.0
-- `major`: 1.7.1 → 2.0.0
+- `patch`: 1.7.1 -> 1.7.2
+- `minor`: 1.7.1 -> 1.8.0
+- `major`: 1.7.1 -> 2.0.0
 
 #### Build Demo Manifest - PRODUCTION
 
@@ -546,7 +546,7 @@ These workflows run **only in `splunk/opentelemetry-demo`**, not in forks.
 **When to use:** Creating official manifest after image builds
 
 **Steps:**
-1. Go to: Actions → **"Build Demo Manifest - PRODUCTION"**
+1. Go to: Actions -> **"Build Demo Manifest - PRODUCTION"**
 2. Click: **"Run workflow"**
 3. Configure:
    - **version_bump**: `none`, `patch`, `minor`, `major`

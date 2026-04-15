@@ -9,22 +9,22 @@ This implementation deploys **two distinct container images** (vA and vB) from a
 ## Architecture
 
 ```
-┌─────────────────────────────────────┐
-│      Checkout Service               │
-│  PAYMENT_ADDR env var controls      │
-│  which version to use:              │
-│  - payment-va:8080 (version A)      │
-│  - payment-vb:8080 (version B)      │
-└─────────────────────────────────────┘
-                │
-    ┌───────────┴───────────┐
-    │                       │
-    ▼                       ▼
-┌─────────┐           ┌─────────┐
-│ vA Pod  │           │ vB Pod  │
-│ Node 1  │           │ Node 2  │
-│ Secret A│           │ Secret B│
-└─────────┘           └─────────┘
++-------------------------------------+
+|      Checkout Service               |
+|  PAYMENT_ADDR env var controls      |
+|  which version to use:              |
+|  - payment-va:8080 (version A)      |
+|  - payment-vb:8080 (version B)      |
++-------------------------------------+
+                |
+    +-----------+-----------+
+    |                       |
+    v                       v
++---------+           +---------+
+| vA Pod  |           | vB Pod  |
+| Node 1  |           | Node 2  |
+| Secret A|           | Secret B|
++---------+           +---------+
 ```
 
 ---
@@ -97,20 +97,20 @@ This creates **distinct host metadata** in traces for AI correlation.
 
 ```
 src/payment/
-├── config/
-│   ├── version-config.js    # Loader - reads PAYMENT_VERSION env var
-│   ├── vA-config.js          # Version A configuration
-│   └── vB-config.js          # Version B configuration
-├── charge.js                 # ✅ Updated to use versionConfig
-├── index.js                  # Shared
-├── logger.js                 # Shared
-├── opentelemetry.js          # Shared
-├── package.json              # Shared
-├── Dockerfile                # ✅ Updated with VERSION build arg
-├── build-payment-versions.sh # ✅ New - builds both images
-├── payment-vA-k8s.yaml       # ✅ New - deploys version A
-├── payment-vB-k8s.yaml       # ✅ New - deploys version B
-└── README-DUAL-VERSION.md    # This file
+|-- config/
+|   |-- version-config.js    # Loader - reads PAYMENT_VERSION env var
+|   |-- vA-config.js          # Version A configuration
+|   +-- vB-config.js          # Version B configuration
+|-- charge.js                 # [x] Updated to use versionConfig
+|-- index.js                  # Shared
+|-- logger.js                 # Shared
+|-- opentelemetry.js          # Shared
+|-- package.json              # Shared
+|-- Dockerfile                # [x] Updated with VERSION build arg
+|-- build-payment-versions.sh # [x] New - builds both images
+|-- payment-vA-k8s.yaml       # [x] New - deploys version A
+|-- payment-vB-k8s.yaml       # [x] New - deploys version B
++-- README-DUAL-VERSION.md    # This file
 ```
 
 ---
@@ -123,7 +123,7 @@ The GitHub Actions workflow automatically builds both A and B versions when you 
 
 **Example**: Build payment service version 1.7.1:
 
-1. Go to GitHub Actions → **Build Images - PRODUCTION**
+1. Go to GitHub Actions -> **Build Images - PRODUCTION**
 2. Click **Run workflow**
 3. Configure:
    - **Version bump**: `custom`
@@ -132,16 +132,16 @@ The GitHub Actions workflow automatically builds both A and B versions when you 
 4. Click **Run workflow**
 
 **Result**:
-- ✅ `ghcr.io/splunk/opentelemetry-demo/otel-payment:1.7.1-a` (Version A)
-- ✅ `ghcr.io/splunk/opentelemetry-demo/otel-payment:1.7.1-b` (Version B)
+- [x] `ghcr.io/splunk/opentelemetry-demo/otel-payment:1.7.1-a` (Version A)
+- [x] `ghcr.io/splunk/opentelemetry-demo/otel-payment:1.7.1-b` (Version B)
 
 Both images are built in parallel from the same codebase with different build args (`VERSION=A` and `VERSION=B`).
 
 **How it works:**
 - The workflow detects when `payment` service is requested
 - Automatically expands into TWO matrix entries:
-  - `payment` + `variant: A` + `build_args: VERSION=A` → tags with `-a` suffix
-  - `payment` + `variant: B` + `build_args: VERSION=B` → tags with `-b` suffix
+  - `payment` + `variant: A` + `build_args: VERSION=A` -> tags with `-a` suffix
+  - `payment` + `variant: B` + `build_args: VERSION=B` -> tags with `-b` suffix
 - Builds both in parallel on GitHub's infrastructure
 - Pushes to `ghcr.io/splunk/opentelemetry-demo`
 
@@ -203,7 +203,7 @@ cd src/payment
 
 ```bash
 # Via GitHub Actions
-# Go to: Actions → Build Images - PRODUCTION
+# Go to: Actions -> Build Images - PRODUCTION
 # Services: checkout
 # Version: 1.7.1
 
@@ -476,13 +476,13 @@ kubectl exec flagd-xxx -- cat /etc/flagd/demo.flagd.json | grep paymentFailure
 
 ## Summary
 
-✅ **Single codebase** with version-specific configs
-✅ **Two distinct containers** for AI image correlation
-✅ **Separate secrets** per version
-✅ **Node anti-affinity** for different host metadata
-✅ **Reuses existing feature flags** (no new flags needed)
-✅ **Easy A/B testing** via PAYMENT_ADDR env var
-✅ **Performance differences** built-in (vB is faster)
-✅ **Perfect for AI/ML observability** analysis
+[x] **Single codebase** with version-specific configs
+[x] **Two distinct containers** for AI image correlation
+[x] **Separate secrets** per version
+[x] **Node anti-affinity** for different host metadata
+[x] **Reuses existing feature flags** (no new flags needed)
+[x] **Easy A/B testing** via PAYMENT_ADDR env var
+[x] **Performance differences** built-in (vB is faster)
+[x] **Perfect for AI/ML observability** analysis
 
 **Next Steps**: Build images and deploy!

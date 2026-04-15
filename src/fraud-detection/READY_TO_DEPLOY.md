@@ -1,6 +1,6 @@
 # Ready to Deploy: Fraud Detection with SQL Server Logging
 
-## Build Status: ✅ SUCCESS
+## Build Status: [x] SUCCESS
 
 **Image Built and Pushed:**
 ```
@@ -65,10 +65,10 @@ kubectl get pods -n otel-demo -l app.kubernetes.io/component=fraud-detection
 kubectl logs -f -n otel-demo -l app.kubernetes.io/component=fraud-detection
 
 # Look for these SUCCESS indicators:
-# ✓ "Database initialized successfully"
-# ✓ "OrderLogs table verified/created successfully"
-# ✓ "Consumed record with orderId: <id>"
-# ✓ "Order <id> logged to database"
+# [ok] "Database initialized successfully"
+# [ok] "OrderLogs table verified/created successfully"
+# [ok] "Consumed record with orderId: <id>"
+# [ok] "Order <id> logged to database"
 ```
 
 ### 3. Check SQL Server Connection
@@ -260,29 +260,29 @@ kubectl logs -n otel-demo -l app.kubernetes.io/component=fraud-detection | grep 
 ## Files Modified
 
 ### Code
-- ✅ `src/fraud-detection/build.gradle.kts` - Added dependencies
-- ✅ `src/fraud-detection/src/main/kotlin/frauddetection/DatabaseConfig.kt` - New file
-- ✅ `src/fraud-detection/src/main/kotlin/frauddetection/OrderLogRepository.kt` - New file
-- ✅ `src/fraud-detection/src/main/kotlin/frauddetection/main.kt` - Integrated DB logging
+- [x] `src/fraud-detection/build.gradle.kts` - Added dependencies
+- [x] `src/fraud-detection/src/main/kotlin/frauddetection/DatabaseConfig.kt` - New file
+- [x] `src/fraud-detection/src/main/kotlin/frauddetection/OrderLogRepository.kt` - New file
+- [x] `src/fraud-detection/src/main/kotlin/frauddetection/main.kt` - Integrated DB logging
 
 ### Configuration
-- ✅ `kubernetes/opentelemetry-demo.yaml` - Updated fraud-detection deployment
+- [x] `kubernetes/opentelemetry-demo.yaml` - Updated fraud-detection deployment
 
 ### Documentation
-- ✅ `SQL_SERVER_SETUP.md` - Comprehensive setup guide
-- ✅ `DEPLOYMENT_CHANGES.md` - Configuration changes
-- ✅ `READY_TO_DEPLOY.md` - This file
-- ✅ `sql/init-database.sql` - Manual DB initialization script
+- [x] `SQL_SERVER_SETUP.md` - Comprehensive setup guide
+- [x] `DEPLOYMENT_CHANGES.md` - Configuration changes
+- [x] `READY_TO_DEPLOY.md` - This file
+- [x] `sql/init-database.sql` - Manual DB initialization script
 
 ## Summary
 
 Everything is ready to deploy! The fraud-detection service will now:
-- ✅ Consume messages from Kafka `orders` topic
-- ✅ Parse OrderResult protobuf messages
-- ✅ Log every order to SQL Server with full details
-- ✅ Store order items as JSON for easy querying
-- ✅ Auto-create database and tables on startup
-- ✅ Handle errors gracefully with logging
+- [x] Consume messages from Kafka `orders` topic
+- [x] Parse OrderResult protobuf messages
+- [x] Log every order to SQL Server with full details
+- [x] Store order items as JSON for easy querying
+- [x] Auto-create database and tables on startup
+- [x] Handle errors gracefully with logging
 
 **Just run:**
 ```bash

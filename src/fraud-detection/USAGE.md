@@ -346,13 +346,13 @@ Then monitor:
 
 **Fraud Alerts**:
 ```
-🚨 FRAUD ALERT #123: orderId=abc-123, severity=HIGH, score=0.85, reason=Very high shipping cost: $250
+ FRAUD ALERT #123: orderId=abc-123, severity=HIGH, score=0.85, reason=Very high shipping cost: $250
 ```
 
 **Bad Query Execution** (when enabled):
 ```
-⚠️ BAD QUERY: Full table scan on OrderLogs, total=50000
-⚠️ BAD QUERY: N+1 problem, executed 11 queries instead of 1 JOIN
+[WARNING] BAD QUERY: Full table scan on OrderLogs, total=50000
+[WARNING] BAD QUERY: N+1 problem, executed 11 queries instead of 1 JOIN
 ```
 
 **Kafka Experiment**:

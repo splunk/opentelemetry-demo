@@ -41,15 +41,15 @@ Then you'll see these prompts:
 | Prompt | Recommended | Notes |
 |--------|-------------|-------|
 | **Confirm changes before deploy** | `N` | Skips the manual changeset review |
-| **Allow SAM CLI IAM role creation** | `Y` | Required — SAM creates the Lambda execution role (CloudWatch Logs + Lambda invoke permissions) |
+| **Allow SAM CLI IAM role creation** | `Y` | Required -- SAM creates the Lambda execution role (CloudWatch Logs + Lambda invoke permissions) |
 | **Disable rollback** | `N` | Keep rollback enabled for safety |
-| **PlanningInitFunction has no authentication** | `Y` | Expected — demo app uses open API Gateway endpoint |
+| **PlanningInitFunction has no authentication** | `Y` | Expected -- demo app uses open API Gateway endpoint |
 | **Save arguments to configuration file** | `Y` | Saves to `samconfig.toml` so future deploys just need `sam deploy` |
 | **SAM configuration file** | Enter (default) | Uses `samconfig.toml` |
 | **SAM configuration environment** | Enter (default) | Uses `default` environment |
 
 ### 3. Capture the Deployment Outputs
-After deployment, SAM will output several values. **Save these — you'll need them later** for testing, K8s configuration, and log viewing:
+After deployment, SAM will output several values. **Save these -- you'll need them later** for testing, K8s configuration, and log viewing:
 
 ```
 Key                        Value
@@ -59,7 +59,7 @@ PlanningInitFunctionArn    arn:aws:lambda:<region>:<account-id>:function:<functi
 PlanningInitFunctionName   splunk-astronomy-<stage>-planning-init
 ```
 
-The API endpoint URL is unique to each deployment — it changes if you delete and recreate the stack.
+The API endpoint URL is unique to each deployment -- it changes if you delete and recreate the stack.
 
 ### 4. Test the Lambda Directly
 ```bash
@@ -129,7 +129,7 @@ The Lambda functions send traces, metrics, and logs to a **Splunk OpenTelemetry 
 ### Architecture
 
 ```
-Lambda Functions ──OTLP/gRPC──▶ OTel Collector (Gateway) ──HEC──▶ Splunk Cloud / O11y
+Lambda Functions --OTLP/gRPC--> OTel Collector (Gateway) --HEC--> Splunk Cloud / O11y
                                   (EC2 in VPC)
 ```
 
@@ -150,7 +150,7 @@ Launch an EC2 instance in the same VPC and subnet as your Lambda functions:
    - Inbound TCP **4317** (gRPC) and **4318** (HTTP) from the Lambda security group
    - Inbound TCP **13133** (health check) for monitoring
    - Outbound HTTPS **443** to Splunk endpoints
-5. **IAM role:** No special permissions needed — the collector talks to Splunk, not AWS services
+5. **IAM role:** No special permissions needed -- the collector talks to Splunk, not AWS services
 
 SSH into the instance and install the Splunk OTel Collector:
 
@@ -248,7 +248,7 @@ The SAM template also requires the `AWSLambdaVPCAccessExecutionRole` policy (alr
 The `Stage` parameter in `template.yaml` is restricted to `dev`, `staging`, `prod`, or `demo`. If you used a different value during `--guided`, either re-run with an allowed value or add your value to the `AllowedValues` list in `template.yaml`.
 
 ### Changeset error after modifying `template.yaml`
-If you edit `template.yaml` (e.g., adding a new allowed Stage value) but `sam deploy` still fails with the old error, you need to **rebuild first**. SAM caches the template — run:
+If you edit `template.yaml` (e.g., adding a new allowed Stage value) but `sam deploy` still fails with the old error, you need to **rebuild first**. SAM caches the template -- run:
 ```bash
 sam build && sam deploy
 ```
