@@ -1,0 +1,28 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+name: Protobuf Check
+
+on:
+  pull_request:
+    paths:
+      - 'pb/**'
+      - 'src/*/genproto/**'
+      - 'src/**/demo_pb2*.py'
+      - 'docker-gen-proto.sh'
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  protobufcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.1
+      - name: Regenerate protobuf files
+        run: make clean docker-generate-protobuf
+      - name: Check generated files are in sync
+        run: make check-clean-work-tree
