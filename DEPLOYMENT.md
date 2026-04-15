@@ -48,7 +48,7 @@ You need a Splunk Observability Cloud account with:
 
 **How to obtain:**
 1. Log into Splunk Observability Cloud
-2. Navigate to **Settings** → **Access Tokens**
+2. Navigate to **Settings** -> **Access Tokens**
 3. Create tokens with appropriate permissions
 
 ### Splunk Cloud Platform (Optional)
@@ -60,7 +60,7 @@ For log ingestion via HEC:
 
 **How to obtain:**
 1. Log into Splunk Cloud
-2. Navigate to **Settings** → **Data Inputs** → **HTTP Event Collector**
+2. Navigate to **Settings** -> **Data Inputs** -> **HTTP Event Collector**
 3. Create new token
 4. Note the token value and HEC endpoint URL
 
@@ -518,18 +518,18 @@ kubectl logs -l app.kubernetes.io/part-of=opentelemetry-demo --tail=10
 1. **Log into Splunk Observability Cloud**
 
 2. **Check APM:**
-   - Navigate to **APM** → **Services**
+   - Navigate to **APM** -> **Services**
    - Filter by environment: `{your-env}-shop`
    - You should see all services listed
    - Click into services to see traces
 
 3. **Check Infrastructure:**
-   - Navigate to **Infrastructure** → **Kubernetes**
+   - Navigate to **Infrastructure** -> **Kubernetes**
    - Find your cluster: `{your-env}-shop-cluster`
    - Verify nodes and pods are reporting
 
 4. **Check RUM:**
-   - Navigate to **RUM** → **Applications**
+   - Navigate to **RUM** -> **Applications**
    - Look for frontend application
    - Verify browser sessions are being captured
 
@@ -617,7 +617,7 @@ docker info | grep ghcr.io
 ```
 
 **Creating a PAT:**
-1. GitHub → Settings → Developer settings → Personal access tokens
+1. GitHub -> Settings -> Developer settings -> Personal access tokens
 2. Generate new token
 3. Select scope: `write:packages`
 4. Copy token (you won't see it again)
@@ -658,7 +658,7 @@ docker buildx build \
 **Set team access:**
 1. Click **Package settings**
 2. In **Manage Access** section:
-   - ✅ Select **Inherit access from source repository**
+   - Select **Inherit access from source repository**
 3. This gives team members automatic access
 
 **Set visibility to public:**

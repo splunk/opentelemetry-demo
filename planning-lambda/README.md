@@ -13,40 +13,40 @@ This directory contains AWS Lambda functions that extend the demo into AWS serve
 ## Architecture
 
 ```
-┌─────────────────┐     HTTP/REST      ┌─────────────────────────────┐
-│  Planning       │ ──────────────────▶│  Planning_Init (Lambda)     │
-│  Service (K8s)  │                    │  (API Gateway + Lambda)     │
-└─────────────────┘                    └──────────────┬──────────────┘
-                                                      │
-                                       ┌──────────────┼──────────────┐
-                                       ▼              ▼              ▼
-                                   ┌───────┐    ┌───────┐    ┌───────┐
-                                   │Future │    │Future │    │Future │
-                                   │Lambda │    │Lambda │    │Lambda │
-                                   └───────┘    └───────┘    └───────┘
++-----------------+     HTTP/REST      +-----------------------------+
+|  Planning       | ------------------>|  Planning_Init (Lambda)     |
+|  Service (K8s)  |                    |  (API Gateway + Lambda)     |
++-----------------+                    +--------------+--------------+
+                                                      |
+                                       +--------------+--------------+
+                                       v              v              v
+                                   +-------+    +-------+    +-------+
+                                   |Future |    |Future |    |Future |
+                                   |Lambda |    |Lambda |    |Lambda |
+                                   +-------+    +-------+    +-------+
 ```
 
 ## Directory Structure
 
 ```
 planning-lambda/
-├── README.md                   # This file
-├── shared/                     # Shared utilities (reusable across all Lambdas)
-│   ├── __init__.py
-│   ├── tracing.py             # OpenTelemetry tracing utilities
-│   ├── logging.py             # Structured JSON logging
-│   └── lambda_client.py       # Lambda-to-Lambda invocation
-│
-└── Planning_Init/              # First Lambda service
-    ├── lambda_function.py     # Main handler with routing
-    ├── handlers/              # Request handlers
-    │   ├── orders.py          # Order processing
-    │   ├── analytics.py       # Analytics (stub)
-    │   └── forecasting.py     # Forecasting (stub)
-    ├── requirements.txt       # Python dependencies
-    ├── template.yaml          # AWS SAM template
-    ├── samconfig.toml         # SAM configuration
-    └── README.md              # Service-specific docs
+|-- README.md                   # This file
+|-- shared/                     # Shared utilities (reusable across all Lambdas)
+|   |-- __init__.py
+|   |-- tracing.py             # OpenTelemetry tracing utilities
+|   |-- logging.py             # Structured JSON logging
+|   +-- lambda_client.py       # Lambda-to-Lambda invocation
+|
++-- Planning_Init/              # First Lambda service
+    |-- lambda_function.py     # Main handler with routing
+    |-- handlers/              # Request handlers
+    |   |-- orders.py          # Order processing
+    |   |-- analytics.py       # Analytics (stub)
+    |   +-- forecasting.py     # Forecasting (stub)
+    |-- requirements.txt       # Python dependencies
+    |-- template.yaml          # AWS SAM template
+    |-- samconfig.toml         # SAM configuration
+    +-- README.md              # Service-specific docs
 ```
 
 ## Shared Utilities
@@ -69,7 +69,7 @@ planning-lambda/
 
 | Service | Description | Status |
 |---------|-------------|--------|
-| Planning_Init | Entry point, receives orders from K8s planning service | ✅ Active |
+| Planning_Init | Entry point, receives orders from K8s planning service | [x] Active |
 | (Future) | Additional planning/analytics services | Planned |
 
 ## Quick Start

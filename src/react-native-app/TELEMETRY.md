@@ -225,7 +225,7 @@ console.log('New session:', newSessionId);
 
 1. Trigger a workflow (e.g., add item to cart)
 2. Open Splunk Observability Cloud
-3. Navigate to RUM → Mobile → Sessions
+3. Navigate to RUM -> Mobile -> Sessions
 4. Find your session and view spans
 5. Verify custom attributes appear on spans
 
@@ -233,12 +233,12 @@ console.log('New session:', newSessionId);
 
 ```
 src/react-native-app/
-├── hooks/
-│   └── useSplunkRum.ts          # RUM initialization with global attributes
-├── utils/
-│   ├── UserAttributes.ts        # Session management and user generation
-│   └── TelemetryUtils.ts        # Custom spans, events, and error tracking
-└── TELEMETRY.md                 # This documentation
+|-- hooks/
+|   +-- useSplunkRum.ts          # RUM initialization with global attributes
+|-- utils/
+|   |-- UserAttributes.ts        # Session management and user generation
+|   +-- TelemetryUtils.ts        # Custom spans, events, and error tracking
++-- TELEMETRY.md                 # This documentation
 ```
 
 ## Comparison with Web Frontend

@@ -98,28 +98,28 @@ env:
 
 ```
 Docker Build
-    ↓
+    v
 npm run build (generate .js and .map files)
-    ↓
+    v
 Inject sourceMapId into .js files
-    ↓
+    v
 Copy files to final image
-    ↓
-    ↓
+    v
+    v
 Container Start
-    ↓
+    v
 Check RUM Environment Variables
-    ↓
-    ├─ If configured: Upload Sourcemaps
-    │   ├─ Run: npx @splunk/rum-cli sourcemaps upload
-    │   ├─ Upload all .map files from .next/static/
-    │   └─ Log: "✅ Sourcemap processing completed"
-    │
-    └─ If not configured: Skip upload
-        └─ Log: "ℹ️  Skipping sourcemap upload"
-    ↓
+    v
+    |- If configured: Upload Sourcemaps
+    |   |- Run: npx @splunk/rum-cli sourcemaps upload
+    |   |- Upload all .map files from .next/static/
+    |   +- Log: "[x] Sourcemap processing completed"
+    |
+    +- If not configured: Skip upload
+        +- Log: "[INFO]  Skipping sourcemap upload"
+    v
 Start Next.js Server
-    └─ exec node server.js (with NODE_OPTIONS)
+    +- exec node server.js (with NODE_OPTIONS)
 ```
 
 ## Startup Script Details
@@ -153,7 +153,7 @@ npx @splunk/rum-cli sourcemaps upload \
 
 If sourcemap upload fails, the script logs a warning but **continues with startup**:
 ```bash
-⚠️  Warning: Sourcemap upload failed, but continuing with startup
+[WARNING]  Warning: Sourcemap upload failed, but continuing with startup
 ```
 
 This ensures the application starts even if sourcemap upload has issues.
@@ -178,19 +178,19 @@ kubectl logs deployment/frontend | grep -A5 "Uploading sourcemaps"
 
 Expected output:
 ```
-📤 Uploading sourcemaps to Splunk RUM...
+ Uploading sourcemaps to Splunk RUM...
    Realm: us1
    App: dev-astronomy-store
    Version: 2.1.3-RUM
    Note: sourceMapId was injected during Docker build
-📤 Uploading sourcemaps...
-✅ Sourcemap processing completed
+ Uploading sourcemaps...
+[x] Sourcemap processing completed
 ```
 
 ### Verify in Splunk RUM
 
 1. Generate an error in the application (e.g., click a broken feature)
-2. Go to Splunk RUM → Errors
+2. Go to Splunk RUM -> Errors
 3. Click on the error
 4. Check the stack trace - it should show:
    - **Original source file names** (not minified)
@@ -225,7 +225,7 @@ kubectl exec -it deployment/frontend -- env | grep SPLUNK
 **Fix:**
 - Verify you're using an **API access token**, not the browser RUM token
 - Check token has **RUM ingest permissions** in Splunk Observability Cloud
-- Verify token in Organization Settings → Access Tokens
+- Verify token in Organization Settings -> Access Tokens
 
 ### Warnings About Missing sourceMapId
 
@@ -300,7 +300,7 @@ If you want to build the image but skip sourcemap upload at runtime, simply don'
 
 The container will start normally and log:
 ```
-ℹ️  Skipping sourcemap upload (API_TOKEN not provided)
+[INFO]  Skipping sourcemap upload (API_TOKEN not provided)
    Note: Use API_TOKEN (API token with RUM ingest permissions), not SPLUNK_RUM_TOKEN
 ```
 
@@ -339,10 +339,10 @@ Minified React error #418; visit https://react.dev/errors/418 for the full messa
 - Our webpack source maps don't cover React's internal code
 
 **What's covered by our source maps:**
-- ✅ Your application code (pages, components, utils)
-- ✅ Code bundled by webpack
-- ✅ Your custom error handlers
-- ❌ React's internal errors (pre-minified)
+- [x] Your application code (pages, components, utils)
+- [x] Code bundled by webpack
+- [x] Your custom error handlers
+- [FAIL] React's internal errors (pre-minified)
 
 **How to handle it:**
 1. Visit the error URL (e.g., `https://react.dev/errors/418`)

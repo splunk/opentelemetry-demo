@@ -30,9 +30,9 @@ registry:
   # The dev-repo.yaml file is gitignored to prevent fork repo URLs in main repo
 
 services:
-  - name : ingress
+  - name: ingress
     build: false
-    manifest: false # Only included in DIAB builds via stitch-manifests.sh 
+    manifest: false  # Only included in DIAB builds via stitch-manifests.sh
 
   - name: accounting
     build: true

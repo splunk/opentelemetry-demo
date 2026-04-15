@@ -1,3 +1,5 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
 # PostgreSQL Database Initialization ConfigMap
 # This ConfigMap contains scripts that create schemas, tables, and extensions
 # for the accounting, product-catalog, product-reviews, and recommendation services

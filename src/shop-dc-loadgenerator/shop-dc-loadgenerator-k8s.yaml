@@ -1,3 +1,5 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
 ### Expects a deployment of Astronomy Shop Demo in the same cluster
 ### Uses checkout service from that demo
 ### Or add this at config at the end of an astronomy shop demo deployment yaml

@@ -13,7 +13,7 @@ The payment service has two distinct versions with different behaviors:
 
 ### Behavior
 
-✅ **Normal payment processing**
+[x] **Normal payment processing**
 - Retrieves API token from secret: `payment-va-secret`
 - Calls Buttercup Payments API with token
 - **Succeeds** on first attempt (unless real errors occur)
@@ -69,7 +69,7 @@ service.version: 1.7.0-a
 
 ### Behavior
 
-❌ **Always fails with controlled timing**
+[FAIL] **Always fails with controlled timing**
 - Retrieves API token from secret: `payment-vb-secret`
 - Attempts to call Buttercup Payments API **4 times**
 - **All attempts fail** (simulates error pod for testing)
@@ -90,11 +90,11 @@ service.version: 1.7.0-a
 Total: 8.5 seconds
   Attempt 1: 1.2s (API: 840ms, backoff: 360ms)
   Attempt 2: 2.1s (API: 1470ms, backoff: 630ms)
-  Attempt 3: 2.5s (API: 1750ms, backoff: 750ms)  ← First 3: 5.8s total
-  Attempt 4: 2.7s (API: 2700ms, backoff: 0ms)    ← Remaining time
+  Attempt 3: 2.5s (API: 1750ms, backoff: 750ms)  <- First 3: 5.8s total
+  Attempt 4: 2.7s (API: 2700ms, backoff: 0ms)    <- Remaining time
 
-Total: 8.5 seconds ✅ (within 4-10s)
-First 3: 5.8 seconds ✅ (within 4-7.3s)
+Total: 8.5 seconds [x] (within 4-10s)
+First 3: 5.8 seconds [x] (within 4-7.3s)
 ```
 
 ### Configuration
@@ -131,7 +131,7 @@ stringData:
 {
   "level": "error",
   "service.name": "payment-vb",
-  "token": "test-20e26e90-...",  ← Token from secret
+  "token": "test-20e26e90-...",  <- Token from secret
   "version": "v350.10",
   "message": "Failed payment processing through ButtercupPayments: Invalid API Token (test-20e26e90-...)"
 }
@@ -142,7 +142,7 @@ stringData:
 {
   "level": "error",
   "service.name": "payment-vb",
-  "token": "test-20e26e90-...",  ← Token from secret
+  "token": "test-20e26e90-...",  <- Token from secret
   "version": "v350.10",
   "message": "Failed payment processing through ButtercupPayments after 4 retries: Invalid API Token (test-20e26e90-...)"
 }
@@ -246,8 +246,8 @@ if rand.Float64() < probability {
 **Flag**: `10%` (0.1)
 
 **Result**:
-- 90% of payments → `payment-va` (succeed)
-- 10% of payments → `payment-vb` (fail after 4-10 seconds)
+- 90% of payments -> `payment-va` (succeed)
+- 10% of payments -> `payment-vb` (fail after 4-10 seconds)
 - Version B logs show `test-20e26e90...` token with version `v350.10` in errors
 - Can compare error behavior in Splunk APM
 
@@ -266,13 +266,13 @@ if rand.Float64() < probability {
 
 ## Key Points
 
-✅ **Version A**: Retrieves token from `payment-va-secret`, calls Buttercup, succeeds
-✅ **Version B**: Retrieves token from `payment-vb-secret`, attempts 4 calls, always fails
-✅ **Both versions**: Use tokens from their respective secrets
-✅ **Version B logs token**: In error messages (like original implementation)
-✅ **Controlled timing**: Version B has precise timing constraints (4-10s total, 3 attempts 4-7.3s)
-✅ **Random per attempt**: Each of the 4 attempts has random duration within constraints
-✅ **Flag-based routing**: Checkout routes based on `paymentFailure` flag value
+[x] **Version A**: Retrieves token from `payment-va-secret`, calls Buttercup, succeeds
+[x] **Version B**: Retrieves token from `payment-vb-secret`, attempts 4 calls, always fails
+[x] **Both versions**: Use tokens from their respective secrets
+[x] **Version B logs token**: In error messages (like original implementation)
+[x] **Controlled timing**: Version B has precise timing constraints (4-10s total, 3 attempts 4-7.3s)
+[x] **Random per attempt**: Each of the 4 attempts has random duration within constraints
+[x] **Flag-based routing**: Checkout routes based on `paymentFailure` flag value
 
 ---
 
@@ -311,16 +311,16 @@ Should show: `test-20e26e90-356b-432e-a2c6-956fc03f5609`
 ## Summary
 
 **Version A (Stable)**:
-- ✅ Gets token from secret
-- ✅ Calls Buttercup Payments
-- ✅ Succeeds (~100ms)
-- ✅ Production-ready
+- [x] Gets token from secret
+- [x] Calls Buttercup Payments
+- [x] Succeeds (~100ms)
+- [x] Production-ready
 
 **Version B (Canary/Error)**:
-- ✅ Gets token from secret
-- ✅ Attempts to call Buttercup Payments 4 times
-- ❌ Always fails (controlled error pod)
-- ⏱️ Total duration: 4-10 seconds (random)
-- ⏱️ First 3 attempts: 4-7.3 seconds (random)
-- 📝 Logs token in error messages
-- 🧪 Perfect for error/retry testing
+- [x] Gets token from secret
+- [x] Attempts to call Buttercup Payments 4 times
+- [FAIL] Always fails (controlled error pod)
+-  Total duration: 4-10 seconds (random)
+-  First 3 attempts: 4-7.3 seconds (random)
+-  Logs token in error messages
+-  Perfect for error/retry testing

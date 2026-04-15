@@ -1,6 +1,6 @@
 # Single Command Deployment Guide
 
-## ✅ Everything is Self-Contained in One File!
+## [x] Everything is Self-Contained in One File!
 
 All components needed for fraud detection with SQL Server logging are included in:
 ```
@@ -151,7 +151,7 @@ kubectl delete namespace otel-demo
 kubectl delete namespace sql
 ```
 
-## Build → Deploy → Test Workflow
+## Build -> Deploy -> Test Workflow
 
 For rapid iteration:
 
@@ -372,12 +372,12 @@ After deployment, verify:
 ## Summary
 
 **Single file contains everything:**
-✅ SQL Server Express with persistent storage
-✅ Fraud Detection service with SQL logging
-✅ All demo components (Frontend, Kafka, etc.)
-✅ Automatic database and table creation
-✅ Init containers ensure proper startup order
-✅ Cross-namespace networking configured
+[x] SQL Server Express with persistent storage
+[x] Fraud Detection service with SQL logging
+[x] All demo components (Frontend, Kafka, etc.)
+[x] Automatic database and table creation
+[x] Init containers ensure proper startup order
+[x] Cross-namespace networking configured
 
 **Single command deploys:**
 ```bash

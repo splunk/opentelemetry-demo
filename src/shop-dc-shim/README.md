@@ -19,9 +19,9 @@ This service demonstrates a real-world hybrid architecture scenario:
 The service includes **intentional Jackson serialization errors** on the transaction status endpoint (`GET /api/shop/transaction/{transactionId}`) to demonstrate real-world error scenarios:
 
 **What Works As Intended:**
-- ✅ Purchase submissions (`POST /api/shop/purchase`) - returns 202 successfully
-- ✅ Background transaction processing and database persistence
-- ✅ gRPC calls to cloud checkout service 
+- [x] Purchase submissions (`POST /api/shop/purchase`) - returns 202 successfully
+- [x] Background transaction processing and database persistence
+- [x] gRPC calls to cloud checkout service 
 
 ### Business Context
 - Local shop systems handle inventory, pricing, customer data
@@ -154,9 +154,9 @@ The service implements intelligent load scaling based on the `TPM` (Transactions
 #### Combined Load Reduction
 
 When you set `TPM=5` for both load generator AND service:
-- **80% fewer requests** (25 → 5 per minute)
-- **80% less processing per request** (870ms → 174ms)
-- **Combined: ~96% total load reduction** (0.2 × 0.2 = 0.04 or 4% of baseline)
+- **80% fewer requests** (25 -> 5 per minute)
+- **80% less processing per request** (870ms -> 174ms)
+- **Combined: ~96% total load reduction** (0.2 x 0.2 = 0.04 or 4% of baseline)
 
 #### Kubernetes Configuration
 
@@ -202,14 +202,14 @@ env:
 ### What Gets Reduced
 
 **Audit Log Disabled (`AUDIT_LOG_ENABLED=false`):**
-- ❌ No audit log generation (saves ~8,000-15,000 DB writes/day)
-- ❌ No concurrent thread spawning for DB contention
-- ✅ Maintains all real transaction functionality
+- [FAIL] No audit log generation (saves ~8,000-15,000 DB writes/day)
+- [FAIL] No concurrent thread spawning for DB contention
+- [x] Maintains all real transaction functionality
 
 **Faster Cleanup (30 min retention):**
-- ✅ Database stays small (fewer rows = faster queries)
-- ✅ Less memory for JPA/Hibernate caching
-- ✅ Reduced pressure on SQL Server
+- [x] Database stays small (fewer rows = faster queries)
+- [x] Less memory for JPA/Hibernate caching
+- [x] Reduced pressure on SQL Server
 
 **Note:** Default settings maintain current behavior for backward compatibility.
 

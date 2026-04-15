@@ -19,9 +19,9 @@ This service demonstrates a real-world hybrid architecture scenario:
 The service includes **intentional Jackson serialization errors** on the transaction status endpoint (`GET /api/shop/transaction/{transactionId}`) to demonstrate real-world error scenarios:
 
 **What Works As Intended:**
-- ✅ Purchase submissions (`POST /api/shop/purchase`) - returns 202 successfully
-- ✅ Background transaction processing and database persistence
-- ✅ gRPC calls to cloud checkout service 
+- [x] Purchase submissions (`POST /api/shop/purchase`) - returns 202 successfully
+- [x] Background transaction processing and database persistence
+- [x] gRPC calls to cloud checkout service 
 
 ### Business Context
 - Local shop systems handle inventory, pricing, customer data

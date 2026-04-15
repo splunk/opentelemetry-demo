@@ -92,8 +92,8 @@ Both payment versions **always succeed** (unless real errors occur). They do NOT
 
 **Steps**:
 1. Set flag to `mostly-A` (0.1)
-   - 90% traffic → version A
-   - 10% traffic → version B
+   - 90% traffic -> version A
+   - 10% traffic -> version B
 2. Monitor error rates for both versions
 3. If B looks good, increase to `balanced` (0.5)
 4. Eventually move to `all-B` (1)
@@ -282,11 +282,11 @@ kubectl patch configmap flagd-config --patch '{
 
 ## Summary
 
-✅ **`paymentFailure` flag** → Controls routing percentage to version B
-✅ **Version A** → Stable, slower, conservative (default)
-✅ **Version B** → Optimized, faster, more retries
-✅ **Both versions** → Always succeed (no simulated failures)
-✅ **Checkout service** → Routes probabilistically based on flag
-✅ **Easy A/B testing** → Just change flag value in flagd
+[x] **`paymentFailure` flag** -> Controls routing percentage to version B
+[x] **Version A** -> Stable, slower, conservative (default)
+[x] **Version B** -> Optimized, faster, more retries
+[x] **Both versions** -> Always succeed (no simulated failures)
+[x] **Checkout service** -> Routes probabilistically based on flag
+[x] **Easy A/B testing** -> Just change flag value in flagd
 
 **Next**: Build payment A/B, rebuild checkout, deploy both, and control routing with the feature flag!
