@@ -16,11 +16,11 @@ description = 'Ad Service'
 group = "ad"
 version = "0.1.0-SNAPSHOT"
 
-def opentelemetryVersion = "1.60.1"
-def opentelemetryInstrumentationVersion = "2.25.0"
-def grpcVersion = "1.79.0"
-def jacksonVersion = "2.21.1"
-def protocVersion = "4.34.0"
+def opentelemetryVersion = "1.57.0"
+def opentelemetryInstrumentationVersion = "2.23.0"
+def grpcVersion = "1.78.0"
+def jacksonVersion = "2.20.1"
+def protocVersion = "4.33.2"
 
 tasks.withType(JavaCompile).configureEach {
     sourceCompatibility = JavaVersion.VERSION_21
@@ -40,7 +40,7 @@ dependencies {
         implementation platform("io.opentelemetry:opentelemetry-bom:${opentelemetryVersion}")
         implementation platform("io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom:${opentelemetryInstrumentationVersion}")
 
-        implementation "com.google.api.grpc:proto-google-common-protos:2.66.0",
+        implementation "com.google.api.grpc:proto-google-common-protos:2.63.2",
                 "com.google.protobuf:protobuf-java:${protocVersion}",
                 "javax.annotation:javax.annotation-api:1.3.2",
                 "io.grpc:grpc-protobuf:${grpcVersion}",
@@ -51,23 +51,12 @@ dependencies {
                 "io.opentelemetry:opentelemetry-sdk",
                 "io.opentelemetry.instrumentation:opentelemetry-instrumentation-annotations",
                 "org.apache.logging.log4j:log4j-core:2.25.3",
-                "dev.openfeature.contrib.providers:flagd:0.11.20",
-                'dev.openfeature:sdk:1.20.1',
-                // Intentionally vulnerable dependency for security testing (CVE-2012-5783)
-                // commons-codec 1.6 has a known medium-risk vulnerability but is safe in this context
-                // as it's only used for internal Base64 encoding/decoding, not exposed to external inputs
-                "commons-codec:commons-codec:1.6",
-                // Intentionally vulnerable dependencies for security testing - SAFE in this context:
-                // CVE-2023-6378 (HIGH) - Logback serialization DoS - only exploitable if receiver component is deployed on TCP port (not used)
-                "ch.qos.logback:logback-classic:1.4.11",
-                // CVE-2023-6481 (HIGH) - Logback receiver serialization DoS - only exploitable with receiver component (not used)
-                "ch.qos.logback:logback-core:1.4.13",
-                // CVE-2024-38809 (MEDIUM) - Spring DoS via ETag parsing - only exploitable via HTTP ETag headers (using gRPC, not HTTP)
-                "org.springframework:spring-web:6.1.10"
+                "dev.openfeature.contrib.providers:flagd:0.11.18",
+                'dev.openfeature:sdk:1.19.2'
 
         runtimeOnly "com.fasterxml.jackson.core:jackson-core:${jacksonVersion}",
                 "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}",
-                "io.netty:netty-tcnative-boringssl-static:2.0.75.Final"
+                "io.netty:netty-tcnative-boringssl-static:2.0.74.Final"
     }
 }
 
@@ -148,23 +137,7 @@ task ad(type: CreateStartScripts) {
     classpath = startScripts.classpath
 }
 
-distributions {
-    main {
-        contents {
-            into('bin') {
-                from(ad)
-                filePermissions {
-                    unix(0755)
-                }
-            }
-        }
-    }
-}
-
-// Fix implicit dependency issues in Gradle 9
-tasks.named('distZip') {
-    mustRunAfter('compileTestJava')
-}
-tasks.named('distTar') {
-    mustRunAfter('compileTestJava')
+applicationDistribution.into('bin') {
+    from(ad)
+    fileMode = 0755
 }
