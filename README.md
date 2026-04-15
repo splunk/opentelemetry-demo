@@ -54,7 +54,7 @@ This script will:
 
 See [PRODUCTION-WORKFLOW-GUIDE.md](./PRODUCTION-WORKFLOW-GUIDE.md) for workflow documentation.
 
-## Quick start 
+## Quick start
 
 You can be up and running with the demo in a few minutes. Check out the docs for
 your preferred deployment method:

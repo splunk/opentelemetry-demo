@@ -83,7 +83,7 @@ def cartesian_rate_limit_ok():
     now = time.time()
     min_interval = CARTESIAN_WINDOW_SECONDS / CARTESIAN_MAX_PER_WINDOW
 
-    # New window — reset counters
+    # New window -- reset counters
     if now - cartesian_window_start >= CARTESIAN_WINDOW_SECONDS:
         cartesian_window_start = now
         cartesian_window_count = 0

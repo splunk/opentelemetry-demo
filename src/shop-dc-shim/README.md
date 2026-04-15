@@ -1,6 +1,6 @@
 # Shop Datacenter Shim Service
 
-The Shop Datacenter Shim Service is an N-Tier Java Spring Boot application that simulates a traditional on-premises retail system deployed in a datacenter environment. This service demonstrates hybrid cloud-on-premises integration by acting as a shim that bridges local shop purchases to cloud checkout services.  
+The Shop Datacenter Shim Service is an N-Tier Java Spring Boot application that simulates a traditional on-premises retail system deployed in a datacenter environment. This service demonstrates hybrid cloud-on-premises integration by acting as a shim that bridges local shop purchases to cloud checkout services.
 
 **NOTE:** This demo is an addition to an existing Astronomy Shop Demo and expects a deployment of such in the same k8s cluster
 
@@ -21,7 +21,7 @@ The service includes **intentional Jackson serialization errors** on the transac
 **What Works As Intended:**
 - [x] Purchase submissions (`POST /api/shop/purchase`) - returns 202 successfully
 - [x] Background transaction processing and database persistence
-- [x] gRPC calls to cloud checkout service 
+- [x] gRPC calls to cloud checkout service
 
 ### Business Context
 - Local shop systems handle inventory, pricing, customer data
@@ -422,7 +422,7 @@ The entire flow is instrumented with OpenTelemetry spans for distributed tracing
 
 **AppDynamics (Traditional APM)**
 - Application: `shop-dc-shim-service`
-- Tier: `shop-dc-shim`  
+- Tier: `shop-dc-shim`
 - Node: Datacenter node naming
 - Deep application monitoring for traditional enterprise environments
 
@@ -453,7 +453,7 @@ The service includes a dedicated Python load generator that simulates realistic 
 
 ### Store Locations
 - DC-NYC-01: Manhattan Flagship (4 terminals)
-- DC-NYC-02: Brooklyn Heights (3 terminals)  
+- DC-NYC-02: Brooklyn Heights (3 terminals)
 - DC-BOS-01: Boston Downtown (2 terminals)
 - DC-PHI-01: Philadelphia Center (3 terminals)
 - DC-DC-01: Washington Capitol (2 terminals)

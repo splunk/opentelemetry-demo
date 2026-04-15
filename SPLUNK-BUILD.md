@@ -29,14 +29,14 @@ The following services have been updated or added in this Splunk version:
 ### Building the Services
 
 Each service directory under src/ contains a build script used to create its container image.
-For example, the Ad Service build script is located at: 
+For example, the Ad Service build script is located at:
 [ad service build script](src/ad/build-ad.sh)
 
 Run the script directly. If executed without parameters, it displays the required usage information:
 
 ```bash
 [FAIL] Error: No version provided.
-Usage: ./build-ad.sh <version> [-cc] 
+Usage: ./build-ad.sh <version> [-cc]
 ```
 
 Ech script willl require a version tag such as 0.0.1 when running the script.

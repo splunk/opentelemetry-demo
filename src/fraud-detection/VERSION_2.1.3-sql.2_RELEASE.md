@@ -201,7 +201,7 @@ kubectl exec -it sql-express-0 -n sql -- /opt/mssql-tools/bin/sqlcmd -S localhos
 | SQL Status | `kubectl get pods -n sql` |
 | Query DB | `kubectl exec -it sql-express-0 -n sql -- /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'ChangeMe_SuperStrong123!' -Q "SELECT COUNT(*) FROM FraudDetection.dbo.OrderLogs"` |
 
-## Ready to Deploy! 
+## Ready to Deploy!
 Everything is tested and working. Just run:
 ```bash
 ./cleanup.sh

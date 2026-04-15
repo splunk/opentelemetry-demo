@@ -79,11 +79,11 @@ Let's trace each endpoint to see exactly which SQL queries it executes.
 
 3. **Database Operations**
    - Line 81: `transactionRepository.save(transaction)`
-   - **SQL Generated**: 
+   - **SQL Generated**:
      ```sql
-     INSERT INTO shop_transactions 
-     (transaction_id, local_order_id, customer_email, customer_name, 
-      total_amount, currency_code, store_location, terminal_id, 
+     INSERT INTO shop_transactions
+     (transaction_id, local_order_id, customer_email, customer_name,
+      total_amount, currency_code, store_location, terminal_id,
       status, shipping_address, items_json, created_at, retry_count)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'INITIATED', ?, ?, GETDATE(), 0)
      ```
@@ -173,7 +173,7 @@ Would be much faster, but wouldn't show the value of APM tools.
    - Repository method: `ShopTransactionRepository.java` line 50
    - **SQL Generated**:
      ```sql
-     SELECT s.* FROM shop_transactions s 
+     SELECT s.* FROM shop_transactions s
      WHERE s.store_location = ? AND s.created_at >= ?
      ```
    - This query is efficient and uses the index on `store_location`
@@ -206,13 +206,13 @@ Would be much faster, but wouldn't show the value of APM tools.
      ```
    - Line 263: `countCompletedTransactionsSince()`
      ```sql
-     SELECT COUNT(s) FROM shop_transactions s 
+     SELECT COUNT(s) FROM shop_transactions s
      WHERE s.created_at >= ? AND s.status = 'COMPLETED'
      ```
    - Line 265: `getAverageProcessingTimeSeconds()`
      ```sql
-     SELECT AVG(DATEDIFF(SECOND, created_at, cloud_confirmed_at)) 
-     FROM shop_transactions 
+     SELECT AVG(DATEDIFF(SECOND, created_at, cloud_confirmed_at))
+     FROM shop_transactions
      WHERE status = 'COMPLETED' AND created_at >= ?
      ```
 
@@ -249,7 +249,7 @@ public List<ShopTransaction> getTransactionsByCustomer(String email) {
 }
 ```
 
-**Note**: 
+**Note**:
 - Use `@Transactional(readOnly = true)` for read operations (optimizes connection pooling)
 - Use `@Transactional` without parameters for write operations
 
@@ -372,7 +372,7 @@ For database-specific functions or complex performance queries:
 
 ```java
 @Query(value = "SELECT AVG(DATEDIFF(SECOND, created_at, cloud_confirmed_at)) " +
-       "FROM shop_transactions WHERE status = 'COMPLETED' AND created_at >= :since", 
+       "FROM shop_transactions WHERE status = 'COMPLETED' AND created_at >= :since",
        nativeQuery = true)
 Double getAverageProcessingTimeSeconds(@Param("since") LocalDateTime since);
 ```
@@ -391,7 +391,7 @@ Let's add a query to find high-value transactions by store:
 
 ```java
 @Query(value = """
-    SELECT s.store_location, 
+    SELECT s.store_location,
            COUNT(*) as transaction_count,
            AVG(s.total_amount) as avg_amount,
            MAX(s.total_amount) as max_amount
@@ -422,21 +422,21 @@ Create test file: `src/test/java/com/opentelemetry/demo/shopdcshim/service/ShopT
 @SpringBootTest
 @Transactional
 class ShopTransactionServiceTest {
-    
+
     @Autowired
     private ShopTransactionService service;
-    
+
     @Autowired
     private ShopTransactionRepository repository;
-    
+
     @Test
     void testInitiateShopPurchase() {
         ShopPurchaseRequest request = createTestRequest();
-        
+
         String transactionId = service.initiateShopPurchase(request);
-        
+
         assertNotNull(transactionId);
-        
+
         ShopTransaction saved = repository.findByTransactionId(transactionId).orElseThrow();
         assertEquals(request.getCustomerEmail(), saved.getCustomerEmail());
         assertEquals(ShopTransaction.TransactionStatus.INITIATED, saved.getStatus());
@@ -455,10 +455,10 @@ void testFindByCustomerEmail() {
     tx.setCustomerEmail("test@example.com");
     tx.setStatus(ShopTransaction.TransactionStatus.COMPLETED);
     repository.save(tx);
-    
+
     // Test query
     List<ShopTransaction> results = repository.findByCustomerEmail("test@example.com");
-    
+
     assertEquals(1, results.size());
     assertEquals("test@example.com", results.get(0).getCustomerEmail());
 }
@@ -524,14 +524,14 @@ logging.level.org.hibernate.type.descriptor.sql.BasicBinder=TRACE
 
 Then check logs to see actual SQL:
 ```
-Hibernate: 
+Hibernate:
     select
         st1_0.id,
         st1_0.cloud_confirmed_at,
         st1_0.cloud_order_id,
         ...
     from
-        shop_transactions st1_0 
+        shop_transactions st1_0
     where
         st1_0.transaction_id=?
 ```
@@ -615,12 +615,12 @@ Add timing logs:
 @Transactional(readOnly = true)
 public List<ShopTransaction> getTransactionsByStore(String storeLocation, LocalDateTime since) {
     long start = System.currentTimeMillis();
-    
+
     List<ShopTransaction> results = transactionRepository.findByStoreLocationAndCreatedAtAfter(storeLocation, since);
-    
+
     long duration = System.currentTimeMillis() - start;
     log.info("Query took {} ms, returned {} results", duration, results.size());
-    
+
     return results;
 }
 ```
@@ -643,7 +643,7 @@ import lombok.Data;
 public class StoreStatsRequest {
     @NotBlank(message = "Store location is required")
     private String storeLocation;
-    
+
     private Integer hours = 24;  // Default value
 }
 ```
@@ -671,12 +671,12 @@ Always follow this pattern:
 try {
     // Your logic
     return ResponseEntity.ok(response);
-    
+
 } catch (SpecificException e) {
     // Handle specific errors
     span.setAttribute("http.status_code", 404);
     return ResponseEntity.notFound().build();
-    
+
 } catch (Exception e) {
     // Handle general errors
     span.recordException(e);
@@ -684,7 +684,7 @@ try {
     log.error("Error in operation", e);
     return ResponseEntity.internalServerError()
             .body(Map.of("error", "Internal server error", "message", e.getMessage()));
-            
+
 } finally {
     span.end();  // ALWAYS close span
 }
@@ -772,23 +772,23 @@ src/main/resources/
 
 Common questions answered:
 
-**Q: Why is `findByTransactionId()` so slow?**  
+**Q: Why is `findByTransactionId()` so slow?**
 A: It's intentionally bad to demonstrate APM value! See `ShopTransactionRepository.java` lines 19-34.
 
-**Q: When do I use `@Transactional`?**  
+**Q: When do I use `@Transactional`?**
 A: Always use it on service methods that modify data. Use `readOnly=true` for queries.
 
-**Q: Why do some fields store JSON as strings?**  
+**Q: Why do some fields store JSON as strings?**
 A: It simplifies the schema and demonstrates legacy system patterns.
 
-**Q: How do I know if my query is efficient?**  
+**Q: How do I know if my query is efficient?**
 A: Enable `spring.jpa.show-sql=true`, check logs, and use EXPLAIN in SQL Server.
 
-**Q: Can I test without the full Kubernetes setup?**  
+**Q: Can I test without the full Kubernetes setup?**
 A: Yes, but you'll need a local SQL Server instance. Update `application.properties` with your local connection string.
 
 ---
 
-Happy coding! 
+Happy coding!
 
 

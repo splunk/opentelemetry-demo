@@ -35,7 +35,7 @@ The frontend service has been enhanced with comprehensive observability features
 
 **What it does:**
 - Provides a dedicated order confirmation route for better pageview tracking
-- Creates custom OpenTelemetry spans for order events 
+- Creates custom OpenTelemetry spans for order events
 - Tracks order details (order ID, item counts, currency) in both backend and frontend spans
 - Enables conversion tracking and funnel analysis
 
