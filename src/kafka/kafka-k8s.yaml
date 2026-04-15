@@ -1,3 +1,5 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
 # Kubernetes manifest for kafka
 # Auto-generated from opentelemetry-demo.yaml
 # Contains 2 resource(s)

@@ -15,74 +15,74 @@ This repository is a Splunk-enhanced fork of the [OpenTelemetry Astronomy Shop D
 The demo consists of multiple microservices representing an e-commerce astronomy shop, with additional Splunk-specific services that simulate hybrid enterprise environments.
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      Cloud Environment                           │
-│                                                                   │
-│  ┌──────────┐    ┌──────────┐    ┌──────────┐                   │
-│  │ Frontend │───▶│  Cart    │───▶│ Checkout │                   │
-│  │ (Next.js)│    │ (Redis)  │    │  (Go)    │                   │
-│  └──────────┘    └──────────┘    └──────────┘                   │
-│                                        │                          │
-│                   ┌────────────────────┼────────────────┐         │
-│                   ▼                    ▼                ▼         │
-│            ┌──────────┐        ┌──────────┐    ┌──────────┐     │
-│            │ Payment  │        │ Shipping │    │  Email   │     │
-│            │ (Node.js)│        │   (Go)   │    │  (Ruby)  │     │
-│            └──────────┘        └──────────┘    └──────────┘     │
-│                   │                                               │
-│                   ▼                                               │
-│            ┌──────────────┐                                      │
-│            │ Accounting   │  (Splunk Enhanced)                   │
-│            │  (Node.js)   │                                      │
-│            └──────────────┘                                      │
-│                                                                   │
-│  ┌──────────────────────────────────────────────────┐            │
-│  │    Supporting Services                           │            │
-│  │  • Product Catalog (Go)                          │            │
-│  │  • Recommendation (Python)                       │            │
-│  │  • Ad Service (Java)                             │            │
-│  │  • Currency (C++)                                │            │
-│  │  • Quote (PHP)                                   │            │
-│  │  • Fraud Detection (Java + SQL Server)           │            │
-│  │  • Load Generator (Python)                       │            │
-│  │  • Feature Flags (OpenFeature)                   │            │
-│  └──────────────────────────────────────────────────┘            │
-│                                                                   │
-│  ┌──────────────────────────────────────────────────┐            │
-│  │         Splunk Observability Stack                │            │
-│  │  • Splunk OTel Collector Agent                   │            │
-│  │  • Metrics, Traces, Logs                         │            │
-│  └──────────────────────────────────────────────────┘            │
-└─────────────────────────────────────────────────────────────────┘
-                             ▲
-                             │ gRPC
-                             │
-┌────────────────────────────┴────────────────────────────────────┐
-│                Datacenter Environment (B01)                      │
-│               deployment.environment: datacenter-b01             │
-│                                                                   │
-│  ┌─────────────────────┐          ┌──────────────────────────┐  │
-│  │  Shop DC Shim       │──────────│  Shop DC Shim DB         │  │
-│  │  (Java Spring Boot) │          │  (SQL Server)            │  │
-│  │                     │          │                          │  │
-│  │  • REST API         │          │  • Transaction Storage   │  │
-│  │  • gRPC Client      │          │  • Audit Logs            │  │
-│  │  • N-Tier Legacy    │          │                          │  │
-│  └─────────────────────┘          └──────────────────────────┘  │
-│            │                                                      │
-│            ▼                                                      │
-│  ┌─────────────────────┐                                         │
-│  │ DC Load Generator   │                                         │
-│  │    (Python)         │                                         │
-│  └─────────────────────┘                                         │
-│                                                                   │
-│  ┌──────────────────────────────────────────────────┐            │
-│  │    Dual APM Monitoring                           │            │
-│  │  • AppDynamics Java Agent                        │            │
-│  │  • Splunk OTel Java Agent                        │            │
-│  │  • Dual instrumentation mode                     │            │
-│  └──────────────────────────────────────────────────┘            │
-└─────────────────────────────────────────────────────────────────┘
++-----------------------------------------------------------------+
+|                      Cloud Environment                           |
+|                                                                   |
+|  +----------+    +----------+    +----------+                   |
+|  | Frontend |--->|  Cart    |--->| Checkout |                   |
+|  | (Next.js)|    | (Redis)  |    |  (Go)    |                   |
+|  +----------+    +----------+    +----------+                   |
+|                                        |                          |
+|                   +--------------------+----------------+         |
+|                   v                    v                v         |
+|            +----------+        +----------+    +----------+     |
+|            | Payment  |        | Shipping |    |  Email   |     |
+|            | (Node.js)|        |   (Go)   |    |  (Ruby)  |     |
+|            +----------+        +----------+    +----------+     |
+|                   |                                               |
+|                   v                                               |
+|            +--------------+                                      |
+|            | Accounting   |  (Splunk Enhanced)                   |
+|            |  (Node.js)   |                                      |
+|            +--------------+                                      |
+|                                                                   |
+|  +--------------------------------------------------+            |
+|  |    Supporting Services                           |            |
+|  |  * Product Catalog (Go)                          |            |
+|  |  * Recommendation (Python)                       |            |
+|  |  * Ad Service (Java)                             |            |
+|  |  * Currency (C++)                                |            |
+|  |  * Quote (PHP)                                   |            |
+|  |  * Fraud Detection (Java + SQL Server)           |            |
+|  |  * Load Generator (Python)                       |            |
+|  |  * Feature Flags (OpenFeature)                   |            |
+|  +--------------------------------------------------+            |
+|                                                                   |
+|  +--------------------------------------------------+            |
+|  |         Splunk Observability Stack                |            |
+|  |  * Splunk OTel Collector Agent                   |            |
+|  |  * Metrics, Traces, Logs                         |            |
+|  +--------------------------------------------------+            |
++-----------------------------------------------------------------+
+                             ^
+                             | gRPC
+                             |
++----------------------------+------------------------------------+
+|                Datacenter Environment (B01)                      |
+|               deployment.environment: datacenter-b01             |
+|                                                                   |
+|  +---------------------+          +--------------------------+  |
+|  |  Shop DC Shim       |----------|  Shop DC Shim DB         |  |
+|  |  (Java Spring Boot) |          |  (SQL Server)            |  |
+|  |                     |          |                          |  |
+|  |  * REST API         |          |  * Transaction Storage   |  |
+|  |  * gRPC Client      |          |  * Audit Logs            |  |
+|  |  * N-Tier Legacy    |          |                          |  |
+|  +---------------------+          +--------------------------+  |
+|            |                                                      |
+|            v                                                      |
+|  +---------------------+                                         |
+|  | DC Load Generator   |                                         |
+|  |    (Python)         |                                         |
+|  +---------------------+                                         |
+|                                                                   |
+|  +--------------------------------------------------+            |
+|  |    Dual APM Monitoring                           |            |
+|  |  * AppDynamics Java Agent                        |            |
+|  |  * Splunk OTel Java Agent                        |            |
+|  |  * Dual instrumentation mode                     |            |
+|  +--------------------------------------------------+            |
++-----------------------------------------------------------------+
 ```
 
 ## Complete Service Reference
@@ -135,28 +135,28 @@ This table provides a quick reference for all services in the deployment, includ
 
 | Service | Technology | Purpose | Splunk Enhanced |
 |---------|-----------|---------|-----------------|
-| **frontend** | Next.js, TypeScript | User-facing web application | ✅ Yes |
-| **frontend-proxy** | Envoy | Proxy and routing | ✅ Yes |
-| **image-provider** | Python | Product image serving | ✅ Yes |
+| **frontend** | Next.js, TypeScript | User-facing web application | Yes Yes |
+| **frontend-proxy** | Envoy | Proxy and routing | Yes Yes |
+| **image-provider** | Python | Product image serving | Yes Yes |
 
 ### Backend Services
 
 | Service | Technology | Purpose | Splunk Enhanced |
 |---------|-----------|---------|-----------------|
-| **cart** | .NET | Shopping cart management | ✅ Yes |
+| **cart** | .NET | Shopping cart management | Yes Yes |
 | **checkout** | Go | Order processing and coordination | Original |
-| **payment** | Node.js | Payment processing with A/B testing | ✅ Yes (dual versions) |
+| **payment** | Node.js | Payment processing with A/B testing | Yes Yes (dual versions) |
 | **shipping** | Go | Shipping calculations | Original |
 | **email** | Ruby | Email notifications | Original |
-| **accounting** | Node.js | Financial reconciliation | ✅ Splunk-added |
+| **accounting** | Node.js | Financial reconciliation | Yes Splunk-added |
 
 ### Product & Recommendation Services
 
 | Service | Technology | Purpose | Splunk Enhanced |
 |---------|-----------|---------|-----------------|
 | **product-catalog** | Go | Product information | Original |
-| **recommendation** | Python | ML-based product recommendations | ✅ Yes |
-| **ad** | Java | Advertisement service | ✅ Yes |
+| **recommendation** | Python | ML-based product recommendations | Yes Yes |
+| **ad** | Java | Advertisement service | Yes Yes |
 | **quote** | PHP | Price quotations | Original |
 
 ### Data Services
@@ -164,16 +164,16 @@ This table provides a quick reference for all services in the deployment, includ
 | Service | Technology | Purpose | Splunk Enhanced |
 |---------|-----------|---------|-----------------|
 | **currency** | C++ | Currency conversion | Original |
-| **fraud-detection** | Java, SQL Server | Fraud detection with Kafka | ✅ Splunk-added |
-| **product-reviews** | LangChain, Python | Product review analysis | ✅ Splunk-added |
+| **fraud-detection** | Java, SQL Server | Fraud detection with Kafka | Yes Splunk-added |
+| **product-reviews** | LangChain, Python | Product review analysis | Yes Splunk-added |
 
 ### Datacenter Hybrid Services
 
 | Service | Technology | Purpose | Splunk Enhanced |
 |---------|-----------|---------|-----------------|
-| **shop-dc-shim** | Java Spring Boot | On-premises POS system simulator | ✅ Splunk-added |
-| **shop-dc-shim-db** | SQL Server | Datacenter transaction database | ✅ Splunk-added |
-| **shop-dc-loadgenerator** | Python | Datacenter load simulation | ✅ Splunk-added |
+| **shop-dc-shim** | Java Spring Boot | On-premises POS system simulator | Yes Splunk-added |
+| **shop-dc-shim-db** | SQL Server | Datacenter transaction database | Yes Splunk-added |
+| **shop-dc-loadgenerator** | Python | Datacenter load simulation | Yes Splunk-added |
 
 ### Supporting Services
 
@@ -212,15 +212,15 @@ This table provides a quick reference for all services in the deployment, includ
 ### Telemetry Collection
 
 ```
-┌─────────────┐      ┌──────────────────┐      ┌─────────────────────┐
-│  Services   │─────▶│  OTel Collector  │─────▶│ Splunk Observability│
-│             │      │     Agent         │      │       Cloud         │
-│             │      │                   │      │                     │
-│  • Traces   │      │  • Receives OTLP │      │  • APM              │
-│  • Metrics  │      │  • Processes      │      │  • Infrastructure   │
-│  • Logs     │      │  • Exports        │      │  • RUM              │
-└─────────────┘      └──────────────────┘      │  • Log Observer     │
-                                                 └─────────────────────┘
++-------------+      +------------------+      +---------------------+
+|  Services   |----->|  OTel Collector  |----->| Splunk Observability|
+|             |      |     Agent         |      |       Cloud         |
+|             |      |                   |      |                     |
+|  * Traces   |      |  * Receives OTLP |      |  * APM              |
+|  * Metrics  |      |  * Processes      |      |  * Infrastructure   |
+|  * Logs     |      |  * Exports        |      |  * RUM              |
++-------------+      +------------------+      |  * Log Observer     |
+                                                 +---------------------+
 ```
 
 ### Instrumentation Patterns
@@ -287,30 +287,30 @@ Multiple database types demonstrate observability:
 ### Synchronous (gRPC)
 
 ```
-Frontend → Product Catalog
-Frontend → Recommendation
-Frontend → Ad Service
-Checkout → Payment
-Checkout → Shipping
-Checkout → Email
-Checkout → Currency
-Shop DC Shim → Checkout (hybrid)
+Frontend -> Product Catalog
+Frontend -> Recommendation
+Frontend -> Ad Service
+Checkout -> Payment
+Checkout -> Shipping
+Checkout -> Email
+Checkout -> Currency
+Shop DC Shim -> Checkout (hybrid)
 ```
 
 ### Asynchronous (Kafka)
 
 ```
-Checkout → [orders topic] → Fraud Detection
-Checkout → [orders topic] → Accounting
-Checkout → [orders topic] → Email Service
+Checkout -> [orders topic] -> Fraud Detection
+Checkout -> [orders topic] -> Accounting
+Checkout -> [orders topic] -> Email Service
 ```
 
 ### REST APIs
 
 ```
-Frontend Proxy → Backend Services (HTTP)
-Shop DC Shim → REST API for POS terminals
-Load Generators → All services
+Frontend Proxy -> Backend Services (HTTP)
+Shop DC Shim -> REST API for POS terminals
+Load Generators -> All services
 ```
 
 ## Splunk-Specific Enhancements

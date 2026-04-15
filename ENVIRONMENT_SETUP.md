@@ -10,9 +10,9 @@ The production build workflow now uses environment secrets for better security a
 2. **Token name**: `OpenTelemetry Demo GHCR Access`
 3. **Expiration**: Choose your preference (90 days, 1 year, or no expiration)
 4. **Select scopes**:
-   - ✅ `write:packages` - Upload packages to GitHub Package Registry
-   - ✅ `read:packages` - Download packages from GitHub Package Registry
-   - ✅ `delete:packages` - Delete packages from GitHub Package Registry (optional)
+   - [x] `write:packages` - Upload packages to GitHub Package Registry
+   - [x] `read:packages` - Download packages from GitHub Package Registry
+   - [x] `delete:packages` - Delete packages from GitHub Package Registry (optional)
 
 5. Click **Generate token**
 6. **IMPORTANT**: Copy the token immediately - you won't see it again!
@@ -25,7 +25,7 @@ Example token format: `ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
 In the **splunk/opentelemetry-demo** repository:
 
 ```
-Settings → Environments → New environment
+Settings -> Environments -> New environment
 ```
 
 Or direct link: `https://github.com/splunk/opentelemetry-demo/settings/environments/new`
@@ -71,7 +71,7 @@ Your environment should now show:
 - **Protection rules**: Your configured rules
 
 ### 4.2 Test the Workflow
-1. Go to: `Actions → Build Images - PRODUCTION`
+1. Go to: `Actions -> Build Images - PRODUCTION`
 2. Click **Run workflow**
 3. Configure:
    - Version bump: `patch` (or your choice)
@@ -110,12 +110,12 @@ If no reviewers required:
 
 ## Security Benefits
 
-✅ **Token not in repository code** - Stored separately in environment
-✅ **Scoped access** - Only production builds can use it
-✅ **Manual approval** - Optional review before each deployment
-✅ **Audit trail** - GitHub logs who approved deployments
-✅ **Easy rotation** - Update token in environment settings
-✅ **Branch protection** - Only runs from approved branches
+[x] **Token not in repository code** - Stored separately in environment
+[x] **Scoped access** - Only production builds can use it
+[x] **Manual approval** - Optional review before each deployment
+[x] **Audit trail** - GitHub logs who approved deployments
+[x] **Easy rotation** - Update token in environment settings
+[x] **Branch protection** - Only runs from approved branches
 
 ## Token Rotation
 
@@ -140,9 +140,9 @@ For multiple repositories needing the same token:
 ## Summary
 
 You've now configured:
-- ✅ Personal Access Token with package write permissions
-- ✅ Production environment with protection rules
-- ✅ Environment secret (GHCR_TOKEN)
-- ✅ Workflow configured to use environment
+- [x] Personal Access Token with package write permissions
+- [x] Production environment with protection rules
+- [x] Environment secret (GHCR_TOKEN)
+- [x] Workflow configured to use environment
 
 Next build will require approval and use your secure token!

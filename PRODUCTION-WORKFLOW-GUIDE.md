@@ -10,7 +10,7 @@ The production workflows now support **independent version progression** for bot
 
 ### Scenario 1: Build All Images with Version Bump
 
-**Action**: Build all services, bump version 1.0.0 → 1.1.0
+**Action**: Build all services, bump version 1.0.0 -> 1.1.0
 
 ```yaml
 Workflow: prod-build-images.yml
@@ -21,25 +21,25 @@ Inputs:
 
 **GitHub Actions Summary:**
 ```
-📊 Current Version State
+ Current Version State
 SPLUNK-VERSION: `1.0.0`
 
-🔼 Version Update
+ Version Update
 | Type     | Version |
 |----------|---------|
 | Previous | `1.0.0` |
 | New      | `1.1.0` |
 | Bump Type| minor   |
 
-📦 Image Versions After Build
+ Image Versions After Build
 Services built this run: `all`
 
 | Service      | Image Version | Status           |
 |--------------|---------------|------------------|
-| accounting   | `1.1.0`       | ✅ Current (1.1.0) |
-| payment      | `1.1.0`       | ✅ Current (1.1.0) |
-| cart         | `1.1.0`       | ✅ Current (1.1.0) |
-| frontend     | `1.1.0`       | ✅ Current (1.1.0) |
+| accounting   | `1.1.0`       | [x] Current (1.1.0) |
+| payment      | `1.1.0`       | [x] Current (1.1.0) |
+| cart         | `1.1.0`       | [x] Current (1.1.0) |
+| frontend     | `1.1.0`       | [x] Current (1.1.0) |
 | ...          | ...           | ...              |
 ```
 
@@ -51,23 +51,23 @@ Services built this run: `all`
 **Services:** All services updated
 
 ### Changes
-- ✅ SPLUNK-VERSION updated to `1.1.0`
-- ✅ All hotfixes cleared
-- ✅ Source k8s manifests updated with new image references
+- [x] SPLUNK-VERSION updated to `1.1.0`
+- [x] All hotfixes cleared
+- [x] Source k8s manifests updated with new image references
 
 ### Next Steps
 Run the **Build Demo Manifest - PRODUCTION** workflow to stitch the manifest.
 ```
 
 **Files Changed:**
-- `SPLUNK-VERSION`: 1.0.0 → 1.1.0
+- `SPLUNK-VERSION`: 1.0.0 -> 1.1.0
 - `src/*/[service]-k8s.yaml`: All updated to reference 1.1.0 images
 
 ---
 
 ### Scenario 2: Build Single Service (Partial Build with Bump)
 
-**Action**: Build only payment service, bump version 1.1.0 → 1.1.1
+**Action**: Build only payment service, bump version 1.1.0 -> 1.1.1
 
 ```yaml
 Workflow: prod-build-images.yml
@@ -78,25 +78,25 @@ Inputs:
 
 **GitHub Actions Summary:**
 ```
-📊 Current Version State
+ Current Version State
 SPLUNK-VERSION: `1.1.0`
 
-🔼 Version Update
+ Version Update
 | Type     | Version |
 |----------|---------|
 | Previous | `1.1.0` |
 | New      | `1.1.1` |
 | Bump Type| patch   |
 
-📦 Image Versions After Build
+ Image Versions After Build
 Services built this run: `payment`
 
 | Service      | Image Version | Status           |
 |--------------|---------------|------------------|
-| accounting   | `1.1.0`       | ⚠️  Older        |
-| payment      | `1.1.1`       | ✅ Current (1.1.1) |
-| cart         | `1.1.0`       | ⚠️  Older        |
-| frontend     | `1.1.0`       | ⚠️  Older        |
+| accounting   | `1.1.0`       | [WARNING]  Older        |
+| payment      | `1.1.1`       | [x] Current (1.1.1) |
+| cart         | `1.1.0`       | [WARNING]  Older        |
+| frontend     | `1.1.0`       | [WARNING]  Older        |
 ```
 
 **Pull Request Created:**
@@ -107,8 +107,8 @@ Services built this run: `payment`
 **Services Built:** payment
 
 ### Changes
-- ✅ SPLUNK-VERSION updated to `1.1.1`
-- ✅ Source k8s manifests updated with new image references
+- [x] SPLUNK-VERSION updated to `1.1.1`
+- [x] Source k8s manifests updated with new image references
 
 ### Note
 This is a partial build. Other services will use their existing image versions.
@@ -118,7 +118,7 @@ Run the **Build Demo Manifest - PRODUCTION** workflow to stitch the manifest.
 ```
 
 **Files Changed:**
-- `SPLUNK-VERSION`: 1.1.0 → 1.1.1
+- `SPLUNK-VERSION`: 1.1.0 -> 1.1.1
 - `src/payment/payment-k8s.yaml`: Updated to reference 1.1.1 image
 
 ---
@@ -136,18 +136,18 @@ Inputs:
 
 **GitHub Actions Summary:**
 ```
-📊 Current Version State
+ Current Version State
 SPLUNK-VERSION: `1.1.1`
 
-📦 Image Versions After Build
+ Image Versions After Build
 Services built this run: `payment`
 
 | Service      | Image Version      | Status              |
 |--------------|--------------------|---------------------|
-| accounting   | `1.1.0`            | ⚠️  Older           |
-| payment      | `1.1.1-payment.1`  | 🔧 Hotfix           |
-| cart         | `1.1.0`            | ⚠️  Older           |
-| frontend     | `1.1.0`            | ⚠️  Older           |
+| accounting   | `1.1.0`            | [WARNING]  Older           |
+| payment      | `1.1.1-payment.1`  |  Hotfix           |
+| cart         | `1.1.0`            | [WARNING]  Older           |
+| frontend     | `1.1.0`            | [WARNING]  Older           |
 ```
 
 **Pull Request Created:**
@@ -158,8 +158,8 @@ Services built this run: `payment`
 **Base Version:** `1.1.1`
 
 ### Changes
-- ✅ .hotfix.yaml updated
-- ✅ Source k8s manifests updated with new image references
+- [x] .hotfix.yaml updated
+- [x] Source k8s manifests updated with new image references
 
 ### Next Steps
 Run the **Build Demo Manifest - PRODUCTION** workflow to stitch the manifest.
@@ -193,19 +193,19 @@ Inputs:
 
 **GitHub Actions Summary:**
 ```
-📋 Manifest Version
+ Manifest Version
 Version: `1.1.1`
 
-📦 Image Versions in Manifest
+ Image Versions in Manifest
 This manifest includes the following service image versions:
 
 | Service      | Image Version      | Status              |
 |--------------|--------------------|---------------------|
-| accounting   | `1.1.0`            | ⚠️  Older           |
-| payment      | `1.1.1-payment.1`  | 🔧 Hotfix           |
-| cart         | `1.1.0`            | ⚠️  Older           |
-| frontend     | `1.1.0`            | ⚠️  Older           |
-| postgres     | `latest`           | 📦 External         |
+| accounting   | `1.1.0`            | [WARNING]  Older           |
+| payment      | `1.1.1-payment.1`  |  Hotfix           |
+| cart         | `1.1.0`            | [WARNING]  Older           |
+| frontend     | `1.1.0`            | [WARNING]  Older           |
+| postgres     | `latest`           |  External         |
 
 Summary:
 Base Version: 1.1.1
@@ -224,7 +224,7 @@ Total Services: 25
 **Registry:** Production (`ghcr.io/splunk/opentelemetry-demo`)
 
 ### Changes
-- ✅ Manifest updated: `kubernetes/splunk-astronomy-shop-1.1.1.yaml`
+- [x] Manifest updated: `kubernetes/splunk-astronomy-shop-1.1.1.yaml`
 
 ### Manifest Contents
 This manifest combines all service deployments with their current image versions.
@@ -240,7 +240,7 @@ See the **Image Versions in Manifest** section in the workflow summary for detai
 
 ### Scenario 5: Manifest with Version Bump (After YAML Changes)
 
-**Action**: Same postgres change, but bump manifest version 1.1.1 → 1.1.2
+**Action**: Same postgres change, but bump manifest version 1.1.1 -> 1.1.2
 
 **Run Workflow:**
 ```yaml
@@ -251,28 +251,28 @@ Inputs:
 
 **GitHub Actions Summary:**
 ```
-📋 Manifest Version
+ Manifest Version
 | Type     | Version |
 |----------|---------|
 | Previous | `1.1.1` |
 | New      | `1.1.2` |
 | Bump Type| patch   |
 
-📦 Image Versions in Manifest
+ Image Versions in Manifest
 This manifest includes the following service image versions:
 
 | Service      | Image Version      | Status              |
 |--------------|--------------------|---------------------|
-| accounting   | `1.1.0`            | ⚠️  Older           |
-| payment      | `1.1.1-payment.1`  | 🔧 Hotfix           |
-| cart         | `1.1.0`            | ⚠️  Older           |
-| frontend     | `1.1.0`            | ⚠️  Older           |
-| postgres     | `latest`           | 📦 External         |
+| accounting   | `1.1.0`            | [WARNING]  Older           |
+| payment      | `1.1.1-payment.1`  |  Hotfix           |
+| cart         | `1.1.0`            | [WARNING]  Older           |
+| frontend     | `1.1.0`            | [WARNING]  Older           |
+| postgres     | `latest`           |  External         |
 
 Summary:
 Base Version: 1.1.2
 Total Services: 25
-  - Current (1.1.2): 0  ⚠️ No services at current version!
+  - Current (1.1.2): 0  [WARNING] No services at current version!
   - Hotfixes: 1
   - Older versions: 20
   - External images: 4
@@ -282,16 +282,16 @@ Total Services: 25
 ```markdown
 ## Production Manifest Release 1.1.2
 
-**Version Bump:** 1.1.1 → 1.1.2 (patch)
+**Version Bump:** 1.1.1 -> 1.1.2 (patch)
 **Registry:** Production (`ghcr.io/splunk/opentelemetry-demo`)
 
 ### Changes
-- ✅ SPLUNK-VERSION updated to `1.1.2`
-- ✅ Manifest: `kubernetes/splunk-astronomy-shop-1.1.2.yaml`
+- [x] SPLUNK-VERSION updated to `1.1.2`
+- [x] Manifest: `kubernetes/splunk-astronomy-shop-1.1.2.yaml`
 
 ### Manifest Contents
 This manifest combines all service deployments. It may contain mixed image versions:
-- Services built at `1.1.2`  ⚠️ (none in this case)
+- Services built at `1.1.2`  [WARNING] (none in this case)
 - Services at older versions
 - Hotfixed services with custom versions
 
@@ -299,10 +299,10 @@ See the **Image Versions in Manifest** section in the workflow summary for detai
 ```
 
 **Files Changed:**
-- `SPLUNK-VERSION`: 1.1.1 → 1.1.2
+- `SPLUNK-VERSION`: 1.1.1 -> 1.1.2
 - `kubernetes/splunk-astronomy-shop-1.1.2.yaml`: Created with version 1.1.2
 
-**⚠️ Warning**: The manifest version (1.1.2) doesn't match any built image versions!
+**[WARNING] Warning**: The manifest version (1.1.2) doesn't match any built image versions!
 
 ---
 
@@ -324,29 +324,29 @@ Inputs:
 
 **GitHub Actions Summary:**
 ```
-📊 Current Version State
+ Current Version State
 SPLUNK-VERSION: `1.1.2`
 
-🔼 Version Update
+ Version Update
 | Type     | Version |
 |----------|---------|
 | Previous | `1.1.2` |
 | New      | `1.1.3` |
 | Bump Type| patch   |
 
-📦 Image Versions After Build
+ Image Versions After Build
 Services built this run: `accounting`
 
 | Service      | Image Version      | Status              |
 |--------------|--------------------|---------------------|
-| accounting   | `1.1.3`            | ✅ Current (1.1.3)  |
-| payment      | `1.1.1-payment.1`  | 🔧 Hotfix           |
-| cart         | `1.1.0`            | ⚠️  Older           |
-| frontend     | `1.1.0`            | ⚠️  Older           |
+| accounting   | `1.1.3`            | [x] Current (1.1.3)  |
+| payment      | `1.1.1-payment.1`  |  Hotfix           |
+| cart         | `1.1.0`            | [WARNING]  Older           |
+| frontend     | `1.1.0`            | [WARNING]  Older           |
 ```
 
 **Files Changed:**
-- `SPLUNK-VERSION`: 1.1.2 → 1.1.3
+- `SPLUNK-VERSION`: 1.1.2 -> 1.1.3
 - `src/accounting/accounting-k8s.yaml`: Updated to 1.1.3
 
 ---
@@ -355,31 +355,31 @@ Services built this run: `accounting`
 
 **Day 1**: Build all images
 ```
-prod-build-images (all, minor) → 1.0.0 → 1.1.0
-prod-build-manifest (none)     → manifest-1.1.0.yaml
+prod-build-images (all, minor) -> 1.0.0 -> 1.1.0
+prod-build-manifest (none)     -> manifest-1.1.0.yaml
 ```
 
 **Day 2**: Hotfix payment
 ```
-prod-build-images (payment, none) → hotfix: 1.1.0-payment.1
-prod-build-manifest (none)         → manifest-1.1.0.yaml (updated)
+prod-build-images (payment, none) -> hotfix: 1.1.0-payment.1
+prod-build-manifest (none)         -> manifest-1.1.0.yaml (updated)
 ```
 
 **Day 3**: Edit postgres YAML, bump manifest
 ```
-prod-build-manifest (patch) → 1.1.0 → 1.1.1, manifest-1.1.1.yaml
+prod-build-manifest (patch) -> 1.1.0 -> 1.1.1, manifest-1.1.1.yaml
 ```
 
 **Day 4**: Build accounting
 ```
-prod-build-images (accounting, patch) → 1.1.1 → 1.1.2
-prod-build-manifest (none)            → manifest-1.1.2.yaml
+prod-build-images (accounting, patch) -> 1.1.1 -> 1.1.2
+prod-build-manifest (none)            -> manifest-1.1.2.yaml
 ```
 
 **Day 5**: Full release, clear hotfixes
 ```
-prod-build-images (all, minor) → 1.1.2 → 1.2.0, clears hotfixes
-prod-build-manifest (none)     → manifest-1.2.0.yaml
+prod-build-images (all, minor) -> 1.1.2 -> 1.2.0, clears hotfixes
+prod-build-manifest (none)     -> manifest-1.2.0.yaml
 ```
 
 ---
@@ -388,11 +388,11 @@ prod-build-manifest (none)     → manifest-1.2.0.yaml
 
 | Indicator | Meaning |
 |-----------|---------|
-| ✅ Current | Service is at the base SPLUNK-VERSION |
-| 🔧 Hotfix | Service has a hotfix version (e.g., 1.1.0-payment.1) |
-| ⚠️ Older | Service is at an older version than SPLUNK-VERSION |
-| 🆕 Newer | Service is at a newer version (unusual) |
-| 📦 External | Service uses external image (not built by us) |
+| [x] Current | Service is at the base SPLUNK-VERSION |
+|  Hotfix | Service has a hotfix version (e.g., 1.1.0-payment.1) |
+| [WARNING] Older | Service is at an older version than SPLUNK-VERSION |
+|  Newer | Service is at a newer version (unusual) |
+|  External | Service uses external image (not built by us) |
 
 ---
 
@@ -401,28 +401,28 @@ prod-build-manifest (none)     → manifest-1.2.0.yaml
 ### When to Bump Versions
 
 **Image Build:**
-- ✅ **Full Release** (all services): Use minor or major bump
-- ✅ **Partial Build** (few services): Use patch bump
-- ✅ **Hotfix** (single service): Use `none` (creates hotfix version)
+- [x] **Full Release** (all services): Use minor or major bump
+- [x] **Partial Build** (few services): Use patch bump
+- [x] **Hotfix** (single service): Use `none` (creates hotfix version)
 
 **Manifest Build:**
-- ✅ **After Image Build**: Use `none` (manifest matches image versions)
-- ✅ **YAML-Only Changes**: Use patch bump (track configuration changes)
-- ⚠️ **Be Careful**: Bumping manifest without images creates version mismatch
+- [x] **After Image Build**: Use `none` (manifest matches image versions)
+- [x] **YAML-Only Changes**: Use patch bump (track configuration changes)
+- [WARNING] **Be Careful**: Bumping manifest without images creates version mismatch
 
 ### Avoiding Version Confusion
 
 **Good Flow:**
 ```
-Build images (patch)  → 1.1.0 → 1.1.1
-Stitch manifest (none) → manifest-1.1.1 (matches images)
+Build images (patch)  -> 1.1.0 -> 1.1.1
+Stitch manifest (none) -> manifest-1.1.1 (matches images)
 ```
 
 **Confusing Flow (avoid):**
 ```
 Edit YAML
-Stitch manifest (patch) → 1.1.0 → 1.1.1 (no images at 1.1.1!)
-Build images (patch)    → 1.1.1 → 1.1.2 (images at 1.1.2, manifest at 1.1.1)
+Stitch manifest (patch) -> 1.1.0 -> 1.1.1 (no images at 1.1.1!)
+Build images (patch)    -> 1.1.1 -> 1.1.2 (images at 1.1.2, manifest at 1.1.1)
 ```
 
 ### Recommended Strategy
@@ -466,10 +466,10 @@ This shouldn't happen with the new workflows, but if it does:
 ## Summary
 
 The updated workflows provide:
-- ✅ **Clear version tracking**: Always see current vs new version
-- ✅ **Image version breakdown**: Know which services use which versions
-- ✅ **Independent progression**: Bump versions for images OR manifests
-- ✅ **Visible mixed versions**: GitHub Actions shows exactly what's in each manifest
-- ✅ **Better PR messages**: Detailed information about changes
+- [x] **Clear version tracking**: Always see current vs new version
+- [x] **Image version breakdown**: Know which services use which versions
+- [x] **Independent progression**: Bump versions for images OR manifests
+- [x] **Visible mixed versions**: GitHub Actions shows exactly what's in each manifest
+- [x] **Better PR messages**: Detailed information about changes
 
 **Container version 1.1.1 and stitched manifest version 1.1.3** is now fully supported and visible!

@@ -1,3 +1,5 @@
+-- Copyright The OpenTelemetry Authors
+-- SPDX-License-Identifier: Apache-2.0
 -- SQL Server Database Initialization Script
 -- This script creates the FraudDetection database and OrderLogs table
 -- Note: The table is also auto-created by the fraud-detection service on startup

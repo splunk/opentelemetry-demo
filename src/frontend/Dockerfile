@@ -34,7 +34,7 @@ RUN npm run build
 # Inject sourceMapId into built JavaScript files
 # This is done at build time so files already have sourceMapId when deployed
 RUN npx @splunk/rum-cli sourcemaps inject \
-    --path ".next/static" || echo "⚠️  Sourcemap injection skipped (non-fatal)"
+    --path ".next/static" || echo "[WARNING] Sourcemap injection skipped (non-fatal)"
 
 # -----------------------------------------------------------------------------
 
@@ -79,4 +79,4 @@ ENV NODE_OPTIONS="--require ./Instrumentation.js"
 
 # Use startup script instead of directly starting node
 CMD ["./start.sh"]
-#ENTRYPOINT ["tail", "-f", "/dev/null"] 
+#ENTRYPOINT ["tail", "-f", "/dev/null"]

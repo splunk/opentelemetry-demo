@@ -6,7 +6,7 @@ This fork streamlines the default OpenTelemetry Demo by removing components not 
 
 ## Getting Started
 
-This deployment assumes you are using Kubernetes — for example, with platforms such as minikube or k3s.
+This deployment assumes you are using Kubernetes -- for example, with platforms such as minikube or k3s.
 The deployment manifests are located in the kubernetes/ folder, with the main file named opentelemetry-demo.yaml.
 
 This file has been adapted to deploy both:
@@ -35,7 +35,7 @@ For example, the Ad Service build script is located at:
 Run the script directly. If executed without parameters, it displays the required usage information:
 
 ```bash
-❌ Error: No version provided.
+[FAIL] Error: No version provided.
 Usage: ./build-ad.sh <version> [-cc] 
 ```
 

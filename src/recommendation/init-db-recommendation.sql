@@ -1,3 +1,5 @@
+-- Copyright The OpenTelemetry Authors
+-- SPDX-License-Identifier: Apache-2.0
 -- Splunk DBMon Demo: The Cartesian Join Catastrophe
 -- PostgreSQL v14+ required
 -- Run this script to set up the demo database
