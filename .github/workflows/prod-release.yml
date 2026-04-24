@@ -208,17 +208,10 @@ jobs:
                   platform = svc.get('platform', 'linux/amd64,linux/arm64')
                   dockerfile = svc.get('dockerfile', f'src/{name}/Dockerfile')
 
-                  if name == 'payment':
-                      for variant, args in [('A', 'VERSION=A'), ('B', 'VERSION=B')]:
-                          services_to_build.append({
-                              'name': name, 'variant': variant, 'platform': platform,
-                              'dockerfile': dockerfile, 'build_args': args
-                          })
-                  else:
-                      services_to_build.append({
-                          'name': name, 'variant': '', 'platform': platform,
-                          'dockerfile': dockerfile, 'build_args': ''
-                      })
+                  services_to_build.append({
+                      'name': name, 'variant': '', 'platform': platform,
+                      'dockerfile': dockerfile, 'build_args': ''
+                  })
 
           if not services_to_build:
               matrix = {'include': [{'name': '_skip', 'variant': '', 'platform': 'linux/amd64', 'dockerfile': 'none', 'build_args': ''}]}
@@ -395,11 +388,9 @@ jobs:
 
           for SERVICE in $SERVICES_TO_UPDATE; do
             if [ "$SERVICE" = "payment" ]; then
-              for VARIANT_FILE in payment-vA-k8s.yaml payment-vB-k8s.yaml; do
-                MANIFEST_PATH="src/payment/$VARIANT_FILE"
+              NEW_IMAGE="${REGISTRY}/otel-payment:${VERSION}"
+              for MANIFEST_PATH in src/payment/payment-vA-k8s.yaml src/payment/payment-vB-k8s.yaml; do
                 if [ -f "$MANIFEST_PATH" ]; then
-                  VARIANT_SUFFIX=$(echo "$VARIANT_FILE" | grep -oP 'v[AB]' | tr '[:upper:]' '[:lower:]' | sed 's/v//')
-                  NEW_IMAGE="${REGISTRY}/otel-payment:${VERSION}-${VARIANT_SUFFIX}"
                   sed -i.bak -E "s|image:[ ]+[^ ]+/otel-payment:[^ ]+|image: ${NEW_IMAGE}|g" "$MANIFEST_PATH"
                   rm -f "${MANIFEST_PATH}.bak"
                   echo "  ✅ $MANIFEST_PATH → $NEW_IMAGE"

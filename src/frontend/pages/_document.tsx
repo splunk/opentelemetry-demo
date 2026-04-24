@@ -36,6 +36,7 @@ export default class MyDocument extends Document<{ envString: string }> {
           SPLUNK_APP_NAME: '${process.env.SPLUNK_APP_NAME}',
           SPLUNK_ENV: '${process.env.SPLUNK_RUM_ENV}',
           SPLUNK_RUM_REALM: '${process.env.SPLUNK_RUM_REALM}',
+          SPLUNK_APP_VERSION: '${process.env.SPLUNK_APP_VERSION || 'latest'}',
           DEPLOYMENT_TYPE: '${process.env.DEPLOYMENT_TYPE || 'green'}'
         };`;
       return {
@@ -79,7 +80,7 @@ export default class MyDocument extends Document<{ envString: string }> {
                     applicationName: window.ENV.SPLUNK_APP_NAME,
                     deploymentEnvironment: window.ENV.SPLUNK_ENV,
                     globalAttributes: getSplunkGlobalAttributes(),
-                    version: '2.0.5',
+                    version: window.ENV.SPLUNK_APP_VERSION,
                     // Digital Experience Analytics configuration
                     user: {
                       trackingMode: 'anonymousTracking'

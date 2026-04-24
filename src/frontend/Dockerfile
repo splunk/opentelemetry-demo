@@ -33,7 +33,8 @@ RUN npm run build
 
 # Inject sourceMapId into built JavaScript files
 # This is done at build time so files already have sourceMapId when deployed
-RUN npx @splunk/rum-cli sourcemaps inject \
+# @splunk/rum-cli is installed via devDependencies (npm ci includes devDeps)
+RUN ./node_modules/.bin/splunk-rum sourcemaps inject \
     --path ".next/static" || echo "[WARNING] Sourcemap injection skipped (non-fatal)"
 
 # -----------------------------------------------------------------------------
@@ -45,9 +46,10 @@ WORKDIR /app
 COPY ./src/frontend/package.json package.json
 COPY ./src/frontend/package-lock.json package-lock.json
 
-RUN npm install  @splunk/rum-cli
-
 RUN npm ci --omit=dev
+
+# Install rum-cli for runtime sourcemap upload (not in prod dependencies)
+RUN npm install @splunk/rum-cli@1.0.0
 
 # -----------------------------------------------------------------------------
 

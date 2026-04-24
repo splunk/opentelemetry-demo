@@ -231,32 +231,12 @@ jobs:
                   # Get dockerfile path (default to standard location)
                   dockerfile = svc.get('dockerfile', f'src/{name}/Dockerfile')
 
-                  # Special handling for payment service - build A and B versions
-                  if name == 'payment':
-                      # Build version A
-                      services_to_build.append({
-                          'name': name,
-                          'variant': 'A',
-                          'platform': platform,
-                          'dockerfile': dockerfile,
-                          'build_args': 'VERSION=A'
-                      })
-                      # Build version B
-                      services_to_build.append({
-                          'name': name,
-                          'variant': 'B',
-                          'platform': platform,
-                          'dockerfile': dockerfile,
-                          'build_args': 'VERSION=B'
-                      })
-                  else:
-                      # Normal service - single build
-                      services_to_build.append({
-                          'name': name,
-                          'variant': '',
-                          'platform': platform,
-                          'dockerfile': dockerfile,
-                          'build_args': ''
+                  services_to_build.append({
+                      'name': name,
+                      'variant': '',
+                      'platform': platform,
+                      'dockerfile': dockerfile,
+                      'build_args': ''
                       })
 
           # Create matrix - ensure at least a dummy entry to avoid GitHub Actions error
@@ -507,33 +487,16 @@ jobs:
             # All services use otel-{service} naming convention
             IMAGE_NAME="otel-${SERVICE}"
 
-            # Special handling for payment service (dual version)
+            # Payment uses single image for both vA and vB manifests
             if [ "$SERVICE" = "payment" ]; then
-              # Update payment-vA manifest
-              MANIFEST_PATH="src/payment/payment-vA-k8s.yaml"
-              if [ -f "$MANIFEST_PATH" ]; then
-                VERSION_TAG_A="${VERSION}-a"
-                NEW_IMAGE_A="${REGISTRY}/otel-payment:${VERSION_TAG_A}"
-                sed -i.bak -E "s|image:[ ]+[^ ]+/otel-payment:[^ ]+|image: ${NEW_IMAGE_A}|g" "$MANIFEST_PATH"
-                rm -f "${MANIFEST_PATH}.bak"
-                echo "✅ Updated $MANIFEST_PATH"
-                echo "   New image: $NEW_IMAGE_A"
-              else
-                echo "⚠️  Manifest not found: $MANIFEST_PATH"
-              fi
-
-              # Update payment-vB manifest
-              MANIFEST_PATH="src/payment/payment-vB-k8s.yaml"
-              if [ -f "$MANIFEST_PATH" ]; then
-                VERSION_TAG_B="${VERSION}-b"
-                NEW_IMAGE_B="${REGISTRY}/otel-payment:${VERSION_TAG_B}"
-                sed -i.bak -E "s|image:[ ]+[^ ]+/otel-payment:[^ ]+|image: ${NEW_IMAGE_B}|g" "$MANIFEST_PATH"
-                rm -f "${MANIFEST_PATH}.bak"
-                echo "✅ Updated $MANIFEST_PATH"
-                echo "   New image: $NEW_IMAGE_B"
-              else
-                echo "⚠️  Manifest not found: $MANIFEST_PATH"
-              fi
+              NEW_IMAGE="${REGISTRY}/otel-payment:${VERSION}"
+              for MANIFEST_PATH in src/payment/payment-vA-k8s.yaml src/payment/payment-vB-k8s.yaml; do
+                if [ -f "$MANIFEST_PATH" ]; then
+                  sed -i.bak -E "s|image:[ ]+[^ ]+/otel-payment:[^ ]+|image: ${NEW_IMAGE}|g" "$MANIFEST_PATH"
+                  rm -f "${MANIFEST_PATH}.bak"
+                  echo "✅ Updated $MANIFEST_PATH → $NEW_IMAGE"
+                fi
+              done
             else
               # Standard service - single manifest
               python3 .github/scripts/update-manifest-images.py "$SERVICE" "$REGISTRY" "$IMAGE_NAME" "$VERSION"

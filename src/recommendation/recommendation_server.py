@@ -59,6 +59,21 @@ CARTESIAN_GOOD_QUERY = '''
     WHERE p.category = %s AND pt.tag = %s
     ORDER BY pt.relevance_score DESC LIMIT 10'''
 
+# Normalized query forms for db.statement attribute (matches pg_stat_statements fingerprint)
+CARTESIAN_BAD_QUERY_NORMALIZED = '''
+    SELECT p.product_id, p.name, p.price, pt.tag, pt.relevance_score
+    FROM products p
+    JOIN product_tags pt ON 1=1
+    WHERE p.category = $1 AND pt.tag = $2
+    ORDER BY pt.relevance_score DESC LIMIT 10'''
+
+CARTESIAN_GOOD_QUERY_NORMALIZED = '''
+    SELECT p.product_id, p.name, p.price, pt.tag, pt.relevance_score
+    FROM products p
+    JOIN product_tags pt ON pt.product_id = p.product_id
+    WHERE p.category = $1 AND pt.tag = $2
+    ORDER BY pt.relevance_score DESC LIMIT 10'''
+
 CATEGORIES = ['telescope', 'eyepiece', 'mount', 'camera', 'filter']
 TAGS = ['beginner', 'advanced', 'astrophotography', 'visual', 'planetary']
 
@@ -212,7 +227,7 @@ def get_pg_pool():
                 maxconn=5,
                 host=os.environ.get('POSTGRES_HOST', 'postgres'),
                 port=int(os.environ.get('POSTGRES_PORT', '5432')),
-                database=os.environ.get('POSTGRES_DB', 'astronomy_shop'),
+                database=os.environ.get('POSTGRES_DB', 'otel'),
                 user=os.environ.get('POSTGRES_USER', 'demo_app_user'),
                 password=os.environ.get('POSTGRES_PASSWORD', 'demo_password')
             )
@@ -232,14 +247,20 @@ def execute_cartesian_query(use_bad_query: bool):
         return None
 
     query = CARTESIAN_BAD_QUERY if use_bad_query else CARTESIAN_GOOD_QUERY
+    query_normalized = CARTESIAN_BAD_QUERY_NORMALIZED if use_bad_query else CARTESIAN_GOOD_QUERY_NORMALIZED
     category = random.choice(CATEGORIES)
     tag = random.choice(TAGS)
+
+    db_name = os.environ.get('POSTGRES_DB', 'otel')
+    db_user = os.environ.get('POSTGRES_USER', 'demo_app_user')
 
     tracer = trace.get_tracer_provider().get_tracer('recommendationservice')
     with tracer.start_as_current_span('db.get_product_recommendations') as span:
         span.set_attribute('db.system', 'postgresql')
+        span.set_attribute('db.name', db_name)
+        span.set_attribute('db.user', db_user)
         span.set_attribute('db.operation', 'SELECT')
-        span.set_attribute('db.statement', query)
+        span.set_attribute('db.statement', query_normalized)
         span.set_attribute('recommendation.category', category)
         span.set_attribute('recommendation.tag', tag)
         span.set_attribute('recommendation.cartesian_query', use_bad_query)
