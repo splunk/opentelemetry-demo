@@ -16,17 +16,22 @@ jobs:
       - name: Add OTel remote and fetch
         run: |
           git remote add otel https://github.com/open-telemetry/opentelemetry-demo.git
-          git fetch otel --tags --quiet
+          git fetch otel --no-tags --quiet
 
       - name: Check sync status
         id: sync_status
         run: |
-          # Find latest OTel release tag (numeric only, e.g., 2.2.0)
-          LATEST_TAG=$(git tag -l '[0-9]*.[0-9]*.[0-9]*' --sort=-version:refname | head -1)
+          # Find latest OTel release tag from remote (avoids tag collisions)
+          LATEST_TAG=$(git ls-remote --tags otel 'refs/tags/[0-9]*' | \
+            grep -oP '(?<=refs/tags/)[0-9]+\.[0-9]+\.[0-9]+$' | \
+            sort -V | tail -1)
           echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
 
+          # Fetch that specific tag for comparison
+          git fetch otel tag "$LATEST_TAG" --no-tags --quiet 2>/dev/null || true
+
           # Count commits behind latest tag
-          BEHIND_TAG=$(git log --oneline HEAD..$LATEST_TAG 2>/dev/null | wc -l | tr -d ' ')
+          BEHIND_TAG=$(git log --oneline HEAD..FETCH_HEAD 2>/dev/null | wc -l | tr -d ' ')
           echo "behind_tag=$BEHIND_TAG" >> $GITHUB_OUTPUT
 
           # Count commits behind otel/main
@@ -37,10 +42,11 @@ jobs:
           AHEAD=$(git log --oneline otel/main..HEAD 2>/dev/null | wc -l | tr -d ' ')
           echo "ahead=$AHEAD" >> $GITHUB_OUTPUT
 
-          # Find merge base to determine which OTel tag we're synced to
+          # Find merge base to determine sync point
           MERGE_BASE=$(git merge-base HEAD otel/main 2>/dev/null || echo "none")
           if [ "$MERGE_BASE" != "none" ]; then
-            SYNCED_TO=$(git describe --tags --abbrev=0 $MERGE_BASE 2>/dev/null || echo "unknown")
+            # Describe relative to otel/main history
+            SYNCED_TO=$(git log --oneline $MERGE_BASE -1 --format='%h %s' 2>/dev/null || echo "unknown")
           else
             SYNCED_TO="unknown"
           fi
@@ -57,8 +63,8 @@ jobs:
         run: |
           LATEST_TAG=${{ steps.sync_status.outputs.latest_tag }}
 
-          # Attempt merge without committing
-          git merge --no-commit --no-ff $LATEST_TAG 2>/dev/null || true
+          # Attempt merge against otel/main (closest to latest tag)
+          git merge --no-commit --no-ff otel/main 2>/dev/null || true
 
           # Count conflict files
           CONFLICTS=$(git diff --name-only --diff-filter=U 2>/dev/null | wc -l | tr -d ' ')
