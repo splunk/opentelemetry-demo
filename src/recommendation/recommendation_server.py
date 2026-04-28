@@ -60,19 +60,21 @@ CARTESIAN_GOOD_QUERY = '''
     ORDER BY pt.relevance_score DESC LIMIT 10'''
 
 # Normalized query forms for db.statement attribute (matches pg_stat_statements fingerprint)
+# Normalized forms must match pg_stat_statements output exactly.
+# PostgreSQL normalizes literal 1=1 as $1=$2, shifting WHERE params to $3/$4.
 CARTESIAN_BAD_QUERY_NORMALIZED = '''
     SELECT p.product_id, p.name, p.price, pt.tag, pt.relevance_score
     FROM products p
-    JOIN product_tags pt ON 1=1
-    WHERE p.category = $1 AND pt.tag = $2
-    ORDER BY pt.relevance_score DESC LIMIT 10'''
+    JOIN product_tags pt ON $1=$2
+    WHERE p.category = $3 AND pt.tag = $4
+    ORDER BY pt.relevance_score DESC LIMIT $5'''
 
 CARTESIAN_GOOD_QUERY_NORMALIZED = '''
     SELECT p.product_id, p.name, p.price, pt.tag, pt.relevance_score
     FROM products p
     JOIN product_tags pt ON pt.product_id = p.product_id
     WHERE p.category = $1 AND pt.tag = $2
-    ORDER BY pt.relevance_score DESC LIMIT 10'''
+    ORDER BY pt.relevance_score DESC LIMIT $3'''
 
 CATEGORIES = ['telescope', 'eyepiece', 'mount', 'camera', 'filter']
 TAGS = ['beginner', 'advanced', 'astrophotography', 'visual', 'planetary']
