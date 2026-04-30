@@ -49,8 +49,8 @@ RUN cd /tmp && \
 
 # Download the specific Splunk OpenTelemetry Java agent CSA version and replace it within the AppDynamics directory
 RUN cd /tmp && \
-    SPLUNK_OTEL_CSA_URL="https://repo1.maven.org/maven2/com/splunk/splunk-otel-javaagent-csa/2.21.1/splunk-otel-javaagent-csa-2.21.1.jar" && \
-    SPLUNK_OTEL_CSA_FILENAME="splunk-otel-javaagent-csa-2.21.1.jar" && \
+    SPLUNK_OTEL_CSA_URL="https://repo1.maven.org/maven2/com/splunk/splunk-otel-javaagent-csa/2.27.0/splunk-otel-javaagent-csa-2.27.0.jar" && \
+    SPLUNK_OTEL_CSA_FILENAME="splunk-otel-javaagent-csa-2.27.0.jar" && \
     curl -L -f "$SPLUNK_OTEL_CSA_URL" -o "$SPLUNK_OTEL_CSA_FILENAME" && \
     echo "Downloaded Splunk OpenTelemetry CSA agent." && \
     ls -la "$SPLUNK_OTEL_CSA_FILENAME" && \

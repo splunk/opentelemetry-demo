@@ -15,7 +15,7 @@ RUN gradle shadowJar
 
 FROM gcr.io/distroless/java17-debian12:nonroot
 
-ARG SPLUNK_OTEL_JAVA_VERSION=2.20.1
+ARG SPLUNK_OTEL_JAVA_VERSION=2.27.0
 WORKDIR /usr/src/app/
 
 ADD --chmod=644 https://github.com/signalfx/splunk-otel-java/releases/download/v${SPLUNK_OTEL_JAVA_VERSION}/splunk-otel-javaagent.jar /usr/src/app/splunk-otel-javaagent.jar
