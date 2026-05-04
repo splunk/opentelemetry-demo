@@ -1,0 +1,150 @@
+name: Build Test Images
+
+# Builds container images for test infrastructure (stubs, mocks, etc.)
+# Auto-discovers all Dockerfiles under test/ directories.
+
+"on":
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag for test images'
+        required: true
+        type: string
+        default: 'latest'
+      no_cache:
+        description: 'Disable build cache'
+        required: false
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - 'test/**/Dockerfile'
+      - 'test/**/*.py'
+      - 'test/**/*.proto'
+      - 'test/**/requirements.txt'
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.find.outputs.matrix }}
+      registry: ${{ steps.find.outputs.registry }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Discover test Dockerfiles
+        id: find
+        run: |
+          # Auto-detect registry from repo
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          REPO_NAME=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
+          REGISTRY="ghcr.io/${REPO_OWNER}/${REPO_NAME}"
+          echo "registry=${REGISTRY}" >> $GITHUB_OUTPUT
+
+          # Find all Dockerfiles under test/
+          MATRIX='{"include":['
+          FIRST=true
+
+          while IFS= read -r dockerfile; do
+            # Extract directory name as image name
+            # test/dc-shim-standalone/Dockerfile -> dc-shim-standalone
+            DIR=$(dirname "$dockerfile")
+            NAME=$(basename "$DIR")
+            CONTEXT="$DIR"
+
+            if [ "$FIRST" = true ]; then
+              FIRST=false
+            else
+              MATRIX="${MATRIX},"
+            fi
+
+            MATRIX="${MATRIX}{\"name\":\"${NAME}\",\"dockerfile\":\"${dockerfile}\",\"context\":\"${CONTEXT}\"}"
+            echo "Found: ${NAME} (${dockerfile})"
+          done < <(find test -name Dockerfile -type f | sort)
+
+          MATRIX="${MATRIX}]}"
+
+          # Check if we found anything
+          if [ "$FIRST" = true ]; then
+            echo "No Dockerfiles found under test/"
+            MATRIX='{"include":[{"name":"_skip","dockerfile":"none","context":"none"}]}'
+          fi
+
+          echo "matrix=${MATRIX}" >> $GITHUB_OUTPUT
+          echo "Matrix: ${MATRIX}"
+
+      - name: Summary
+        run: |
+          echo "### Test Image Build" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Registry:** \`${{ steps.find.outputs.registry }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** \`${{ inputs.version || 'latest' }}\`" >> $GITHUB_STEP_SUMMARY
+
+  build:
+    needs: discover
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+
+    steps:
+      - name: Check skip
+        id: check
+        run: |
+          if [[ "${{ matrix.name }}" == "_skip" ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout repository
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        if: steps.check.outputs.skip != 'true'
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        if: steps.check.outputs.skip != 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        if: steps.check.outputs.skip != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ needs.discover.outputs.registry }}/${{ matrix.name }}:${{ inputs.version || 'latest' }}
+            ${{ needs.discover.outputs.registry }}/${{ matrix.name }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          no-cache: ${{ inputs.no_cache || false }}
+
+      - name: Image info
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          REGISTRY="${{ needs.discover.outputs.registry }}"
+          VERSION="${{ inputs.version || 'latest' }}"
+          echo "### Built: ${{ matrix.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | \`${REGISTRY}/${{ matrix.name }}:${VERSION}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Also tagged | \`${REGISTRY}/${{ matrix.name }}:latest\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Platform | \`linux/amd64,linux/arm64\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Context | \`${{ matrix.context }}\` |" >> $GITHUB_STEP_SUMMARY
