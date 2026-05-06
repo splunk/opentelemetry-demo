@@ -80,8 +80,6 @@ spec:
           value: "host=postgresql user=otelu password=otelp dbname=otel sslmode=disable"
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
           value: http://$(OTEL_COLLECTOR_NAME):4317
-        - name: OTEL_CONFIG_FILE
-          value: /etc/otel/otel-config.yml
         - name: GOMEMLIMIT
           value: 200MiB
         - name: OTEL_RESOURCE_ATTRIBUTES
@@ -92,15 +90,10 @@ spec:
         volumeMounts:
         - name: product-catalog-products
           mountPath: /usr/src/app/products
-        - name: otel-config
-          mountPath: /etc/otel
       volumes:
       - name: product-catalog-products
         configMap:
           name: product-catalog-products
-      - name: otel-config
-        configMap:
-          name: otel-config
 ---
 apiVersion: v1
 kind: ConfigMap
