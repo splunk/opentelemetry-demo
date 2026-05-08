@@ -19,6 +19,10 @@ data:
     // Global browser instance for reuse across cycles
     let globalBrowser = null;
 
+    // Throttle quick prompts to once every 5 minutes
+    let lastQuickPromptTime = 0;
+    const QUICK_PROMPT_INTERVAL_MS = 5 * 60 * 1000;
+
     async function launchBrowser() {
       console.log('🔹 Starting headless browser...');
       const browser = await puppeteer.launch({
@@ -170,6 +174,10 @@ data:
           await delay(500);
           console.log('✅ Page fully loaded with all API calls complete');
 
+          // Quick prompts - throttled to once every 5 minutes
+          const now = Date.now();
+          if (now - lastQuickPromptTime >= QUICK_PROMPT_INTERVAL_MS) {
+          lastQuickPromptTime = now;
           console.log('🖱️ Clicking quick prompts...');
 
           // Click "Can you summarize the product reviews?"
@@ -249,6 +257,10 @@ data:
                 console.log('⚠️ AI response timeout, continuing...');
               });
               await delay(1500); // Allow response to fully render
+          }
+
+          } else {
+            console.log('⏭️ Skipping quick prompts (next run in ' + Math.round((QUICK_PROMPT_INTERVAL_MS - (now - lastQuickPromptTime)) / 1000) + 's)');
           }
 
           const addSel = "[data-cy='product-add-to-cart']";
