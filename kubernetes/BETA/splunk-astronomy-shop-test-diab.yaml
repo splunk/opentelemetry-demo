@@ -1,6 +1,6 @@
 # Splunk Astronomy Shop Kubernetes Manifest
 # Version: test
-# Generated on: 2026-05-07T16:07:41Z
+# Generated on: 2026-05-08T18:29:17Z
 #
 # This manifest combines service deployments for the Splunk Astronomy Shop
 # Services are defined in services.yaml
@@ -240,6 +240,12 @@ data:
     // Global browser instance for reuse across cycles
     let globalBrowser = null;
 
+    // Throttle quick prompts (AI review questions) to reduce LLM/product-reviews load.
+    // Set QUICK_PROMPT_INTERVAL_MS env var to control interval in milliseconds.
+    // Default: 300000 (5 minutes). Set to 0 to run every cycle.
+    let lastQuickPromptTime = 0;
+    const QUICK_PROMPT_INTERVAL_MS = parseInt(process.env.QUICK_PROMPT_INTERVAL_MS || '300000', 10);
+
     async function launchBrowser() {
       console.log('🔹 Starting headless browser...');
       const browser = await puppeteer.launch({
@@ -391,6 +397,10 @@ data:
           await delay(500);
           console.log('✅ Page fully loaded with all API calls complete');
 
+          // Quick prompts - throttled to once every 5 minutes
+          const now = Date.now();
+          if (now - lastQuickPromptTime >= QUICK_PROMPT_INTERVAL_MS) {
+          lastQuickPromptTime = now;
           console.log('🖱️ Clicking quick prompts...');
 
           // Click "Can you summarize the product reviews?"
@@ -470,6 +480,10 @@ data:
                 console.log('⚠️ AI response timeout, continuing...');
               });
               await delay(1500); // Allow response to fully render
+          }
+
+          } else {
+            console.log('⏭️ Skipping quick prompts (next run in ' + Math.round((QUICK_PROMPT_INTERVAL_MS - (now - lastQuickPromptTime)) / 1000) + 's)');
           }
 
           const addSel = "[data-cy='product-add-to-cart']";
@@ -558,6 +572,8 @@ spec:
           value: "1000"
         - name: DEBUG_LOGGING
           value: ""  # Set to "true" to enable debug logging
+        - name: QUICK_PROMPT_INTERVAL_MS
+          value: "300000"  # How often AI quick prompts run (ms). Default 300000 (5min). Set "0" for every cycle.
         resources:
           requests:
             memory: "768Mi"
@@ -2134,7 +2150,7 @@ spec:
 
       containers:
       - name: payment
-        image: ghcr.io/splunk/opentelemetry-demo/otel-payment:2.0.0
+        image: ghcr.io/splunk/opentelemetry-demo/otel-payment:2.0.1
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
@@ -2334,7 +2350,7 @@ spec:
 
       containers:
       - name: payment
-        image: ghcr.io/splunk/opentelemetry-demo/otel-payment:2.0.0
+        image: ghcr.io/splunk/opentelemetry-demo/otel-payment:2.0.1
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
