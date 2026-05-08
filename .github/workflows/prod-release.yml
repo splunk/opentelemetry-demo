@@ -600,7 +600,6 @@ jobs:
             fi
           fi
 
-          # Stage source manifests and values file (NOT stitched manifests)
           # Stage source manifests and values files only
           # Stitched manifests are gitignored — they go to GitHub Release assets
           git add src/*/*-k8s.yaml
