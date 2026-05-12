@@ -604,11 +604,9 @@ jobs:
           MANIFEST_FILE="${{ steps.stitch.outputs.manifest_file }}"
           MANIFEST_FILE_DIAB="${{ steps.stitch.outputs.manifest_file_diab }}"
 
+          # Stage source manifests and values files only
+          # Stitched manifests are gitignored — they go to GitHub Release assets
           git add src/*/*-k8s.yaml
-          [ -n "$MANIFEST_FILE" ] && [ -f "$MANIFEST_FILE" ] && git add "$MANIFEST_FILE"
-          [ -n "$MANIFEST_FILE_DIAB" ] && [ -f "$MANIFEST_FILE_DIAB" ] && git add "$MANIFEST_FILE_DIAB"
-          [ -f "${{ steps.stitch.outputs.manifest_lambda }}" ] && git add "${{ steps.stitch.outputs.manifest_lambda }}"
-          [ -f "${{ steps.stitch.outputs.manifest_dc_shim }}" ] && git add "${{ steps.stitch.outputs.manifest_dc_shim }}"
           git add kubernetes/splunk-astronomy-shop-*-values.yaml 2>/dev/null || true
 
           if git diff --staged --quiet; then
