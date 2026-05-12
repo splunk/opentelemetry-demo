@@ -71,7 +71,9 @@ spec:
         - name: OTEL_PYTHON_LOG_CORRELATION
           value: 'true'
         - name: OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT
-          value: 'true'
+          value: 'span_only'
+        - name: OTEL_SEMCONV_STABILITY_OPT_IN
+          value: 'gen_ai_latest_experimental'
         - name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
           value: python
         - name: FLAGD_HOST
