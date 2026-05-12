@@ -19,9 +19,6 @@ data:
     // Global browser instance for reuse across cycles
     let globalBrowser = null;
 
-    // Throttle quick prompts to once every 5 minutes
-    let lastQuickPromptTime = 0;
-    const QUICK_PROMPT_INTERVAL_MS = 5 * 60 * 1000;
 
     async function launchBrowser() {
       console.log('🔹 Starting headless browser...');
@@ -230,6 +227,10 @@ data:
             console.log('⏭️ Skipping quick prompts (next run in ' + Math.round((QUICK_PROMPT_INTERVAL_MS - (now - lastQuickPromptTime)) / 1000) + 's)');
           }
 
+          } else {
+            console.log('⏭️ Skipping quick prompts (next run in ' + Math.round((QUICK_PROMPT_INTERVAL_MS - (now - lastQuickPromptTime)) / 1000) + 's)');
+          }
+
           const addSel = "[data-cy='product-add-to-cart']";
           await page.waitForSelector(addSel);
           console.log(`🖱️ Clicking "Add To Cart" for product ${productId}`);
@@ -316,6 +317,8 @@ spec:
           value: "1000"
         - name: DEBUG_LOGGING
           value: ""  # Set to "true" to enable debug logging
+        - name: QUICK_PROMPT_INTERVAL_MS
+          value: "300000"  # How often AI quick prompts run (ms). Default 300000 (5min). Set "0" for every cycle.
         resources:
           requests:
             memory: "768Mi"
