@@ -189,6 +189,12 @@ services:
     manifest: false # false till we sorted out thousand eyes instance and secret issue
     replace_registry: false  # Uses thousandeyes/enterprise-agent
 
+  - name: secureapp-loadgen
+    build: true
+    manifest: true
+    group: secureapp
+    platform: "linux/amd64"
+
   - name: valkey-cart
     build: false
     manifest: true

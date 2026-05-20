@@ -164,6 +164,16 @@
         "off": false
       },
       "defaultVariant": "off"
+    },
+    "secureappAttack": {
+      "description": "Controls secureapp loadgen pace. Minimal spreads vuln probes across ~2 days. Max fires all attacks aggressively every few minutes.",
+      "state": "ENABLED",
+      "variants": {
+        "minimal": "minimal",
+        "targeted": "targeted",
+        "max": "max"
+      },
+      "defaultVariant": "minimal"
     }
   }
 }
