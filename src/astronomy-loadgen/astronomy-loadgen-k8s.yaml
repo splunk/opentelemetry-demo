@@ -19,6 +19,7 @@ data:
     // Global browser instance for reuse across cycles
     let globalBrowser = null;
 
+
     async function launchBrowser() {
       console.log('🔹 Starting headless browser...');
       const browser = await puppeteer.launch({
@@ -170,27 +171,50 @@ data:
           await delay(500);
           console.log('✅ Page fully loaded with all API calls complete');
 
-          console.log('🖱️ Clicking quick prompts...');
+          // Quick prompts - throttled to once every 5 minutes
+          const now = Date.now();
+          if (now - lastQuickPromptTime >= QUICK_PROMPT_INTERVAL_MS) {
+          lastQuickPromptTime = now;
 
-          // Click "Can you summarize the product reviews?"
+          const quickPrompts = [
+            {
+              label: 'Can you summarize the product reviews?',
+              dataCy: 'QuickPromptSummarize',
+              ariaSelector: '::-p-aria(Can you summarize the product reviews?)',
+              textSelector: '::-p-text(Can you summarize)',
+              offset: { x: 129, y: 15 },
+            },
+            {
+              label: 'Were there any negative reviews?',
+              dataCy: 'QuickPromptNegative',
+              ariaSelector: '::-p-aria(Were there any negative reviews?)',
+              textSelector: '::-p-text(Were there any)',
+              offset: { x: 171.6640625, y: 25 },
+            },
+            {
+              label: 'What age(s) is this recommended for?',
+              dataCy: 'QuickPromptAges',
+              ariaSelector: '::-p-aria(What age\\(s\\) is this recommended for?)',
+              textSelector: '::-p-text(What age\\(s\\) is)',
+              offset: { x: 148.0390625, y: 19 },
+            },
+          ];
+
+          const prompt = quickPrompts[Math.floor(Math.random() * quickPrompts.length)];
+          console.log(`🖱️ Clicking quick prompt: "${prompt.label}"`);
+
           {
-              console.log('🔍 Examining product reviews...');
               const targetPage = page;
               const timeout = 5000;
               await puppeteer.Locator.race([
-                  targetPage.locator('::-p-aria(Can you summarize the product reviews?)'),
-                  targetPage.locator("[data-cy='QuickPromptSummarize']"),
-                  targetPage.locator('::-p-xpath(//*[@data-cy=\\"QuickPromptSummarize\\"])'),
-                  targetPage.locator(":scope >>> [data-cy='QuickPromptSummarize']"),
-                  targetPage.locator('::-p-text(Can you summarize)')
+                  targetPage.locator(prompt.ariaSelector),
+                  targetPage.locator(`[data-cy='${prompt.dataCy}']`),
+                  targetPage.locator(`::-p-xpath(//*[@data-cy=\\"${prompt.dataCy}\\"])`),
+                  targetPage.locator(`:scope >>> [data-cy='${prompt.dataCy}']`),
+                  targetPage.locator(prompt.textSelector)
               ])
                   .setTimeout(timeout)
-                  .click({
-                    offset: {
-                      x: 129,
-                      y: 15,
-                    },
-                  });
+                  .click({ offset: prompt.offset });
               console.log('⏳ Waiting for AI response...');
               await delay(500); // Let request start
               await page.waitForSelector("[data-cy='AIAnswer']", { timeout: 15000, visible: true }).catch(() => {
@@ -199,56 +223,12 @@ data:
               await delay(1500); // Allow response to fully render
           }
 
-          // Click "Were there any negative reviews?"
-          {
-              const targetPage = page;
-              const timeout = 5000;
-              await puppeteer.Locator.race([
-                  targetPage.locator('::-p-aria(Were there any negative reviews?)'),
-                  targetPage.locator("[data-cy='QuickPromptNegative']"),
-                  targetPage.locator('::-p-xpath(//*[@data-cy=\\"QuickPromptNegative\\"])'),
-                  targetPage.locator(":scope >>> [data-cy='QuickPromptNegative']"),
-                  targetPage.locator('::-p-text(Were there any)')
-              ])
-                  .setTimeout(timeout)
-                  .click({
-                    offset: {
-                      x: 171.6640625,
-                      y: 25,
-                    },
-                  });
-              console.log('⏳ Waiting for AI response...');
-              await delay(500); // Let request start
-              await page.waitForSelector("[data-cy='AIAnswer']", { timeout: 15000, visible: true }).catch(() => {
-                console.log('⚠️ AI response timeout, continuing...');
-              });
-              await delay(1500); // Allow response to fully render
+          } else {
+            console.log('⏭️ Skipping quick prompts (next run in ' + Math.round((QUICK_PROMPT_INTERVAL_MS - (now - lastQuickPromptTime)) / 1000) + 's)');
           }
 
-          // Click "What age(s) is this recommended for?"
-          {
-              const targetPage = page;
-              const timeout = 5000;
-              await puppeteer.Locator.race([
-                  targetPage.locator('::-p-aria(What age\\(s\\) is this recommended for?)'),
-                  targetPage.locator("[data-cy='QuickPromptAges']"),
-                  targetPage.locator('::-p-xpath(//*[@data-cy=\\"QuickPromptAges\\"])'),
-                  targetPage.locator(":scope >>> [data-cy='QuickPromptAges']"),
-                  targetPage.locator('::-p-text(What age\\(s\\) is)')
-              ])
-                  .setTimeout(timeout)
-                  .click({
-                    offset: {
-                      x: 148.0390625,
-                      y: 19,
-                    },
-                  });
-              console.log('⏳ Waiting for AI response...');
-              await delay(500); // Let request start
-              await page.waitForSelector("[data-cy='AIAnswer']", { timeout: 15000, visible: true }).catch(() => {
-                console.log('⚠️ AI response timeout, continuing...');
-              });
-              await delay(1500); // Allow response to fully render
+          } else {
+            console.log('⏭️ Skipping quick prompts (next run in ' + Math.round((QUICK_PROMPT_INTERVAL_MS - (now - lastQuickPromptTime)) / 1000) + 's)');
           }
 
           const addSel = "[data-cy='product-add-to-cart']";
@@ -337,6 +317,8 @@ spec:
           value: "1000"
         - name: DEBUG_LOGGING
           value: ""  # Set to "true" to enable debug logging
+        - name: QUICK_PROMPT_INTERVAL_MS
+          value: "300000"  # How often AI quick prompts run (ms). Default 300000 (5min). Set "0" for every cycle.
         resources:
           requests:
             memory: "768Mi"

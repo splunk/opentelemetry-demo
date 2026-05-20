@@ -68,3 +68,10 @@ planning-lambda/Planning_Init/.aws-sam/*
 kubernetes/splunk-astronomy-shop-*.yaml
 !kubernetes/splunk-astronomy-shop-*-values.yaml
 kubernetes/beta/
+kubernetes/splunk-astronomy-shop-2.0.1-values.yaml
+test/dbmon-testing-values.yaml
+test/dc-shim-standalone/dc-shim-standalone-manifest.yaml
+test/fraud-standalone/fraud-standalone-manifest.yaml
+test/fraud-standalone/fraud-standalone-values.yaml
+test/dc-shim-standalone/dc-shim-standalone-values.yaml
+

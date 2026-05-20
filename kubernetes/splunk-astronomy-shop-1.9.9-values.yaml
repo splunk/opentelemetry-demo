@@ -151,17 +151,6 @@ agent:
                   enabled: true
                 sqlserver.user.connection.count:
                   enabled: true
-          # Kafka receiver - discovered by agent on same node as kafka pod
-          kafkametrics:
-            rule: type == "port" && pod.name matches "kafka" && port == 9092
-            config:
-              protocol_version: 3.7.0
-              brokers: '`endpoint`'
-              collection_interval: 10s
-              scrapers:
-                - brokers
-                - topics
-                - consumers
           # PostgreSQL receiver - discovered by agent on same node as database pod
           postgresql/main:
             rule: type == "port" && pod.name matches "postgres" && port == 5432
@@ -214,7 +203,7 @@ agent:
         attributes:
           - key: deployment.environment
             value: ${WORKSHOP_ENVIRONMENT}
-            action: insert
+            action: upsert
       filter/drop_flagd:
         traces:
           span:
@@ -223,11 +212,11 @@ agent:
           - attributes["rpc.method"] == "ResolveBoolean"
           - attributes["rpc.method"] == "ResolveFloat"
           - attributes["rpc.method"] == "ResolveInt"
-          - IsMatch(attributes["url.full"], "http://flagd:8013/.*")
-          - IsMatch(attributes["url.full"], "http://flagd:8016/.*")
-          - IsMatch(attributes["otel.scope.name"], "flagd\\..*")
+          - attributes["http.url"] == "http://flagd:8016/ofrep/v1/evaluate/flags/loadGeneratorFloodHomepage"
+          - attributes["url.full"] == "http://flagd:8013/flagd.evaluation.v1.Service/ResolveBoolean"
+          - attributes["otel.scope.name"] == "flagd.evaluation.v1"
+          - attributes["url.full"] == "http://flagd:8013/flagd.evaluation.v1.Service/EventStream"
           - attributes["url.path"] == "/live/longpoll"
-          - name == "orders receive" and attributes["messaging.operation"] == "receive"
       transform/dc_not_error:
         error_mode: ignore
         trace_statements:

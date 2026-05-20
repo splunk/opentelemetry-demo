@@ -37,6 +37,10 @@ const SUCCESS_VERSION = versionConfig.versionString || versionConfig.displayVers
 const FAILURE_VERSION = versionConfig.versionString || versionConfig.displayVersion.replace(/(\d+)$/, (match) => `${parseInt(match) + 1}`);
 const API_TOKEN_SUCCESS_TOKEN = versionConfig.apiToken;
 const API_TOKEN_FAILURE_TOKEN = versionConfig.apiToken.replace('prod', 'test');
+// In vB mode, the token prefix determines success/failure:
+// - "prod-*" token = succeed (simulates fix by replacing the bad API key)
+// - "test-*" token = fail (default vB behavior)
+const isTokenBad = versionConfig.apiToken.startsWith('test');
 // Version-specific timing from config
 const SUCCESS_PAYMENT_SERVICE_DURATION_MILLIS = versionConfig.successDelayRange[1];
 const ERROR_PAYMENT_SERVICE_DURATION_MILLIS = versionConfig.failureDelayRange[1];
@@ -265,9 +269,10 @@ module.exports.charge = async request => {
   const RETRY_BASE_DELAY_MS = versionConfig.retryBaseDelayMs;
 
   // Version-specific behavior:
-  // - Version A: Normal operation (succeeds)
-  // - Version B: Always fails (error testing pod)
-  const shouldFailRequest = versionConfig.alwaysFail || false;
+  // - Version A: Normal operation (always succeeds)
+  // - Version B: Fails when using a bad (test-*) API token.
+  //   Replacing the token in the k8s secret with a prod-* token fixes it.
+  const shouldFailRequest = versionConfig.alwaysFail ? isTokenBad : false;
 
   // If this request is destined to fail, pre-calculate timing to ensure 4-8 seconds total
   let failureTimings = null;

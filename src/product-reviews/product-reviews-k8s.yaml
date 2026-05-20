@@ -47,7 +47,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: product-reviews
-        image: ghcr.io/splunk/opentelemetry-demo/otel-product-reviews:2.0.0
+        image: ghcr.io/splunk/opentelemetry-demo/otel-product-reviews:2.0.1
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3551
@@ -71,7 +71,9 @@ spec:
         - name: OTEL_PYTHON_LOG_CORRELATION
           value: 'true'
         - name: OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT
-          value: 'true'
+          value: 'span_only'
+        - name: OTEL_SEMCONV_STABILITY_OPT_IN
+          value: 'gen_ai_latest_experimental'
         - name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
           value: python
         - name: FLAGD_HOST

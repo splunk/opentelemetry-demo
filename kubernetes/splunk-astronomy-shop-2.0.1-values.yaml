@@ -187,7 +187,7 @@ agent:
                   enabled: true
     exporters:
       # Exports dbmon events as logs
-      otlp_http/dbmon:
+      otlphttp/dbmon:
         headers:
           X-SF-Token: ${SPLUNK_OBSERVABILITY_ACCESS_TOKEN}
           X-splunk-instrumentation-library: dbmon
@@ -291,21 +291,21 @@ agent:
       pipelines:
         metrics:
           exporters: [signalfx]
-          processors: [memory_limiter, k8s_attributes, batch, resourcedetection, resource, resource/add_environment, transform/dbmon]
-          receivers: [host_metrics, kubeletstats, otlp, receiver_creator]
+          processors: [memory_limiter, k8sattributes, batch, resourcedetection, resource, resource/add_environment, transform/dbmon]
+          receivers: [hostmetrics, kubeletstats, otlp, receiver_creator]
         traces:
-          exporters: [signalfx, otlp_http]
-          processors: [memory_limiter, filter/drop_flagd, transform/dc_not_error, k8s_attributes, batch, resourcedetection, resource, resource/add_environment]
+          exporters: [signalfx, otlphttp]
+          processors: [memory_limiter, filter/drop_flagd, transform/dc_not_error, k8sattributes, batch, resourcedetection, resource, resource/add_environment]
           receivers: [otlp, jaeger, zipkin]
         # DBMon logs pipeline - sends query samples and top queries to Splunk O11y
         logs/dbmon:
           receivers: [receiver_creator]
           processors: [memory_limiter, batch, resourcedetection, resource, resource/add_environment, transform/dbmon]
-          exporters: [otlp_http/dbmon]
+          exporters: [otlphttp/dbmon]
 
 logsCollection:
   extraFileLogs:
-    file_log/syslog:
+    filelog/syslog:
       include: [/var/log/syslog]
       include_file_path: true
       include_file_name: false
@@ -313,7 +313,7 @@ logsCollection:
         com.splunk.source: /var/log/syslog
         host.name: 'EXPR(env("K8S_NODE_NAME"))'
         com.splunk.sourcetype: syslog
-    file_log/auth_log:
+    filelog/auth_log:
       include: [/var/log/auth.log]
       include_file_path: true
       include_file_name: false
