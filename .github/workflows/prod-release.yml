@@ -420,14 +420,16 @@ jobs:
           MANIFEST_FILE_DIAB="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-diab.yaml"
           MANIFEST_LAMBDA="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-lambda.yaml"
           MANIFEST_DC_SHIM="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-dc-shim.yaml"
+          MANIFEST_SECUREAPP="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-secureapp.yaml"
 
           echo "manifest_file=$MANIFEST_FILE" >> $GITHUB_OUTPUT
           echo "manifest_file_diab=$MANIFEST_FILE_DIAB" >> $GITHUB_OUTPUT
           echo "manifest_lambda=$MANIFEST_LAMBDA" >> $GITHUB_OUTPUT
           echo "manifest_dc_shim=$MANIFEST_DC_SHIM" >> $GITHUB_OUTPUT
+          echo "manifest_secureapp=$MANIFEST_SECUREAPP" >> $GITHUB_OUTPUT
 
           echo "Generated manifests:"
-          for MFILE in "$MANIFEST_FILE" "$MANIFEST_FILE_DIAB" "$MANIFEST_LAMBDA" "$MANIFEST_DC_SHIM"; do
+          for MFILE in "$MANIFEST_FILE" "$MANIFEST_FILE_DIAB" "$MANIFEST_LAMBDA" "$MANIFEST_DC_SHIM" "$MANIFEST_SECUREAPP"; do
             [ -f "$MFILE" ] && echo "  [ok] $(basename $MFILE)" || echo "  [--] $(basename $MFILE) (not generated)"
           done
 
@@ -486,7 +488,8 @@ jobs:
           for MFILE in "${{ steps.stitch.outputs.manifest_file }}" \
                        "${{ steps.stitch.outputs.manifest_file_diab }}" \
                        "${{ steps.stitch.outputs.manifest_lambda }}" \
-                       "${{ steps.stitch.outputs.manifest_dc_shim }}"; do
+                       "${{ steps.stitch.outputs.manifest_dc_shim }}" \
+                       "${{ steps.stitch.outputs.manifest_secureapp }}"; do
             if [ -f "$MFILE" ]; then
               python3 -c "import yaml; docs=list(yaml.safe_load_all(open('$MFILE'))); print(f'$(basename $MFILE): {len(docs)} documents')"
             fi
@@ -523,7 +526,8 @@ jobs:
           for MFILE in "${{ steps.stitch.outputs.manifest_file }}" \
                        "${{ steps.stitch.outputs.manifest_file_diab }}" \
                        "${{ steps.stitch.outputs.manifest_lambda }}" \
-                       "${{ steps.stitch.outputs.manifest_dc_shim }}"; do
+                       "${{ steps.stitch.outputs.manifest_dc_shim }}" \
+                       "${{ steps.stitch.outputs.manifest_secureapp }}"; do
             [ -f "$MFILE" ] && ASSETS="$ASSETS $MFILE"
           done
 
@@ -603,6 +607,11 @@ jobs:
           # Stage source manifests and values files only
           # Stitched manifests are gitignored — they go to GitHub Release assets
           git add src/*/*-k8s.yaml
+          [ -n "$MANIFEST_FILE" ] && [ -f "$MANIFEST_FILE" ] && git add "$MANIFEST_FILE"
+          [ -n "$MANIFEST_FILE_DIAB" ] && [ -f "$MANIFEST_FILE_DIAB" ] && git add "$MANIFEST_FILE_DIAB"
+          [ -f "${{ steps.stitch.outputs.manifest_lambda }}" ] && git add "${{ steps.stitch.outputs.manifest_lambda }}"
+          [ -f "${{ steps.stitch.outputs.manifest_dc_shim }}" ] && git add "${{ steps.stitch.outputs.manifest_dc_shim }}"
+          [ -f "${{ steps.stitch.outputs.manifest_secureapp }}" ] && git add "${{ steps.stitch.outputs.manifest_secureapp }}"
           git add kubernetes/splunk-astronomy-shop-*-values.yaml 2>/dev/null || true
 
           if git diff --staged --quiet; then
@@ -690,6 +699,7 @@ jobs:
             ${{ steps.stitch.outputs.manifest_file_diab }}
             ${{ steps.stitch.outputs.manifest_lambda }}
             ${{ steps.stitch.outputs.manifest_dc_shim }}
+            ${{ steps.stitch.outputs.manifest_secureapp }}
           retention-days: 90
 
   # ─────────────────────────────────────────────
