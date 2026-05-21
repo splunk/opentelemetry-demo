@@ -117,18 +117,21 @@ stitch_service() {
     echo "# === $SERVICE ===" >> "$OUT_FILE"
 
     # Process manifest: replace registry URLs (if needed) and version numbers
+    # Version regex: match semver (digits+dots) plus any suffix (-beta, -hotfix-*, etc.)
+    # The full tag is replaced wholesale by SERVICE_VERSION — no trailing capture group,
+    # which previously caused double-suffix bugs (e.g., 2.0.1-beta-beta).
     if [ -n "$REGISTRY_URL" ] && [ "$SHOULD_REPLACE" = "true" ]; then
         sed -e "s|ghcr.io/[^/]*/[^/]*|${REGISTRY_URL}|g" \
-            -e "s|\(${REGISTRY_URL}/[^:]*\):[0-9][0-9.]*\([^[:space:]]*\)|\1:${SERVICE_VERSION}\2|" \
-            -e "s|app.kubernetes.io/version: [0-9][0-9.]*\([^\"[:space:]]*\)|app.kubernetes.io/version: ${SERVICE_VERSION}\1|g" \
-            -e "s|service.version=[0-9][0-9.]*\([^,[:space:]]*\)|service.version=${SERVICE_VERSION}\1|g" \
+            -e "s|\(${REGISTRY_URL}/[^:]*\):[0-9][0-9.]*[^[:space:]]*|\1:${SERVICE_VERSION}|" \
+            -e "s|app.kubernetes.io/version: [0-9][0-9.]*[^\"[:space:]]*|app.kubernetes.io/version: ${SERVICE_VERSION}|g" \
+            -e "s|service.version=[0-9][0-9.]*[^,[:space:]]*|service.version=${SERVICE_VERSION}|g" \
             "$MANIFEST_FILE" >> "$OUT_FILE"
     elif [ "$SHOULD_REPLACE" = "false" ]; then
         cat "$MANIFEST_FILE" >> "$OUT_FILE"
         echo "  (using original registry and versions)"
     else
-        sed -e "s|app.kubernetes.io/version: [0-9][0-9.]*\([^\"[:space:]]*\)|app.kubernetes.io/version: ${SERVICE_VERSION}\1|g" \
-            -e "s|service.version=[0-9][0-9.]*\([^,[:space:]]*\)|service.version=${SERVICE_VERSION}\1|g" \
+        sed -e "s|app.kubernetes.io/version: [0-9][0-9.]*[^\"[:space:]]*|app.kubernetes.io/version: ${SERVICE_VERSION}|g" \
+            -e "s|service.version=[0-9][0-9.]*[^,[:space:]]*|service.version=${SERVICE_VERSION}|g" \
             "$MANIFEST_FILE" >> "$OUT_FILE"
     fi
 
@@ -179,15 +182,15 @@ stitch_payment() {
 
         if [ -n "$REGISTRY_URL" ] && [ "$SHOULD_REPLACE" = "true" ]; then
             sed -e "s|ghcr.io/[^/]*/[^/]*|${REGISTRY_URL}|g" \
-                -e "s|\(${REGISTRY_URL}/[^:]*\):[0-9][0-9.]*\([^[:space:]]*\)|\1:${SERVICE_VERSION}\2|" \
-                -e "s|app.kubernetes.io/version: [0-9][0-9.]*\([^\"[:space:]]*\)|app.kubernetes.io/version: ${SERVICE_VERSION}\1|g" \
-                -e "s|service.version=[0-9][0-9.]*\([^,[:space:]]*\)|service.version=${SERVICE_VERSION}\1|g" \
+                -e "s|\(${REGISTRY_URL}/[^:]*\):[0-9][0-9.]*[^[:space:]]*|\1:${SERVICE_VERSION}|" \
+                -e "s|app.kubernetes.io/version: [0-9][0-9.]*[^\"[:space:]]*|app.kubernetes.io/version: ${SERVICE_VERSION}|g" \
+                -e "s|service.version=[0-9][0-9.]*[^,[:space:]]*|service.version=${SERVICE_VERSION}|g" \
                 "$CURRENT_MANIFEST" >> "$OUT_FILE"
         elif [ "$SHOULD_REPLACE" = "false" ]; then
             cat "$CURRENT_MANIFEST" >> "$OUT_FILE"
         else
-            sed -e "s|app.kubernetes.io/version: [0-9][0-9.]*\([^\"[:space:]]*\)|app.kubernetes.io/version: ${SERVICE_VERSION}\1|g" \
-                -e "s|service.version=[0-9][0-9.]*\([^,[:space:]]*\)|service.version=${SERVICE_VERSION}\1|g" \
+            sed -e "s|app.kubernetes.io/version: [0-9][0-9.]*[^\"[:space:]]*|app.kubernetes.io/version: ${SERVICE_VERSION}|g" \
+                -e "s|service.version=[0-9][0-9.]*[^,[:space:]]*|service.version=${SERVICE_VERSION}|g" \
                 "$CURRENT_MANIFEST" >> "$OUT_FILE"
         fi
 

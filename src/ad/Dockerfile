@@ -23,7 +23,7 @@ FROM eclipse-temurin:21-jre
 
 # Grab the latest Splunk OpenTelemetry Java agent (because "latest" is apparently a lifestyle)
 # ADD --chmod=644 https://github.com/signalfx/splunk-otel-java/releases/latest/download/splunk-otel-javaagent.jar /usr/src/app/splunk-otel-javaagent.jar
-ADD --chmod=644 https://repo1.maven.org/maven2/com/splunk/splunk-otel-javaagent-csa/2.21.1/splunk-otel-javaagent-csa-2.21.1.jar  /usr/src/app/splunk-otel-javaagent-csa.jar
+ADD --chmod=644 https://repo1.maven.org/maven2/com/splunk/splunk-otel-javaagent-csa/2.27.0/splunk-otel-javaagent-csa-2.27.0.jar  /usr/src/app/splunk-otel-javaagent-csa.jar
 
 WORKDIR /usr/src/app/
 COPY --from=builder /usr/src/app/ ./
