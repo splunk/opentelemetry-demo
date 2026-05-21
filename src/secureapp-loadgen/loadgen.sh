@@ -122,28 +122,26 @@ CURRENT_PACE=$(get_pace)
 echo "  flagd pace: $CURRENT_PACE"
 echo "  flagd url:  $FLAGD_URL"
 
-now=$(date +%s)
-startup_delay=$(rand_between 30 120)
-echo "  Initial delay: $(fmt_duration $startup_delay)"
-base_time=$((now + startup_delay))
+# --- Immediate first shot: fire one random attack endpoint ---
+# Skip index 0 (shipping) and 1 (health) — pick from real attacks (indices 2-7)
+initial_idx=$(rand_between 2 $((NUM_ENDPOINTS - 1)))
+echo ""
+echo "=== Initial attack ==="
+fire_endpoint "$initial_idx"
+echo ""
 
+# --- Schedule subsequent fires based on pace ---
+now=$(date +%s)
 declare -a next_fire
 declare -a hit_count
 for i in $(seq 0 $((NUM_ENDPOINTS - 1))); do
-  IFS='|' read -r path label _rest <<< "${ALL_ENTRIES[$i]}"
   read -r mn mx <<< "$(get_intervals "${ALL_ENTRIES[$i]}" "$CURRENT_PACE")"
-  # Stagger first fire: shipping starts soon, others spread out
-  if (( i == 0 )); then
-    offset=$(rand_between 10 30)
-  else
-    offset=$(rand_between $((i * 120)) $(( (i + 1) * 300 )))
-  fi
-  next_fire[$i]=$((base_time + offset))
+  next_fire[$i]=$(( now + $(rand_between "$mn" "$mx") ))
   hit_count[$i]=0
 done
+hit_count[$initial_idx]=1
 
 print_schedule
-sleep "$startup_delay"
 
 # --- Main loop ---
 fire_count=0
