@@ -42,6 +42,39 @@ from metrics import (
 cached_ids = []
 first_run = True
 
+
+class PeerServiceInterceptor(
+    grpc.UnaryUnaryClientInterceptor,
+    grpc.UnaryStreamClientInterceptor,
+    grpc.StreamUnaryClientInterceptor,
+    grpc.StreamStreamClientInterceptor,
+):
+    """gRPC client interceptor that sets peer.service on the active OTel span."""
+
+    def __init__(self, peer_service):
+        self._peer_service = peer_service
+
+    def _set_peer_service(self):
+        span = trace.get_current_span()
+        if span and span.is_recording():
+            span.set_attribute("peer.service", self._peer_service)
+
+    def intercept_unary_unary(self, continuation, client_call_details, request):
+        self._set_peer_service()
+        return continuation(client_call_details, request)
+
+    def intercept_unary_stream(self, continuation, client_call_details, request):
+        self._set_peer_service()
+        return continuation(client_call_details, request)
+
+    def intercept_stream_unary(self, continuation, client_call_details, request_iterator):
+        self._set_peer_service()
+        return continuation(client_call_details, request_iterator)
+
+    def intercept_stream_stream(self, continuation, client_call_details, request_iterator):
+        self._set_peer_service()
+        return continuation(client_call_details, request_iterator)
+
 # DBMon Cartesian Demo - PostgreSQL queries
 # Bad query: ON 1=1 creates Cartesian product (5000 x 100000 = 500M rows)
 CARTESIAN_BAD_QUERY = '''
@@ -312,7 +345,10 @@ if __name__ == "__main__":
     logger.addHandler(handler)
 
     catalog_addr = must_map_env('PRODUCT_CATALOG_ADDR')
-    pc_channel = grpc.insecure_channel(catalog_addr)
+    pc_channel = grpc.intercept_channel(
+        grpc.insecure_channel(catalog_addr),
+        PeerServiceInterceptor("product-catalog"),
+    )
     product_catalog_stub = demo_pb2_grpc.ProductCatalogServiceStub(pc_channel)
 
     # Create gRPC server

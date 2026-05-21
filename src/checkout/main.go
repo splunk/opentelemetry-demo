@@ -201,36 +201,40 @@ func main() {
 
 	svc := new(checkout)
 	svc.httpClient = &http.Client{
-		Transport: otelhttp.NewTransport(http.DefaultTransport),
+		Transport: otelhttp.NewTransport(http.DefaultTransport,
+			otelhttp.WithSpanOptions(trace.WithAttributes(
+				semconv.PeerServiceKey.String("shipping"),
+			)),
+		),
 	}
 
 	mustMapEnv(&svc.shippingSvcAddr, "SHIPPING_ADDR")
-	c := mustCreateClient(svc.shippingSvcAddr)
+	c := mustCreateClient(svc.shippingSvcAddr, "shipping")
 	svc.shippingSvcClient = pb.NewShippingServiceClient(c)
 	defer c.Close()
 
 	mustMapEnv(&svc.productCatalogSvcAddr, "PRODUCT_CATALOG_ADDR")
-	c = mustCreateClient(svc.productCatalogSvcAddr)
+	c = mustCreateClient(svc.productCatalogSvcAddr, "product-catalog")
 	svc.productCatalogSvcClient = pb.NewProductCatalogServiceClient(c)
 	defer c.Close()
 
 	mustMapEnv(&svc.cartSvcAddr, "CART_ADDR")
-	c = mustCreateClient(svc.cartSvcAddr)
+	c = mustCreateClient(svc.cartSvcAddr, "cart")
 	svc.cartSvcClient = pb.NewCartServiceClient(c)
 	defer c.Close()
 
 	mustMapEnv(&svc.currencySvcAddr, "CURRENCY_ADDR")
-	c = mustCreateClient(svc.currencySvcAddr)
+	c = mustCreateClient(svc.currencySvcAddr, "currency")
 	svc.currencySvcClient = pb.NewCurrencyServiceClient(c)
 	defer c.Close()
 
 	mustMapEnv(&svc.emailSvcAddr, "EMAIL_ADDR")
-	c = mustCreateClient(svc.emailSvcAddr)
+	c = mustCreateClient(svc.emailSvcAddr, "email")
 	svc.emailSvcClient = pb.NewEmailServiceClient(c)
 	defer c.Close()
 
 	mustMapEnv(&svc.paymentSvcAddr, "PAYMENT_ADDR")
-	c = mustCreateClient(svc.paymentSvcAddr)
+	c = mustCreateClient(svc.paymentSvcAddr, "payment")
 	svc.paymentSvcClient = pb.NewPaymentServiceClient(c)
 	defer c.Close()
 
@@ -455,10 +459,14 @@ func (cs *checkout) prepareOrderItemsAndShippingQuoteFromCart(ctx context.Contex
 	return out, nil
 }
 
-func mustCreateClient(svcAddr string) *grpc.ClientConn {
+func mustCreateClient(svcAddr string, peerService string) *grpc.ClientConn {
 	c, err := grpc.NewClient(svcAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler(
+			otelgrpc.WithSpanOptions(trace.WithAttributes(
+				semconv.PeerServiceKey.String(peerService),
+			)),
+		)),
 	)
 	if err != nil {
 		logger.Error(fmt.Sprintf("could not connect to %s service, err: %+v", svcAddr, err))
@@ -574,7 +582,7 @@ func (cs *checkout) chargeCard(ctx context.Context, amount *pb.Money, paymentInf
 	// Check for intentional failure mode (uses existing paymentUnreachable flag)
 	if cs.isFeatureFlagEnabled(ctx, "paymentUnreachable") {
 		badAddress := "badAddress:50051"
-		c := mustCreateClient(badAddress)
+		c := mustCreateClient(badAddress, "payment")
 		paymentService = pb.NewPaymentServiceClient(c)
 	} else {
 		var paymentAddr string
@@ -618,7 +626,7 @@ func (cs *checkout) chargeCard(ctx context.Context, amount *pb.Money, paymentInf
 		}
 
 		// Create client for selected version
-		c := mustCreateClient(paymentAddr)
+		c := mustCreateClient(paymentAddr, "payment")
 		defer c.Close()
 		paymentService = pb.NewPaymentServiceClient(c)
 	}
