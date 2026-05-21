@@ -47,7 +47,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: secureapp-loadgen
-        image: ghcr.io/splunk/opentelemetry-demo/otel-secureapp-loadgen:2.0.0
+        image: ghcr.io/splunk/opentelemetry-demo/otel-secureapp-loadgen:2.0.1-hotfix-secureapp-loadgen-1
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
