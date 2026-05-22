@@ -22,12 +22,18 @@ import (
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
-	"go.opentelemetry.io/contrib/otelconf"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/propagation"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.38.0"
 	"go.opentelemetry.io/otel/trace"
 
@@ -139,27 +145,40 @@ func main() {
 	fmt.Fprintln(os.Stdout, "product-catalog: starting up")
 	ctx := context.Background()
 
-	// Initialize OpenTelemetry SDK with otelconf
-	// Note: must use fmt for errors here — logger depends on OTel SDK (catch-22).
+	// Initialize OpenTelemetry SDK with standard OTLP gRPC exporters
+	// Reads OTEL_EXPORTER_OTLP_ENDPOINT from env automatically.
 	fmt.Fprintln(os.Stdout, "product-catalog: initializing OpenTelemetry SDK")
-	sdk, err := otelconf.NewSDK(otelconf.WithContext(ctx))
+
+	traceExporter, err := otlptracegrpc.New(ctx)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "FATAL: Failed to initialize OpenTelemetry SDK: %v\n", err)
+		fmt.Fprintf(os.Stderr, "FATAL: trace exporter: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Fprintln(os.Stdout, "product-catalog: OpenTelemetry SDK initialized")
-	defer func() {
-		if err := sdk.Shutdown(ctx); err != nil {
-			logger.Error(fmt.Sprintf("Error shutting down OpenTelemetry SDK: %v", err))
-		}
-		logger.Info("Shutdown OpenTelemetry SDK")
-	}()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithBatcher(traceExporter))
+	defer tp.Shutdown(ctx)
 
-	// Set global providers and propagator
-	otel.SetTracerProvider(sdk.TracerProvider())
-	otel.SetMeterProvider(sdk.MeterProvider())
-	global.SetLoggerProvider(sdk.LoggerProvider())
-	otel.SetTextMapPropagator(sdk.Propagator())
+	metricExporter, err := otlpmetricgrpc.New(ctx)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "FATAL: metric exporter: %v\n", err)
+		os.Exit(1)
+	}
+	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter)))
+	defer mp.Shutdown(ctx)
+
+	logExporter, err := otlploggrpc.New(ctx)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "FATAL: log exporter: %v\n", err)
+		os.Exit(1)
+	}
+	lp := sdklog.NewLoggerProvider(sdklog.WithProcessor(sdklog.NewBatchProcessor(logExporter)))
+	defer lp.Shutdown(ctx)
+
+	otel.SetTracerProvider(tp)
+	otel.SetMeterProvider(mp)
+	global.SetLoggerProvider(lp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+
+	fmt.Fprintln(os.Stdout, "product-catalog: OpenTelemetry SDK initialized")
 
 	// Upgrade to dual logger: stdout + OTLP
 	logger = slog.New(&multiHandler{
