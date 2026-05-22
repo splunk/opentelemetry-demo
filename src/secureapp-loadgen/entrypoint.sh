@@ -20,7 +20,21 @@ until curl -sf http://localhost:8080/health > /dev/null 2>&1; do
   fi
   sleep 2
 done
-echo "App is healthy. Starting loadgen..."
+echo "App is healthy."
+
+# Wait for shipping service before starting loadgen
+SHIPPING_ADDR="${SHIPPING_ADDR:-http://shipping:8080}"
+echo "Waiting for shipping service at ${SHIPPING_ADDR}..."
+retries=0
+until curl -sf "${SHIPPING_ADDR}/health" -o /dev/null --max-time 5 2>/dev/null; do
+  retries=$((retries + 1))
+  if [ $retries -ge 90 ]; then
+    echo "WARNING: Shipping service not ready after 180s, starting loadgen anyway"
+    break
+  fi
+  sleep 2
+done
+echo "Starting loadgen..."
 
 # Launch the loadgen in background
 /app/loadgen.sh &
