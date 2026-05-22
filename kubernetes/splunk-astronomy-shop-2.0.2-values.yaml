@@ -10,7 +10,7 @@ clusterReceiver:
       secretKeyRef:
         name: workshop-secret
         key: instance
-  # Disabled eventsEnabled and k8sObjects - these generate non-HEC data
+  # Disabled eventsEnabled and k8s_objects - these generate non-HEC data
   # that gets refused by Splunk Platform endpoints
   eventsEnabled: true
 
@@ -291,16 +291,16 @@ agent:
       pipelines:
         metrics:
           exporters: [signalfx]
-          processors: [memory_limiter, k8s_attributes, batch, resource_detection, resource, resource/add_environment, transform/dbmon]
-          receivers: [hostmetrics, kubelet_stats, otlp, receiver_creator]
+          processors: [memory_limiter, k8s_attributes, batch, resourcedetection, resource, resource/add_environment, transform/dbmon]
+          receivers: [host_metrics, kubeletstats, otlp, receiver_creator]
         traces:
           exporters: [signalfx, otlp_http]
-          processors: [memory_limiter, filter/drop_flagd, transform/dc_not_error, k8s_attributes, batch, resource_detection, resource, resource/add_environment]
+          processors: [memory_limiter, filter/drop_flagd, transform/dc_not_error, k8s_attributes, batch, resourcedetection, resource, resource/add_environment]
           receivers: [otlp, jaeger, zipkin]
         # DBMon logs pipeline - sends query samples and top queries to Splunk O11y
         logs/dbmon:
           receivers: [receiver_creator]
-          processors: [memory_limiter, batch, resource_detection, resource, resource/add_environment, transform/dbmon]
+          processors: [memory_limiter, batch, resourcedetection, resource, resource/add_environment, transform/dbmon]
           exporters: [otlp_http/dbmon]
 
 logsCollection:

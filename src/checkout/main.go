@@ -203,7 +203,7 @@ func main() {
 	svc.httpClient = &http.Client{
 		Transport: otelhttp.NewTransport(http.DefaultTransport,
 			otelhttp.WithSpanOptions(trace.WithAttributes(
-				semconv.PeerServiceKey.String("shipping"),
+				attribute.String("peer.service","shipping"),
 			)),
 		),
 	}
@@ -464,7 +464,7 @@ func mustCreateClient(svcAddr string, peerService string) *grpc.ClientConn {
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler(
 			otelgrpc.WithSpanOptions(trace.WithAttributes(
-				semconv.PeerServiceKey.String(peerService),
+				attribute.String("peer.service",peerService),
 			)),
 		)),
 	)
