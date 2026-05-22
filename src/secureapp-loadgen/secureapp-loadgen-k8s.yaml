@@ -65,7 +65,7 @@ spec:
               name: workshop-secret
               key: env
         - name: OTEL_SERVICE_NAME
-          value: "ad"
+          value: "shipping-api"
         - name: NODE_IP
           valueFrom:
             fieldRef:
@@ -90,6 +90,7 @@ spec:
           value: -javaagent:/app/splunk-otel-javaagent.jar
             -Dargento.allow.security.events=true
             -Dargento.wait.events.for.first.transaction=false
+            -Dotel.instrumentation.common.peer-service-mapping=shipping:8080=shipping
         - name: SHIPPING_ADDR
           value: http://shipping:8080
         - name: FLAGD_HOST

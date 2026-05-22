@@ -49,7 +49,10 @@ class PeerServiceInterceptor(
     grpc.StreamUnaryClientInterceptor,
     grpc.StreamStreamClientInterceptor,
 ):
-    """gRPC client interceptor that sets peer.service on the active OTel span."""
+    """gRPC client interceptor that sets peer.service on the active OTel span.
+
+    Runs the call first (so auto-instrumentation creates the span),
+    then sets peer.service on the resulting span."""
 
     def __init__(self, peer_service):
         self._peer_service = peer_service
@@ -60,20 +63,24 @@ class PeerServiceInterceptor(
             span.set_attribute("peer.service", self._peer_service)
 
     def intercept_unary_unary(self, continuation, client_call_details, request):
+        response = continuation(client_call_details, request)
         self._set_peer_service()
-        return continuation(client_call_details, request)
+        return response
 
     def intercept_unary_stream(self, continuation, client_call_details, request):
+        response = continuation(client_call_details, request)
         self._set_peer_service()
-        return continuation(client_call_details, request)
+        return response
 
     def intercept_stream_unary(self, continuation, client_call_details, request_iterator):
+        response = continuation(client_call_details, request_iterator)
         self._set_peer_service()
-        return continuation(client_call_details, request_iterator)
+        return response
 
     def intercept_stream_stream(self, continuation, client_call_details, request_iterator):
+        response = continuation(client_call_details, request_iterator)
         self._set_peer_service()
-        return continuation(client_call_details, request_iterator)
+        return response
 
 # DBMon Cartesian Demo - PostgreSQL queries
 # Bad query: ON 1=1 creates Cartesian product (5000 x 100000 = 500M rows)
