@@ -49,7 +49,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: product-catalog
-        image: ghcr.io/splunk/opentelemetry-demo/otel-product-catalog:2.0.2
+        image: ghcr.io/splunk/opentelemetry-demo/otel-product-catalog:2.0.2-hotfix-product-catalog-1
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
