@@ -29,13 +29,13 @@ CURRENT_PACE=""
 SHIPPING_ENTRY="/api/v1/shipping/estimate|Shipping quote|180|300|180|300|180|300"
 
 ATTACK_ENTRIES=(
-  "/health|Health check|21600|43200|21600|43200|120|300"
-  "/api/v1/documents/convert|RCE (Struts2 CVE-2017-5638)|72000|172800|72000|172800|180|600"
-  "/api/v1/users/search|SQL Injection|80000|158400|600|900|240|600"
-  "/api/v1/links/preview|SSRF (cloud metadata)|86400|172800|86400|172800|180|540"
-  "/api/v1/auth/login|Log4Shell (CVE-2021-44228)|100800|172800|600|900|240|720"
-  "/api/v1/sessions/import|Deserialization (CVE-2020-1714)|115200|187200|115200|187200|300|720"
-  "/api/v1/workspace/sync|All attacks combined|144000|216000|144000|216000|300|900"
+  "/health|Health check|7200|14400|7200|14400|120|300"
+  "/api/v1/documents/convert|RCE (Struts2 CVE-2017-5638)|10800|28800|10800|28800|180|600"
+  "/api/v1/users/search|SQL Injection|14400|36000|600|900|240|600"
+  "/api/v1/links/preview|SSRF (cloud metadata)|18000|39600|18000|39600|180|540"
+  "/api/v1/auth/login|Log4Shell (CVE-2021-44228)|21600|43200|600|900|240|720"
+  "/api/v1/sessions/import|Deserialization (CVE-2020-1714)|25200|43200|25200|43200|300|720"
+  "/api/v1/workspace/sync|All attacks combined|28800|43200|28800|43200|300|900"
 )
 
 # Combine into single array (shipping first)

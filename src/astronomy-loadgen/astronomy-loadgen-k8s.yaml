@@ -306,6 +306,22 @@ spec:
       labels:
         app: astronomy-loadgen
     spec:
+      initContainers:
+      - name: wait-for-frontend
+        image: curlimages/curl:8.1.2
+        command: ['sh', '-c']
+        args:
+        - |
+          echo "Waiting for frontend-proxy to be ready..."
+          until curl -f --connect-timeout 5 --max-time 10 http://frontend-proxy:8080; do
+            echo "Frontend not ready, waiting 10 seconds..."
+            sleep 10
+          done
+          echo "Frontend is ready, starting loadgen..."
+        resources:
+          limits:
+            memory: "64Mi"
+            cpu: "50m"
       containers:
       - name: astronomy-loadgen
         image: ghcr.io/splunk/online-boutique/rumloadgen:5.6
