@@ -235,7 +235,6 @@ jobs:
   build-images:
     needs: [determine-version, prepare-matrix]
     runs-on: ubuntu-latest
-    environment: production
     permissions:
       contents: read
       packages: write
