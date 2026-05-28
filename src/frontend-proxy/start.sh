@@ -11,5 +11,9 @@ export FEATURE_AUTH_ENABLED="${FEATURE_AUTH_ENABLED:-false}"
 export FEATURE_USER="${FEATURE_USER:-}"
 export FEATURE_PASS="${FEATURE_PASS:-}"
 
+# Shipping API proxy (secureapp-loadgen backend)
+export SECUREAPP_HOST="${SECUREAPP_HOST:-secureapp-loadgen}"
+export SECUREAPP_PORT="${SECUREAPP_PORT:-8080}"
+
 # Run envsubst to generate config from template, then start envoy
 envsubst < envoy.tmpl.yaml > envoy.yaml && envoy -c envoy.yaml

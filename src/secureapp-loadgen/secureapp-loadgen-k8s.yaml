@@ -1,6 +1,8 @@
-# SecureApp loadgen — Java vulnerability test app reporting as "ad" service.
+# SecureApp loadgen — Java vulnerability test app.
+# Reports as whatever OTEL_SERVICE_NAME is set to (currently "shipping-api").
 # Exercises 5 vulnerability classes for Splunk SecureApp agent detection.
 # Deployed via separate manifest group (secureapp).
+# See usage.md for configuration details.
 ---
 apiVersion: v1
 kind: Service
@@ -64,6 +66,12 @@ spec:
             secretKeyRef:
               name: workshop-secret
               key: env
+        - name: SHIPPING_API
+          valueFrom:
+            secretKeyRef:
+              name: workshop-secret
+              key: shipping_api
+              optional: true
         - name: OTEL_SERVICE_NAME
           value: "shipping-api"
         - name: NODE_IP

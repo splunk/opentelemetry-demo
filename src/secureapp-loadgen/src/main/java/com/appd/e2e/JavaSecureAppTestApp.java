@@ -283,6 +283,47 @@ public class JavaSecureAppTestApp {
         }
     }
 
+    // --- Shipping delivery info (simulated delivery schedule) ---
+    // Returns a mock delivery schedule for a given tracking number.
+    // Only active when SHIPPING_API env var is "true".
+    public static class ShippingInfoServlet extends HttpServlet {
+        private static final String SHIPPING_API = System.getenv("SHIPPING_API");
+
+        @Override
+        protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+            resp.setContentType("application/json");
+            resp.setCharacterEncoding("UTF-8");
+
+            if (!"true".equalsIgnoreCase(SHIPPING_API)) {
+                resp.setStatus(200);
+                resp.getWriter().write("{\"status\": \"skipped\", \"reason\": \"SHIPPING_API not enabled\"}");
+                return;
+            }
+
+            String tracking = req.getParameter("tracking");
+            if (tracking == null || tracking.isEmpty()) {
+                tracking = "SHIP-00000";
+            }
+
+            String result = "{\"tracking\": \"" + tracking + "\","
+                + "\"status\": \"in_transit\","
+                + "\"carrier\": \"FastShip Logistics\","
+                + "\"service_type\": \"ground\","
+                + "\"estimated_delivery\": \"2026-06-03T17:00:00Z\","
+                + "\"origin\": {\"city\": \"San Francisco\", \"state\": \"CA\", \"country\": \"US\"},"
+                + "\"destination\": {\"city\": \"New York\", \"state\": \"NY\", \"country\": \"US\"},"
+                + "\"stops\": ["
+                + "{\"location\": \"San Francisco, CA\", \"timestamp\": \"2026-05-26T08:00:00Z\", \"status\": \"picked_up\"},"
+                + "{\"location\": \"Denver, CO\", \"timestamp\": \"2026-05-27T14:30:00Z\", \"status\": \"departed\"},"
+                + "{\"location\": \"Chicago, IL\", \"timestamp\": \"2026-05-28T22:15:00Z\", \"status\": \"arrived\"},"
+                + "{\"location\": \"New York, NY\", \"timestamp\": \"2026-06-03T17:00:00Z\", \"status\": \"scheduled\"}"
+                + "]}";
+
+            resp.setStatus(200);
+            resp.getWriter().write(result);
+        }
+    }
+
     // --- Workspace sync (triggers all attack types in a single transaction) ---
     // A single HTTP request that exercises RCE, SSRF, SQLi, Log4Shell, and
     // deserialization in one web transaction so all events are grouped under
@@ -385,6 +426,11 @@ public class JavaSecureAppTestApp {
         context.addServlet(new ServletHolder(new WorkspaceSyncServlet()), "/api/v1/workspace/sync");
         context.addServlet(new ServletHolder(new ShippingQuoteServlet()), "/api/v1/shipping/estimate");
 
+        // Shipping delivery info — only register if SHIPPING_API is enabled
+        if ("true".equalsIgnoreCase(System.getenv("SHIPPING_API"))) {
+            context.addServlet(new ServletHolder(new ShippingInfoServlet()), "/api/v1/shipping/info");
+        }
+
         // Legacy aliases for backward compatibility
         context.addServlet(new ServletHolder(new DocumentConvertServlet()), "/attack/rce-struts");
         context.addServlet(new ServletHolder(new LinkPreviewServlet()), "/attack/ssrf");
@@ -402,6 +448,9 @@ public class JavaSecureAppTestApp {
         System.out.println("  GET  /api/v1/sessions/import    - Session restore");
         System.out.println("  GET  /api/v1/workspace/sync     - Workspace sync (all attacks in one)");
         System.out.println("  GET  /api/v1/shipping/estimate  - Shipping quote (calls shipping service)");
+        if ("true".equalsIgnoreCase(System.getenv("SHIPPING_API"))) {
+            System.out.println("  GET  /api/v1/shipping/info      - Shipping delivery schedule");
+        }
         System.out.println("  GET  /health                    - Health check");
 
         // Set up H2 in-memory DB (done once at startup, NOT per-request,
