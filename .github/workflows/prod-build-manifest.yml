@@ -335,7 +335,7 @@ jobs:
           echo "Manifests attached as release assets." >> $GITHUB_STEP_SUMMARY
 
       - name: Upload manifests as artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: astronomy-shop-manifests-${{ steps.version.outputs.new_version }}${{ inputs.beta_build == true && '-beta' || '' }}
           path: |

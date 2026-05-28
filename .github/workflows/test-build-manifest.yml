@@ -215,7 +215,7 @@ jobs:
           fi
 
       - name: Upload manifests as artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: astronomy-shop-manifests-${{ steps.version.outputs.test_version }}
           path: |
