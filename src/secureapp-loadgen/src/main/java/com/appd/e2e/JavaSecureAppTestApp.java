@@ -15,6 +15,12 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.concurrent.ThreadLocalRandom;
+
+import io.opentelemetry.api.GlobalOpenTelemetry;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.api.trace.Tracer;
 
 /**
  * Team Portal — a Jetty servlet-based collaboration application with
@@ -285,9 +291,14 @@ public class JavaSecureAppTestApp {
 
     // --- Shipping delivery info (simulated delivery schedule) ---
     // Returns a mock delivery schedule for a given tracking number.
+    // Calls the real shipping service for a quote, then builds the
+    // delivery schedule JSON in an instrumented span.
+    // Trace: frontend-proxy → shipping-api → shipping
+    //                                      → buildDeliverySchedule (internal span)
     // Only active when SHIPPING_API env var is "true".
     public static class ShippingInfoServlet extends HttpServlet {
         private static final String SHIPPING_API = System.getenv("SHIPPING_API");
+        private static final Tracer tracer = GlobalOpenTelemetry.getTracer("shipping-api");
 
         @Override
         protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -305,22 +316,52 @@ public class JavaSecureAppTestApp {
                 tracking = "SHIP-00000";
             }
 
-            String result = "{\"tracking\": \"" + tracking + "\","
-                + "\"status\": \"in_transit\","
-                + "\"carrier\": \"FastShip Logistics\","
-                + "\"service_type\": \"ground\","
-                + "\"estimated_delivery\": \"2026-06-03T17:00:00Z\","
-                + "\"origin\": {\"city\": \"San Francisco\", \"state\": \"CA\", \"country\": \"US\"},"
-                + "\"destination\": {\"city\": \"New York\", \"state\": \"NY\", \"country\": \"US\"},"
-                + "\"stops\": ["
-                + "{\"location\": \"San Francisco, CA\", \"timestamp\": \"2026-05-26T08:00:00Z\", \"status\": \"picked_up\"},"
-                + "{\"location\": \"Denver, CO\", \"timestamp\": \"2026-05-27T14:30:00Z\", \"status\": \"departed\"},"
-                + "{\"location\": \"Chicago, IL\", \"timestamp\": \"2026-05-28T22:15:00Z\", \"status\": \"arrived\"},"
-                + "{\"location\": \"New York, NY\", \"timestamp\": \"2026-06-03T17:00:00Z\", \"status\": \"scheduled\"}"
-                + "]}";
+            // Call real shipping service — creates outbound span in this trace
+            String quoteResult = ShippingQuoteServlet.getShippingQuote();
+
+            // Build delivery schedule — instrumented internal span
+            String result = buildDeliverySchedule(tracking, quoteResult);
 
             resp.setStatus(200);
             resp.getWriter().write(result);
+        }
+
+        /**
+         * Assembles the delivery schedule JSON from the shipping quote.
+         * Instrumented with a manual span to show processing time in traces.
+         */
+        private String buildDeliverySchedule(String tracking, String quoteResult) {
+            Span span = tracer.spanBuilder("buildDeliverySchedule")
+                .setAttribute("shipping.tracking", tracking)
+                .startSpan();
+            try {
+                // Simulate processing time (1-2ms)
+                Thread.sleep(ThreadLocalRandom.current().nextInt(1, 3));
+
+                String result = "{\"tracking\": \"" + tracking + "\","
+                    + "\"status\": \"in_transit\","
+                    + "\"carrier\": \"FastShip Logistics\","
+                    + "\"service_type\": \"ground\","
+                    + "\"estimated_delivery\": \"2026-06-03T17:00:00Z\","
+                    + "\"origin\": {\"city\": \"San Francisco\", \"state\": \"CA\", \"country\": \"US\"},"
+                    + "\"destination\": {\"city\": \"New York\", \"state\": \"NY\", \"country\": \"US\"},"
+                    + "\"shipping_quote\": " + quoteResult + ","
+                    + "\"stops\": ["
+                    + "{\"location\": \"San Francisco, CA\", \"timestamp\": \"2026-05-26T08:00:00Z\", \"status\": \"picked_up\"},"
+                    + "{\"location\": \"Denver, CO\", \"timestamp\": \"2026-05-27T14:30:00Z\", \"status\": \"departed\"},"
+                    + "{\"location\": \"Chicago, IL\", \"timestamp\": \"2026-05-28T22:15:00Z\", \"status\": \"arrived\"},"
+                    + "{\"location\": \"New York, NY\", \"timestamp\": \"2026-06-03T17:00:00Z\", \"status\": \"scheduled\"}"
+                    + "]}";
+
+                span.setStatus(StatusCode.OK);
+                return result;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                span.setStatus(StatusCode.ERROR, "interrupted");
+                return "{\"error\": \"interrupted\"}";
+            } finally {
+                span.end();
+            }
         }
     }
 

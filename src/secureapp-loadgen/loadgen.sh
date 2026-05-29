@@ -26,7 +26,9 @@ CURRENT_PACE=""
 #
 # targeted = minimal background + SQLi & Log4Shell every ~10-15 min
 # (the two most recognizable attack signatures)
-SHIPPING_ENTRY="/api/v1/shipping/estimate|Shipping quote|180|300|180|300|180|300"
+#
+# NOTE: Shipping calls are now driven by inbound traffic from astronomy-loadgen
+# via /api/v1/shipping/info (which calls shipping internally). No separate timer needed.
 HEALTH_ENTRY="/health|Health check|120|240|120|240|120|240"
 
 ATTACK_ENTRIES=(
@@ -38,8 +40,8 @@ ATTACK_ENTRIES=(
   "/api/v1/workspace/sync|All attacks combined|28800|43200|28800|43200|300|900"
 )
 
-# Combine into single array (shipping=0, health=1, attacks=2+)
-ALL_ENTRIES=("$SHIPPING_ENTRY" "$HEALTH_ENTRY" "${ATTACK_ENTRIES[@]}")
+# Combine into single array (health=0, attacks=1+)
+ALL_ENTRIES=("$HEALTH_ENTRY" "${ATTACK_ENTRIES[@]}")
 NUM_ENDPOINTS=${#ALL_ENTRIES[@]}
 
 # Random integer in [min, max]
@@ -123,8 +125,8 @@ echo "  flagd pace: $CURRENT_PACE"
 echo "  flagd url:  $FLAGD_URL"
 
 # --- Immediate first shot: fire one random attack endpoint ---
-# Skip index 0 (shipping) and 1 (health) — pick from real attacks (indices 2-7)
-initial_idx=$(rand_between 2 $((NUM_ENDPOINTS - 1)))
+# Skip index 0 (health) — pick from real attacks (indices 1+)
+initial_idx=$(rand_between 1 $((NUM_ENDPOINTS - 1)))
 echo ""
 echo "=== Initial attack ==="
 fire_endpoint "$initial_idx"
@@ -174,8 +176,8 @@ while true; do
     if [[ "$new_pace" != "$CURRENT_PACE" ]]; then
       echo "*** Pace changed: $CURRENT_PACE -> $new_pace ***"
       CURRENT_PACE="$new_pace"
-      # Reschedule attack endpoints only (skip shipping=0 and health=1)
-      for i in $(seq 2 $((NUM_ENDPOINTS - 1))); do
+      # Reschedule attack endpoints only (skip health=0)
+      for i in $(seq 1 $((NUM_ENDPOINTS - 1))); do
         read -r mn mx <<< "$(get_intervals "${ALL_ENTRIES[$i]}" "$CURRENT_PACE")"
         next_fire[$i]=$(( now + $(rand_between "$mn" "$mx") ))
       done
