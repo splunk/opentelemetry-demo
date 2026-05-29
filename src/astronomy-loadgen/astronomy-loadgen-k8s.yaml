@@ -102,7 +102,48 @@ data:
     const QUICK_PROMPT_INTERVAL_MS = parseInt(process.env.QUICK_PROMPT_INTERVAL_MS || '300000', 10);
     let lastQuickPromptTime = 0;
 
+    // Shipping API — random interval between 34s and 1m45s
+    const SHIPPING_MIN_MS = parseInt(process.env.SHIPPING_MIN_MS || '34000', 10);
+    const SHIPPING_MAX_MS = parseInt(process.env.SHIPPING_MAX_MS || '105000', 10);
+    let nextShippingTime = 0;
+    const SHIPPING_API_ENABLED = (process.env.SHIPPING_API || '').toLowerCase() === 'true';
+
     function delay(ms) { return new Promise(res => setTimeout(res, ms)); }
+
+    /** Generate a random shipping tracking number */
+    function randomTrackingNumber() {
+      const num = Math.floor(Math.random() * 99999) + 10000;
+      return `SHIP-${num}`;
+    }
+
+    /** Schedule next shipping call at a random interval */
+    function scheduleNextShipping() {
+      const interval = SHIPPING_MIN_MS + Math.floor(Math.random() * (SHIPPING_MAX_MS - SHIPPING_MIN_MS));
+      nextShippingTime = Date.now() + interval;
+      if (debugEnabled) console.log(`[DEBUG] Next shipping call in ${Math.round(interval/1000)}s`);
+    }
+
+    /** Fetch shipping info via the frontend-proxy /shipping/ route */
+    async function fetchShippingInfo(page) {
+      if (!SHIPPING_API_ENABLED) return;
+      if (Date.now() < nextShippingTime) return;
+      scheduleNextShipping();
+
+      const tracking = randomTrackingNumber();
+      const base = buildBaseUrl();
+      const url = `${base}shipping/?tracking=${tracking}`;
+      console.log(`📦 Fetching shipping info for ${tracking}...`);
+      try {
+        const result = await page.evaluate(async (fetchUrl) => {
+          const resp = await fetch(fetchUrl);
+          return { status: resp.status, body: await resp.text() };
+        }, url);
+        console.log(`📦 Shipping info: HTTP ${result.status}`);
+        if (debugEnabled) console.log(`[DEBUG] Shipping response: ${result.body}`);
+      } catch (e) {
+        console.log(`⚠️ Shipping info fetch failed: ${e.message}`);
+      }
+    }
 
     /** Wait until innerText of the page contains a substring */
     async function waitForText(page, text, timeoutMs = 30000, pollMs = 200) {
@@ -258,6 +299,9 @@ data:
           await delay(500);
           console.log('✅ Error modal closed.');
         }
+
+        // Periodic shipping info fetch (every 2 minutes, gated by SHIPPING_API)
+        await fetchShippingInfo(page);
       } finally {
         console.log('🧹 Cleaning up page resources...');
         try {
@@ -335,6 +379,12 @@ spec:
           value: ""  # Set to "true" to enable debug logging
         - name: QUICK_PROMPT_INTERVAL_MS
           value: "300000"  # How often AI quick prompts run (ms). Default 300000 (5min). Set "0" for every cycle.
+        - name: SHIPPING_API
+          valueFrom:
+            secretKeyRef:
+              name: workshop-secret
+              key: shipping_api
+              optional: true
         resources:
           requests:
             memory: "768Mi"

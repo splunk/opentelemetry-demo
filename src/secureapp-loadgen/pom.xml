@@ -139,6 +139,14 @@
             <version>5.10.0</version>
         </dependency>
 
+        <!-- OpenTelemetry API — for manual span instrumentation.
+             The Java agent provides the implementation at runtime. -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-api</artifactId>
+            <version>1.44.1</version>
+        </dependency>
+
         <!-- Vulnerable: CVE-2020-1714 (deserialization in KerberosSerializationUtils) -->
         <dependency>
             <groupId>org.keycloak</groupId>

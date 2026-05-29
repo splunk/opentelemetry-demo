@@ -685,7 +685,7 @@ jobs:
           echo "Stitched manifests will be attached to the release automatically." >> $GITHUB_STEP_SUMMARY
 
       - name: Upload manifests as artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: astronomy-shop-manifests-${{ needs.determine-version.outputs.version }}
           path: |

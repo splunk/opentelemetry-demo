@@ -214,8 +214,11 @@ agent:
           - attributes["rpc.method"] == "ResolveInt"
           - attributes["http.url"] == "http://flagd:8016/ofrep/v1/evaluate/flags/loadGeneratorFloodHomepage"
           - attributes["url.full"] == "http://flagd:8013/flagd.evaluation.v1.Service/ResolveBoolean"
+          - attributes["url.full"] == "http://flagd:8013/flagd.evaluation.v2.Service/ResolveBoolean"
           - attributes["otel.scope.name"] == "flagd.evaluation.v1"
+          - attributes["otel.scope.name"] == "flagd.evaluation.v2"
           - attributes["url.full"] == "http://flagd:8013/flagd.evaluation.v1.Service/EventStream"
+          - attributes["url.full"] == "http://flagd:8013/flagd.evaluation.v2.Service/EventStream"
           - attributes["url.path"] == "/live/longpoll"
       transform/dc_not_error:
         error_mode: ignore

@@ -128,6 +128,10 @@ static_resources:
                                     end
                                     -- Auth OK -> continue
                                   end                       
+                        - match: { path: "/shipping" }
+                          redirect: { path_redirect: "/shipping/" }
+                        - match: { prefix: "/shipping/" }
+                          route: { cluster: secureapp-loadgen, prefix_rewrite: "/api/v1/shipping/info" }
                         - match: { prefix: "/" }
                           route: { cluster: frontend }
                 http_filters:
@@ -293,6 +297,18 @@ static_resources:
                     socket_address:
                       address: ${LOCUST_WEB_HOST}
                       port_value: ${LOCUST_WEB_PORT}
+    - name: secureapp-loadgen
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: secureapp-loadgen
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: ${SECUREAPP_HOST}
+                      port_value: ${SECUREAPP_PORT}
     # - name: grafana
     #   type: STRICT_DNS
     #   lb_policy: ROUND_ROBIN
