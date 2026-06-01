@@ -48,9 +48,13 @@ const Checkout: NextPage = () => {
         span.end();
       } else if (orderId) {
         // Success case - order confirmed
-        const span = tracer.startSpan('order.confirmed', {
+        // Span name kept as CamelCase `OrderConfirmed` to stay consistent with
+        // the other RUM workflow spans (`AddToCart`, `PlaceOrder`) so DEA
+        // funnel chips that match on the literal span name still hit. The
+        // backend APM span uses dotted `order.confirmed` independently.
+        const span = tracer.startSpan('OrderConfirmed', {
           attributes: {
-            'workflow.name': 'order.confirmed',
+            'workflow.name': 'OrderConfirmed',
             'order.id': orderId,
             'order.items_count': items.length,
             'order.total_items': items.reduce((sum, item) => sum + item.item.quantity, 0),
