@@ -88,8 +88,8 @@ fun main() {
     val badQueryPatterns = BadQueryPatterns()
 
     // Read configuration from environment variables
-    val cleanupRetentionDays = System.getenv("CLEANUP_RETENTION_DAYS")?.toIntOrNull() ?: 7
-    val cleanupIntervalHours = System.getenv("CLEANUP_INTERVAL_HOURS")?.toLongOrNull() ?: 24
+    val cleanupRetentionDays = System.getenv("CLEANUP_RETENTION_DAYS")?.toIntOrNull() ?: 4
+    val cleanupIntervalHours = System.getenv("CLEANUP_INTERVAL_HOURS")?.toLongOrNull() ?: 6
 
     // Fraud mutation percentage (5-90%)
     val fraudMutationPercentage = System.getenv("FRAUD_MUTATION_PERCENTAGE")?.toIntOrNull()?.coerceIn(5, 90) ?: 20
@@ -98,9 +98,8 @@ fun main() {
     // Bad query execution percentage (disabled by default)
     val badQueryPercentage = System.getenv("BAD_QUERY_PERCENTAGE")?.toIntOrNull()?.coerceIn(0, 100) ?: 0
 
-    // Start cleanup scheduler
+    // Start cleanup scheduler (logs first-fire timestamp + batch config)
     databaseCleanup.startCleanupScheduler(cleanupRetentionDays, cleanupIntervalHours)
-    logger.info("Cleanup scheduler started: retentionDays=$cleanupRetentionDays, intervalHours=$cleanupIntervalHours")
 
     var totalCount = 0L
     var fraudAlertCount = 0L

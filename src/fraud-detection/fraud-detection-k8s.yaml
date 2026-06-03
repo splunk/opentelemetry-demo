@@ -71,9 +71,9 @@ spec:
         - name: FRAUD_DETECTION_RATE
           value: '80'
         - name: CLEANUP_RETENTION_DAYS
-          value: '7'
+          value: '4'
         - name: CLEANUP_INTERVAL_HOURS
-          value: '24'
+          value: '6'
         - name: FRAUD_MUTATION_PERCENTAGE
           value: '25'
         - name: BAD_QUERY_PERCENTAGE
