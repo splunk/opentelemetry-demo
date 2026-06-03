@@ -11,42 +11,46 @@ import sys
 import re
 import os
 
-def update_manifest_image(service, registry, image_name, version):
-    """Update the image line in a service's k8s manifest."""
-    manifest_path = f"src/{service}/{service}-k8s.yaml"
-
+def _patch_file(manifest_path, new_image):
+    """Rewrite the image line in a single manifest file."""
     if not os.path.exists(manifest_path):
         print(f"Warning: Manifest not found: {manifest_path}")
         return False
 
-    # Read the manifest
     with open(manifest_path, 'r') as f:
         content = f.read()
 
-    # New image reference
-    new_image = f"{registry}/{image_name}:{version}"
-
-    # Pattern to match image lines (handles various registry formats)
     # Matches: image: ghcr.io/*/anything:any-tag
     pattern = r'(\s+image:\s+)ghcr\.io/[^\s]+:\S+'
-
-    # Replace with new image
-    updated_content, count = re.subn(
-        pattern,
-        rf'\1{new_image}',
-        content
-    )
+    updated_content, count = re.subn(pattern, rf'\1{new_image}', content)
 
     if count > 0:
-        # Write back
         with open(manifest_path, 'w') as f:
             f.write(updated_content)
         print(f"✅ Updated {manifest_path}")
         print(f"   New image: {new_image}")
         return True
-    else:
-        print(f"⚠️  No image line found in {manifest_path}")
-        return False
+
+    print(f"⚠️  No image line found in {manifest_path}")
+    return False
+
+
+def update_manifest_image(service, registry, image_name, version):
+    """Update the image line in a service's k8s manifest(s)."""
+    new_image = f"{registry}/{image_name}:{version}"
+
+    # Payment ships as A/B variants; stitch reads payment-vA / payment-vB.
+    # Keep payment-k8s.yaml in sync too (legacy fallback path).
+    if service == 'payment':
+        targets = [
+            f"src/{service}/payment-vA-k8s.yaml",
+            f"src/{service}/payment-vB-k8s.yaml",
+            f"src/{service}/{service}-k8s.yaml",
+        ]
+        results = [_patch_file(p, new_image) for p in targets]
+        return any(results)
+
+    return _patch_file(f"src/{service}/{service}-k8s.yaml", new_image)
 
 def main():
     if len(sys.argv) != 5:
