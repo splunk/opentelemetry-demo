@@ -110,8 +110,21 @@ def get_service_versions() -> List[Tuple[str, str, str]]:
         if not service_dir.is_dir():
             continue
 
-        # Look for [service]-k8s.yaml
         service_name = service_dir.name
+
+        # Payment uses A/B variants stitched into the released manifest;
+        # the single payment-k8s.yaml is a legacy fallback never deployed.
+        # Report the variants that actually ship.
+        if service_name == 'payment':
+            variant_a = service_dir / 'payment-vA-k8s.yaml'
+            variant_b = service_dir / 'payment-vB-k8s.yaml'
+            if variant_a.exists() and variant_b.exists():
+                for variant_path in (variant_a, variant_b):
+                    service, image, version = extract_image_from_manifest(variant_path)
+                    versions.append((service, image, version))
+                continue
+
+        # Look for [service]-k8s.yaml
         manifest_path = service_dir / f"{service_name}-k8s.yaml"
 
         if manifest_path.exists():

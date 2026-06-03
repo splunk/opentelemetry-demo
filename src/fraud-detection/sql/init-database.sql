@@ -11,6 +11,14 @@ BEGIN
 END
 GO
 
+-- Demo workload: no point-in-time recovery needed. SIMPLE recovery lets
+-- the transaction log auto-truncate at every checkpoint so it stays
+-- bounded. Under FULL recovery (SQL Server default) the tlog grows
+-- forever until a log backup runs — on this demo it hit 392MB / 200MB
+-- data within 5 days.
+ALTER DATABASE FraudDetection SET RECOVERY SIMPLE;
+GO
+
 USE FraudDetection;
 GO
 
