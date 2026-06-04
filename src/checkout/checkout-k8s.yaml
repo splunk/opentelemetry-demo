@@ -82,6 +82,12 @@ spec:
           value: http://shipping:8080
         - name: KAFKA_ADDR
           value: kafka:9092
+        # Optional fire-and-forget call to report-generator (throttle-demo).
+        # Safe to leave set even when throttle-demo manifest is not applied:
+        # DNS NXDOMAIN or connection refused are swallowed by triggerReport,
+        # which also enforces a 500ms timeout. To disable entirely, unset.
+        - name: REPORT_GENERATOR_ADDR
+          value: http://report-generator:8080
         - name: FLAGD_HOST
           value: flagd
         - name: FLAGD_PORT

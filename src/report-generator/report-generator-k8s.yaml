@@ -1,0 +1,129 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+# Kubernetes manifest for report-generator
+#
+# Demo intent: CPU-throttle scenario for k8s admin.
+# limits.cpu is intentionally tight relative to workload. Under load the
+# container hits CFS quota, APM shows p99 latency spikes with no errors.
+# Root cause is visible via container_cpu_cfs_throttled_seconds_total,
+# not pod logs.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: report-generator
+  labels:
+    opentelemetry.io/name: report-generator
+    app.kubernetes.io/component: report-generator
+    app.kubernetes.io/name: report-generator
+    app.kubernetes.io/version: 2.0.4
+    app.kubernetes.io/part-of: opentelemetry-demo
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    name: tcp-service
+    targetPort: 8080
+  selector:
+    opentelemetry.io/name: report-generator
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: report-generator
+  labels:
+    opentelemetry.io/name: report-generator
+    app.kubernetes.io/component: report-generator
+    app.kubernetes.io/name: report-generator
+    app.kubernetes.io/version: 2.0.4
+    app.kubernetes.io/part-of: opentelemetry-demo
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      opentelemetry.io/name: report-generator
+  template:
+    metadata:
+      labels:
+        opentelemetry.io/name: report-generator
+        app.kubernetes.io/component: report-generator
+        app.kubernetes.io/name: report-generator
+    spec:
+      serviceAccountName: opentelemetry-demo
+      containers:
+      - name: report-generator
+        image: ghcr.io/splunk/opentelemetry-demo/otel-report-generator:2.0.4
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: service
+        env:
+        - name: WORKSHOP_ENV
+          valueFrom:
+            secretKeyRef:
+              name: workshop-secret
+              key: env
+        - name: OTEL_SERVICE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.labels['app.kubernetes.io/component']
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: OTEL_COLLECTOR_NAME
+          value: $(NODE_IP)
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: http://$(OTEL_COLLECTOR_NAME):4317
+        - name: OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
+          value: cumulative
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version=2.0.4,deployment.environment=$(WORKSHOP_ENV)-throttle-demo
+        - name: OTEL_PYTHON_LOG_CORRELATION
+          value: 'true'
+        - name: REPORT_PORT
+          value: '8080'
+        # Workload sizing — tuned so each report comfortably exceeds the
+        # CPU quota window, guaranteeing throttle visibility in APM.
+        - name: REPORT_ITERATIONS
+          value: '1500000'
+        - name: REPORT_BACKGROUND_INTERVAL_SECONDS
+          value: '15'
+        - name: FLAGD_HOST
+          value: flagd
+        - name: FLAGD_PORT
+          value: '8013'
+        - name: SPLUNK_PROFILER_LOGS_ENDPOINT
+          value: http://$(OTEL_COLLECTOR_NAME):4317
+        - name: SPLUNK_PROFILER_ENABLED
+          value: 'true'
+        - name: SPLUNK_PROFILER_CALL_STACK_INTERVAL
+          value: '750'
+        # Intentionally tight CPU limit. Workload needs ~400-500m;
+        # 100m guarantees CFS throttling under any sustained load.
+        # k8s admin spots this via:
+        #   kubectl top pod report-generator
+        #   container_cpu_cfs_throttled_seconds_total{pod=~"report-generator.*"}
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 100m
+            memory: 256Mi
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 2
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 15
+        volumeMounts: null
+      volumes: null

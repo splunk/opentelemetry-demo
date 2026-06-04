@@ -142,6 +142,7 @@ type checkout struct {
 	emailSvcAddr          string
 	paymentSvcAddr        string
 	kafkaBrokerSvcAddr    string
+	reportGeneratorAddr   string
 	pb.UnimplementedCheckoutServiceServer
 	KafkaProducerClient     sarama.AsyncProducer
 	shippingSvcClient       pb.ShippingServiceClient
@@ -237,6 +238,8 @@ func main() {
 	c = mustCreateClient(svc.paymentSvcAddr, "payment")
 	svc.paymentSvcClient = pb.NewPaymentServiceClient(c)
 	defer c.Close()
+
+	svc.reportGeneratorAddr = os.Getenv("REPORT_GENERATOR_ADDR")
 
 	svc.kafkaBrokerSvcAddr = os.Getenv("KAFKA_ADDR")
 
@@ -394,6 +397,13 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		logger.Warn(fmt.Sprintf("failed to send order confirmation: %+v", err))
 	} else {
 		logger.Info("order confirmation email sent")
+	}
+
+	// Fire-and-forget report generation. Optional svc — empty env, unreachable,
+	// slow, or throttled must never block order completion. Detached context
+	// (no cancel propagation from gRPC handler) keeps the trace parent linked.
+	if cs.reportGeneratorAddr != "" {
+		go cs.triggerReport(context.WithoutCancel(ctx), orderResult.OrderId)
 	}
 
 	// send to kafka only if kafka broker address is set
@@ -665,6 +675,32 @@ func (cs *checkout) sendOrderConfirmation(ctx context.Context, email string, ord
 	}
 
 	return err
+}
+
+// triggerReport fires a best-effort POST to the report-generator service.
+// Errors, timeouts, and connection failures are swallowed by design — this
+// path must never affect order completion. Caller already detached the
+// context from the gRPC request lifecycle.
+func (cs *checkout) triggerReport(ctx context.Context, orderID string) {
+	defer func() {
+		if r := recover(); r != nil {
+			// Never let a panic in the optional path take down checkout.
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel()
+
+	url := cs.reportGeneratorAddr + "/report/" + orderID
+	req, err := http.NewRequestWithContext(ctx, "POST", url, nil)
+	if err != nil {
+		return
+	}
+	resp, err := cs.httpClient.Do(req)
+	if err != nil {
+		return
+	}
+	_ = resp.Body.Close()
 }
 
 func (cs *checkout) shipOrder(ctx context.Context, address *pb.Address, items []*pb.CartItem) (string, error) {

@@ -93,15 +93,17 @@ jobs:
           MANIFEST_LAMBDA="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-lambda.yaml"
           MANIFEST_DC_SHIM="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-dc-shim.yaml"
           MANIFEST_SECUREAPP="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-secureapp.yaml"
+          MANIFEST_THROTTLE_DEMO="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-throttle-demo.yaml"
 
           echo "manifest_file=$MANIFEST_FILE" >> $GITHUB_OUTPUT
           echo "manifest_file_diab=$MANIFEST_FILE_DIAB" >> $GITHUB_OUTPUT
           echo "manifest_lambda=$MANIFEST_LAMBDA" >> $GITHUB_OUTPUT
           echo "manifest_dc_shim=$MANIFEST_DC_SHIM" >> $GITHUB_OUTPUT
           echo "manifest_secureapp=$MANIFEST_SECUREAPP" >> $GITHUB_OUTPUT
+          echo "manifest_throttle_demo=$MANIFEST_THROTTLE_DEMO" >> $GITHUB_OUTPUT
 
           echo "Generated manifests:"
-          for MFILE in "$MANIFEST_FILE" "$MANIFEST_FILE_DIAB" "$MANIFEST_LAMBDA" "$MANIFEST_DC_SHIM" "$MANIFEST_SECUREAPP"; do
+          for MFILE in "$MANIFEST_FILE" "$MANIFEST_FILE_DIAB" "$MANIFEST_LAMBDA" "$MANIFEST_DC_SHIM" "$MANIFEST_SECUREAPP" "$MANIFEST_THROTTLE_DEMO"; do
             [ -f "$MFILE" ] && echo "  [ok] $(basename $MFILE)" || echo "  [--] $(basename $MFILE) (not generated)"
           done
 
@@ -118,7 +120,8 @@ jobs:
                        "${{ steps.stitch.outputs.manifest_file_diab }}" \
                        "${{ steps.stitch.outputs.manifest_lambda }}" \
                        "${{ steps.stitch.outputs.manifest_dc_shim }}" \
-                       "${{ steps.stitch.outputs.manifest_secureapp }}"; do
+                       "${{ steps.stitch.outputs.manifest_secureapp }}" \
+                       "${{ steps.stitch.outputs.manifest_throttle_demo }}"; do
             [ -f "$MFILE" ] && ASSETS="$ASSETS $MFILE"
           done
 
@@ -154,6 +157,7 @@ jobs:
               "| \`splunk-astronomy-shop-${VERSION}-lambda.yaml\` | Lambda planning service |" \
               "| \`splunk-astronomy-shop-${VERSION}-dc-shim.yaml\` | DC shim + db + loadgen |" \
               "| \`splunk-astronomy-shop-${VERSION}-secureapp.yaml\` | SecureApp loadgen |" \
+              "| \`splunk-astronomy-shop-${VERSION}-throttle-demo.yaml\` | k8s CPU throttle demo (report-generator) |" \
               "" \
               "### Deploy" \
               "\`\`\`bash" \
