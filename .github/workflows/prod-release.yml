@@ -400,6 +400,36 @@ jobs:
             fi
           done
 
+      - name: Generate per-service version pinning for partial builds
+        # For partial builds (services!=all), the stitched manifest must
+        # pin only the freshly-built services at the new tag and leave
+        # everything else at the prior stable version. Otherwise pods
+        # ImagePullBackOff on tags that were never pushed for un-built
+        # services. The stitcher already supports this via
+        # .service-versions.yaml; we just need to generate it.
+        if: ${{ inputs.services != 'all' }}
+        run: |
+          OLD_VERSION="${{ steps.old-version.outputs.old_version }}"
+          NEW_VERSION="${{ needs.determine-version.outputs.version }}"
+          BUILT_SERVICES="${{ inputs.services }}"
+
+          python3 - "$BUILT_SERVICES" "$NEW_VERSION" "$OLD_VERSION" <<'PYEOF' > .service-versions.yaml
+          import sys, yaml
+          built = {s.strip() for s in sys.argv[1].split(',') if s.strip()}
+          new_version, old_version = sys.argv[2], sys.argv[3]
+          with open('services.yaml') as f:
+              cfg = yaml.safe_load(f)
+          print('services:')
+          for svc in cfg.get('services', []):
+              if svc.get('build', False):
+                  name = svc['name']
+                  pin = new_version if name in built else old_version
+                  print(f"  {name}: {pin}")
+          PYEOF
+
+          echo "Per-service version pinning (partial build):"
+          cat .service-versions.yaml
+
       - name: Stitch production manifests
         id: stitch
         run: |
@@ -442,6 +472,10 @@ jobs:
           else
             echo "${{ needs.determine-version.outputs.base_version }}" > SPLUNK-VERSION
           fi
+
+          # Remove the temporary per-service pinning file so it never gets
+          # committed by downstream PR/branch steps.
+          rm -f .service-versions.yaml
 
       - name: Ensure values.yaml exists for this version
         if: ${{ needs.determine-version.outputs.is_beta != 'true' }}
