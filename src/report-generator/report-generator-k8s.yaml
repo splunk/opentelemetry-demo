@@ -90,12 +90,31 @@ spec:
           value: 'healthz,state'
         - name: REPORT_PORT
           value: '8080'
-        # Workload sizing — tuned so each report comfortably exceeds the
-        # CPU quota window, guaranteeing throttle visibility in APM.
-        - name: REPORT_ITERATIONS
-          value: '1500000'
+        # Tier iteration counts. light/medium fit under CPU quota,
+        # heavy/extreme guarantee CFS throttle visibility in APM.
+        # Spread tuned so p50≈light (~50ms), p90≈medium (~300ms),
+        # p99≈heavy (~5-10s), p99+≈extreme (~60s).
+        - name: REPORT_ITERATIONS_LIGHT
+          value: '100000'
+        - name: REPORT_ITERATIONS_MEDIUM
+          value: '500000'
+        - name: REPORT_ITERATIONS_HEAVY
+          value: '2000000'
+        - name: REPORT_ITERATIONS_EXTREME
+          value: '10000000'
+        # SKUs whose presence in cart triggers heavy/extreme tier.
+        # Default: Optical Tube Assembly ($3599, most expensive).
+        - name: HIGH_VALUE_SKUS
+          value: '9SIQT8TOJO'
+        # Random "audit sampling" — fraction of orders forced to extreme
+        # regardless of cart, drives genuine p99+ tail noise.
+        - name: REPORT_AUDIT_SAMPLE_RATE
+          value: '0.05'
+        # Background loop disabled (0) — real load now comes from
+        # accounting after Kafka order consumption. Set >0 for a synthetic
+        # baseline if no order traffic.
         - name: REPORT_BACKGROUND_INTERVAL_SECONDS
-          value: '15'
+          value: '0'
         - name: FLAGD_HOST
           value: flagd
         - name: FLAGD_PORT

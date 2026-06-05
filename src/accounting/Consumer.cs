@@ -6,7 +6,10 @@ using Microsoft.Extensions.Logging;
 using Oteldemo;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
+using System.Linq;
 using System.Net.Http;
+using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -138,7 +141,7 @@ internal class Consumer : IDisposable
             dbContext.Add(shipping);
             dbContext.SaveChanges();
 
-            TriggerReport(order.OrderId);
+            TriggerReport(order);
         }
         catch (Exception ex)
         {
@@ -146,22 +149,47 @@ internal class Consumer : IDisposable
         }
     }
 
-    // Fire-and-forget POST to report-generator. Errors, timeouts, DNS
-    // failures all swallowed by design — report generation is an optional
-    // throttle-demo side-channel and must not affect order processing.
-    private void TriggerReport(string orderId)
+    // Fire-and-forget POST to report-generator with order context.
+    // Body shape: { "currency": "<code>", "product_ids": [...] }.
+    // report-generator uses cart contents + currency to derive workload
+    // tier (light/medium/heavy/extreme) — drives the bimodal+ duration
+    // distribution that produces the demo's p50/p90/p99 spread.
+    // All errors swallowed by design — optional throttle-demo side-channel.
+    private void TriggerReport(OrderResult order)
     {
         if (string.IsNullOrEmpty(_reportGeneratorAddr))
         {
             return;
         }
 
-        var url = $"{_reportGeneratorAddr}/report/{orderId}";
+        // Pick currency from the first item's cost (all items in an order
+        // share a currency in this demo) — fall back to shipping currency
+        // and finally USD.
+        var currency = order.Items
+            .Select(i => i.Cost?.CurrencyCode)
+            .FirstOrDefault(c => !string.IsNullOrEmpty(c))
+            ?? order.ShippingCost?.CurrencyCode
+            ?? "USD";
+
+        var productIds = order.Items
+            .Select(i => i.Item?.ProductId)
+            .Where(p => !string.IsNullOrEmpty(p))
+            .ToArray();
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            currency = currency,
+            product_ids = productIds,
+        });
+
+        var url = $"{_reportGeneratorAddr}/report/{order.OrderId}";
+        var orderId = order.OrderId;
         _ = Task.Run(async () =>
         {
             try
             {
-                using var resp = await _httpClient.PostAsync(url, content: null).ConfigureAwait(false);
+                using var content = new StringContent(payload, Encoding.UTF8, "application/json");
+                using var resp = await _httpClient.PostAsync(url, content).ConfigureAwait(false);
             }
             catch
             {
