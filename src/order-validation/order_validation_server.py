@@ -131,37 +131,55 @@ def validate_order(
 ) -> dict:
     with tracer.start_as_current_span("validate_order") as span:
         span.set_attribute("app.validation.order_id", order_id)
-        throttle_on = _flag_client.get_boolean_value(THROTTLE_FLAG, True)
-        span.set_attribute("app.validation.throttle_flag", throttle_on)
+        try:
+            throttle_on = _flag_client.get_boolean_value(THROTTLE_FLAG, True)
+            span.set_attribute("app.validation.throttle_flag", throttle_on)
 
-        tier, has_high_value, audit_sampled = _decide_tier(currency, product_ids)
-        span.set_attribute("app.validation.tier", tier)
-        span.set_attribute("app.validation.currency", (currency or "USD").upper())
-        span.set_attribute("app.validation.has_high_value_sku", has_high_value)
-        span.set_attribute("app.validation.audit_sampled", audit_sampled)
-        if product_ids:
-            span.set_attribute("app.validation.product_ids", ",".join(product_ids))
+            tier, has_high_value, audit_sampled = _decide_tier(currency, product_ids)
+            span.set_attribute("app.validation.tier", tier)
+            span.set_attribute("app.validation.currency", (currency or "USD").upper())
+            span.set_attribute("app.validation.has_high_value_sku", has_high_value)
+            span.set_attribute("app.validation.audit_sampled", audit_sampled)
+            if product_ids:
+                span.set_attribute("app.validation.product_ids", ",".join(product_ids))
 
-        start = time.monotonic()
-        if throttle_on:
-            iterations = TIER_ITERATIONS[tier]
-            span.set_attribute("app.validation.path", "full")
-            span.set_attribute("app.validation.iterations", iterations)
-            digest = _cpu_burn(order_id, iterations)
-        else:
-            span.set_attribute("app.validation.path", "stub")
-            digest = _STUB_DIGEST
-        elapsed_ms = (time.monotonic() - start) * 1000
-        span.set_attribute("app.validation.duration_ms", elapsed_ms)
-        if throttle_on and elapsed_ms > 2000:
-            span.set_status(Status(StatusCode.OK, "slow — likely CPU throttled"))
-        return {
-            "order_id": order_id,
-            "digest": digest,
-            "duration_ms": elapsed_ms,
-            "tier": tier,
-            "path": "full" if throttle_on else "stub",
-        }
+            log.info(
+                "validate request: order_id=%s currency=%s product_ids=%s "
+                "tier=%s has_high_value=%s audit_sampled=%s throttle=%s",
+                order_id, (currency or "USD").upper(), product_ids or [],
+                tier, has_high_value, audit_sampled, throttle_on,
+            )
+
+            start = time.monotonic()
+            if throttle_on:
+                iterations = TIER_ITERATIONS[tier]
+                span.set_attribute("app.validation.path", "full")
+                span.set_attribute("app.validation.iterations", iterations)
+                digest = _cpu_burn(order_id, iterations)
+            else:
+                span.set_attribute("app.validation.path", "stub")
+                digest = _STUB_DIGEST
+            elapsed_ms = (time.monotonic() - start) * 1000
+            span.set_attribute("app.validation.duration_ms", elapsed_ms)
+            if throttle_on and elapsed_ms > 2000:
+                span.set_status(Status(StatusCode.OK, "slow — likely CPU throttled"))
+
+            log.info(
+                "validate done: order_id=%s tier=%s duration_ms=%.1f path=%s",
+                order_id, tier, elapsed_ms, "full" if throttle_on else "stub",
+            )
+            return {
+                "order_id": order_id,
+                "digest": digest,
+                "duration_ms": elapsed_ms,
+                "tier": tier,
+                "path": "full" if throttle_on else "stub",
+            }
+        except Exception:
+            # Log full stacktrace + mark span; re-raise so FastAPI returns 500.
+            log.exception("validate failed: order_id=%s", order_id)
+            span.set_status(Status(StatusCode.ERROR, "validation raised"))
+            raise
 
 
 async def _background_loop():
