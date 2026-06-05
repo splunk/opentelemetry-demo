@@ -40,7 +40,11 @@ internal class Consumer : IDisposable
     private readonly string? _dbConnectionString;
     private readonly string? _reportGeneratorAddr;
     private static readonly ActivitySource MyActivitySource = new("Accounting.Consumer");
-    private static readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromMilliseconds(500) };
+    // Timeout chosen to cover the slowest report tier (extreme ~60s under CPU
+    // throttle). Reports are the demo's *intentional* slow path — if accounting
+    // cancels too early the trace shows a false error instead of the real
+    // p99 latency story.
+    private static readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromSeconds(120) };
 
     public Consumer(ILogger<Consumer> logger)
     {
