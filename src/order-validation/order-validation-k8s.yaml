@@ -1,6 +1,6 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
-# Kubernetes manifest for report-generator
+# Kubernetes manifest for order-validation
 #
 # Demo intent: CPU-throttle scenario for k8s admin.
 # limits.cpu is intentionally tight relative to workload. Under load the
@@ -11,11 +11,11 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: report-generator
+  name: order-validation
   labels:
-    opentelemetry.io/name: report-generator
-    app.kubernetes.io/component: report-generator
-    app.kubernetes.io/name: report-generator
+    opentelemetry.io/name: order-validation
+    app.kubernetes.io/component: order-validation
+    app.kubernetes.io/name: order-validation
     app.kubernetes.io/version: 2.0.4
     app.kubernetes.io/part-of: opentelemetry-demo
 spec:
@@ -25,16 +25,16 @@ spec:
     name: tcp-service
     targetPort: 8080
   selector:
-    opentelemetry.io/name: report-generator
+    opentelemetry.io/name: order-validation
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: report-generator
+  name: order-validation
   labels:
-    opentelemetry.io/name: report-generator
-    app.kubernetes.io/component: report-generator
-    app.kubernetes.io/name: report-generator
+    opentelemetry.io/name: order-validation
+    app.kubernetes.io/component: order-validation
+    app.kubernetes.io/name: order-validation
     app.kubernetes.io/version: 2.0.4
     app.kubernetes.io/part-of: opentelemetry-demo
 spec:
@@ -42,18 +42,18 @@ spec:
   revisionHistoryLimit: 10
   selector:
     matchLabels:
-      opentelemetry.io/name: report-generator
+      opentelemetry.io/name: order-validation
   template:
     metadata:
       labels:
-        opentelemetry.io/name: report-generator
-        app.kubernetes.io/component: report-generator
-        app.kubernetes.io/name: report-generator
+        opentelemetry.io/name: order-validation
+        app.kubernetes.io/component: order-validation
+        app.kubernetes.io/name: order-validation
     spec:
       serviceAccountName: opentelemetry-demo
       containers:
-      - name: report-generator
-        image: ghcr.io/splunk/opentelemetry-demo/otel-report-generator:2.0.4
+      - name: order-validation
+        image: ghcr.io/splunk/opentelemetry-demo/otel-order-validation:2.0.4
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -84,23 +84,22 @@ spec:
         - name: OTEL_PYTHON_LOG_CORRELATION
           value: 'true'
         # Skip liveness/readiness probe spans — they swamp the signal from
-        # the actual report-generation workload (~12 probe spans/min vs
-        # ~4 background-loop spans/min). Pattern matches the path portion.
+        # the actual validation workload.
         - name: OTEL_PYTHON_FASTAPI_EXCLUDED_URLS
           value: 'healthz,state'
-        - name: REPORT_PORT
+        - name: VALIDATION_PORT
           value: '8080'
         # Tier iteration counts. light/medium fit under CPU quota,
         # heavy/extreme guarantee CFS throttle visibility in APM.
         # Spread tuned so p50≈light (~50ms), p90≈medium (~300ms),
         # p99≈heavy (~5-10s), p99+≈extreme (~60s).
-        - name: REPORT_ITERATIONS_LIGHT
+        - name: VALIDATION_ITERATIONS_LIGHT
           value: '100000'
-        - name: REPORT_ITERATIONS_MEDIUM
+        - name: VALIDATION_ITERATIONS_MEDIUM
           value: '500000'
-        - name: REPORT_ITERATIONS_HEAVY
+        - name: VALIDATION_ITERATIONS_HEAVY
           value: '2000000'
-        - name: REPORT_ITERATIONS_EXTREME
+        - name: VALIDATION_ITERATIONS_EXTREME
           value: '10000000'
         # SKUs whose presence in cart triggers heavy/extreme tier.
         # Default: Optical Tube Assembly ($3599, most expensive).
@@ -108,12 +107,12 @@ spec:
           value: '9SIQT8TOJO'
         # Random "audit sampling" — fraction of orders forced to extreme
         # regardless of cart, drives genuine p99+ tail noise.
-        - name: REPORT_AUDIT_SAMPLE_RATE
+        - name: VALIDATION_AUDIT_SAMPLE_RATE
           value: '0.05'
         # Background loop disabled (0) — real load now comes from
         # accounting after Kafka order consumption. Set >0 for a synthetic
         # baseline if no order traffic.
-        - name: REPORT_BACKGROUND_INTERVAL_SECONDS
+        - name: VALIDATION_BACKGROUND_INTERVAL_SECONDS
           value: '0'
         - name: FLAGD_HOST
           value: flagd
@@ -128,8 +127,8 @@ spec:
         # Intentionally tight CPU limit. Workload needs ~400-500m;
         # 100m guarantees CFS throttling under any sustained load.
         # k8s admin spots this via:
-        #   kubectl top pod report-generator
-        #   container_cpu_cfs_throttled_seconds_total{pod=~"report-generator.*"}
+        #   kubectl top pod order-validation
+        #   container_cpu_cfs_throttled_seconds_total{pod=~"order-validation.*"}
         resources:
           requests:
             cpu: 50m

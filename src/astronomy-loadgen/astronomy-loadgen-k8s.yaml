@@ -102,7 +102,7 @@ data:
 
     // Currency rotation for throttle-demo: a fraction of orders is placed in
     // a non-USD currency to drive cross-border-compliance code paths in the
-    // report-generator (heavier reports → CPU-throttle visibility in APM).
+    // order-validation (heavier compliance work → CPU-throttle in APM).
     const NON_USD_PROBABILITY = parseFloat(process.env.NON_USD_PROBABILITY || '0');
     const NON_USD_CURRENCIES = (process.env.NON_USD_CURRENCIES || 'EUR,GBP,JPY,CAD,CHF')
       .split(',').map(c => c.trim()).filter(c => c);
@@ -445,7 +445,7 @@ spec:
               key: shipping_api
               optional: true
         # Throttle-demo: fraction of orders placed in a non-USD currency to
-        # drive the cross-border path in report-generator. Default 0
+        # drive the cross-border path in order-validation. Default 0
         # (USD-only). Tune up to ~0.10 for visible non-USD signal in APM.
         - name: NON_USD_PROBABILITY
           value: "0.10"

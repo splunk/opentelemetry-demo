@@ -157,7 +157,7 @@ jobs:
               "| \`splunk-astronomy-shop-${VERSION}-lambda.yaml\` | Lambda planning service |" \
               "| \`splunk-astronomy-shop-${VERSION}-dc-shim.yaml\` | DC shim + db + loadgen |" \
               "| \`splunk-astronomy-shop-${VERSION}-secureapp.yaml\` | SecureApp loadgen |" \
-              "| \`splunk-astronomy-shop-${VERSION}-throttle-demo.yaml\` | k8s CPU throttle demo (report-generator) |" \
+              "| \`splunk-astronomy-shop-${VERSION}-throttle-demo.yaml\` | k8s CPU throttle demo (order-validation) |" \
               "" \
               "### Deploy" \
               "\`\`\`bash" \

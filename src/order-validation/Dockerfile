@@ -3,7 +3,7 @@
 
 FROM docker.io/library/python:3.12-alpine3.23 AS build-venv
 
-COPY ./src/report-generator/requirements.txt requirements.txt
+COPY ./src/order-validation/requirements.txt requirements.txt
 
 RUN python -m venv venv && \
     venv/bin/pip install --no-cache-dir -r requirements.txt
@@ -16,7 +16,7 @@ COPY --from=build-venv /venv/ /venv/
 
 WORKDIR /app
 
-COPY ./src/report-generator/report_server.py report_server.py
+COPY ./src/order-validation/order_validation_server.py order_validation_server.py
 
-EXPOSE ${REPORT_PORT}
-ENTRYPOINT [ "/venv/bin/opentelemetry-instrument", "/venv/bin/python", "report_server.py" ]
+EXPOSE ${VALIDATION_PORT}
+ENTRYPOINT [ "/venv/bin/opentelemetry-instrument", "/venv/bin/python", "order_validation_server.py" ]

@@ -263,7 +263,7 @@ jobs:
           echo "kubectl apply -f ${{ steps.stitch.outputs.manifest_secureapp }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Throttle Demo (report-generator)" >> $GITHUB_STEP_SUMMARY
+          echo "### Throttle Demo (order-validation)" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "kubectl apply -f ${{ steps.stitch.outputs.manifest_throttle_demo }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

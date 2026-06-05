@@ -1,7 +1,8 @@
-"""Report generator — k8s CPU-throttle demo service.
+"""Order validation — k8s CPU-throttle demo service.
 
-Workload tier is derived from order context (cart contents + currency)
-provided by the caller (accounting service). Drives a bimodal+ duration
+Validates each incoming order against a synthetic compliance/audit
+workload. Workload size depends on order context (cart contents +
+currency) passed by the caller (accounting). Drives a bimodal+ duration
 distribution so APM p50/p90/p99 tell a clear story:
 
   - light    : ~100k iters     (~50ms,   below quota)
@@ -16,13 +17,13 @@ Tier selection rules (cart × currency):
   | yes                     | USD           | heavy   |
   | yes                     | non-USD       | extreme |
 
-Plus a random 5% audit overlay forces extreme regardless. Real story:
-"high-value items need compliance review; cross-border adds work; we
-audit-sample 5% of orders no matter what."
+Plus a random 5% audit overlay forces extreme regardless. Story:
+"high-value items need export-control review; cross-border adds work;
+we audit-sample 5% of orders no matter what."
 
 Flag-gated kill-switch:
-  reportGeneratorThrottle = on  -> compute the tier path as designed.
-  reportGeneratorThrottle = off -> skip work, return precomputed stub.
+  orderValidationThrottle = on  -> compute the tier path as designed.
+  orderValidationThrottle = off -> skip work, return precomputed stub.
 
 The "real" production fix is raising the container's cpu limit; the
 flag is the in-process kill-switch story for demo flips.
@@ -45,13 +46,13 @@ from opentelemetry.trace import Status, StatusCode
 from pydantic import BaseModel
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-log = logging.getLogger("report-generator")
+log = logging.getLogger("order-validation")
 
-BACKGROUND_INTERVAL = int(os.getenv("REPORT_BACKGROUND_INTERVAL_SECONDS", "0"))
-PORT = int(os.getenv("REPORT_PORT", "8080"))
+BACKGROUND_INTERVAL = int(os.getenv("VALIDATION_BACKGROUND_INTERVAL_SECONDS", "0"))
+PORT = int(os.getenv("VALIDATION_PORT", "8080"))
 FLAGD_HOST = os.getenv("FLAGD_HOST", "flagd")
 FLAGD_PORT = int(os.getenv("FLAGD_PORT", "8013"))
-THROTTLE_FLAG = "reportGeneratorThrottle"
+THROTTLE_FLAG = "orderValidationThrottle"
 
 # High-value SKUs that trigger the heavy/extreme compliance path.
 # Default: the Optical Tube Assembly ($3599) — highest-priced item in
@@ -63,24 +64,24 @@ HIGH_VALUE_SKUS = {
 # Per-tier iteration counts (sha256 chain length). Tune to shape the
 # duration spread.
 TIER_ITERATIONS = {
-    "light": int(os.getenv("REPORT_ITERATIONS_LIGHT", "100000")),
-    "medium": int(os.getenv("REPORT_ITERATIONS_MEDIUM", "500000")),
-    "heavy": int(os.getenv("REPORT_ITERATIONS_HEAVY", "2000000")),
-    "extreme": int(os.getenv("REPORT_ITERATIONS_EXTREME", "10000000")),
+    "light": int(os.getenv("VALIDATION_ITERATIONS_LIGHT", "100000")),
+    "medium": int(os.getenv("VALIDATION_ITERATIONS_MEDIUM", "500000")),
+    "heavy": int(os.getenv("VALIDATION_ITERATIONS_HEAVY", "2000000")),
+    "extreme": int(os.getenv("VALIDATION_ITERATIONS_EXTREME", "10000000")),
 }
 
 # Probability that any order — regardless of tier — gets flagged for a
 # "random audit" and forced to extreme. Adds genuine p99 tail noise.
-AUDIT_SAMPLE_RATE = float(os.getenv("REPORT_AUDIT_SAMPLE_RATE", "0.05"))
+AUDIT_SAMPLE_RATE = float(os.getenv("VALIDATION_AUDIT_SAMPLE_RATE", "0.05"))
 
-tracer = trace.get_tracer("report-generator")
+tracer = trace.get_tracer("order-validation")
 
 api.set_provider(FlagdProvider(host=FLAGD_HOST, port=FLAGD_PORT))
 api.add_hooks([TracingHook()])
 _flag_client = api.get_client()
 
 
-class ReportRequest(BaseModel):
+class ValidationRequest(BaseModel):
     currency: Optional[str] = None
     product_ids: Optional[list[str]] = None
 
@@ -93,7 +94,7 @@ def _cpu_burn(seed: str, iterations: int) -> str:
 
 
 # Precomputed stub returned when throttle flag is off ("fixed" path).
-_STUB_DIGEST = hashlib.sha256(b"report-stub").hexdigest()
+_STUB_DIGEST = hashlib.sha256(b"validation-stub").hexdigest()
 
 
 def _decide_tier(currency: Optional[str], product_ids: Optional[list[str]]) -> tuple[str, bool, bool]:
@@ -123,35 +124,35 @@ def _decide_tier(currency: Optional[str], product_ids: Optional[list[str]]) -> t
     return tier, has_high_value, audit_sampled
 
 
-def generate_report(
+def validate_order(
     order_id: str,
     currency: Optional[str] = None,
     product_ids: Optional[list[str]] = None,
 ) -> dict:
-    with tracer.start_as_current_span("generate_report") as span:
-        span.set_attribute("app.report.order_id", order_id)
+    with tracer.start_as_current_span("validate_order") as span:
+        span.set_attribute("app.validation.order_id", order_id)
         throttle_on = _flag_client.get_boolean_value(THROTTLE_FLAG, True)
-        span.set_attribute("app.report.throttle_flag", throttle_on)
+        span.set_attribute("app.validation.throttle_flag", throttle_on)
 
         tier, has_high_value, audit_sampled = _decide_tier(currency, product_ids)
-        span.set_attribute("app.report.tier", tier)
-        span.set_attribute("app.report.currency", (currency or "USD").upper())
-        span.set_attribute("app.report.has_high_value_sku", has_high_value)
-        span.set_attribute("app.report.audit_sampled", audit_sampled)
+        span.set_attribute("app.validation.tier", tier)
+        span.set_attribute("app.validation.currency", (currency or "USD").upper())
+        span.set_attribute("app.validation.has_high_value_sku", has_high_value)
+        span.set_attribute("app.validation.audit_sampled", audit_sampled)
         if product_ids:
-            span.set_attribute("app.report.product_ids", ",".join(product_ids))
+            span.set_attribute("app.validation.product_ids", ",".join(product_ids))
 
         start = time.monotonic()
         if throttle_on:
             iterations = TIER_ITERATIONS[tier]
-            span.set_attribute("app.report.path", "full")
-            span.set_attribute("app.report.iterations", iterations)
+            span.set_attribute("app.validation.path", "full")
+            span.set_attribute("app.validation.iterations", iterations)
             digest = _cpu_burn(order_id, iterations)
         else:
-            span.set_attribute("app.report.path", "stub")
+            span.set_attribute("app.validation.path", "stub")
             digest = _STUB_DIGEST
         elapsed_ms = (time.monotonic() - start) * 1000
-        span.set_attribute("app.report.duration_ms", elapsed_ms)
+        span.set_attribute("app.validation.duration_ms", elapsed_ms)
         if throttle_on and elapsed_ms > 2000:
             span.set_status(Status(StatusCode.OK, "slow — likely CPU throttled"))
         return {
@@ -168,11 +169,11 @@ async def _background_loop():
     while True:
         try:
             await asyncio.get_running_loop().run_in_executor(
-                None, generate_report, f"bg-{counter}", "USD", None
+                None, validate_order, f"bg-{counter}", "USD", None
             )
             counter += 1
         except Exception:
-            log.exception("background report failed")
+            log.exception("background validation failed")
         await asyncio.sleep(BACKGROUND_INTERVAL)
 
 
@@ -182,12 +183,12 @@ async def lifespan(_: FastAPI):
     if BACKGROUND_INTERVAL > 0:
         task = asyncio.create_task(_background_loop())
         log.info(
-            "report-generator started w/ background loop (interval=%ds, flagd=%s:%d, high_value_skus=%s)",
+            "order-validation started w/ background loop (interval=%ds, flagd=%s:%d, high_value_skus=%s)",
             BACKGROUND_INTERVAL, FLAGD_HOST, FLAGD_PORT, sorted(HIGH_VALUE_SKUS),
         )
     else:
         log.info(
-            "report-generator started (background loop disabled, flagd=%s:%d, high_value_skus=%s)",
+            "order-validation started (background loop disabled, flagd=%s:%d, high_value_skus=%s)",
             FLAGD_HOST, FLAGD_PORT, sorted(HIGH_VALUE_SKUS),
         )
     try:
@@ -222,12 +223,12 @@ def state():
     }
 
 
-@app.post("/report/{order_id}")
-async def report(order_id: str, body: Optional[ReportRequest] = None):
+@app.post("/validate/{order_id}")
+async def validate(order_id: str, body: Optional[ValidationRequest] = None):
     currency = body.currency if body else None
     product_ids = body.product_ids if body else None
     return await asyncio.get_running_loop().run_in_executor(
-        None, generate_report, order_id, currency, product_ids
+        None, validate_order, order_id, currency, product_ids
     )
 
 

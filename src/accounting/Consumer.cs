@@ -38,12 +38,12 @@ internal class Consumer : IDisposable
     private IConsumer<string, byte[]> _consumer;
     private bool _isListening;
     private readonly string? _dbConnectionString;
-    private readonly string? _reportGeneratorAddr;
+    private readonly string? _orderValidationAddr;
     private static readonly ActivitySource MyActivitySource = new("Accounting.Consumer");
-    // Timeout chosen to cover the slowest report tier (extreme ~60s under CPU
-    // throttle). Reports are the demo's *intentional* slow path — if accounting
-    // cancels too early the trace shows a false error instead of the real
-    // p99 latency story.
+    // Timeout chosen to cover the slowest validation tier (extreme ~60s
+    // under CPU throttle). Validation is the demo's *intentional* slow path
+    // — if accounting cancels too early the trace shows a false error
+    // instead of the real p99 latency story.
     private static readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromSeconds(120) };
 
     public Consumer(ILogger<Consumer> logger)
@@ -62,7 +62,7 @@ internal class Consumer : IDisposable
        }
 
         _dbConnectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
-        _reportGeneratorAddr = Environment.GetEnvironmentVariable("REPORT_GENERATOR_ADDR");
+        _orderValidationAddr = Environment.GetEnvironmentVariable("ORDER_VALIDATION_ADDR");
     }
 
     public void StartListening()
@@ -145,7 +145,7 @@ internal class Consumer : IDisposable
             dbContext.Add(shipping);
             dbContext.SaveChanges();
 
-            TriggerReport(order);
+            TriggerValidation(order);
         }
         catch (Exception ex)
         {
@@ -153,15 +153,15 @@ internal class Consumer : IDisposable
         }
     }
 
-    // Fire-and-forget POST to report-generator with order context.
+    // Fire-and-forget POST to order-validation with order context.
     // Body shape: { "currency": "<code>", "product_ids": [...] }.
-    // report-generator uses cart contents + currency to derive workload
+    // order-validation uses cart contents + currency to derive workload
     // tier (light/medium/heavy/extreme) — drives the bimodal+ duration
     // distribution that produces the demo's p50/p90/p99 spread.
     // All errors swallowed by design — optional throttle-demo side-channel.
-    private void TriggerReport(OrderResult order)
+    private void TriggerValidation(OrderResult order)
     {
-        if (string.IsNullOrEmpty(_reportGeneratorAddr))
+        if (string.IsNullOrEmpty(_orderValidationAddr))
         {
             return;
         }
@@ -186,7 +186,7 @@ internal class Consumer : IDisposable
             product_ids = productIds,
         });
 
-        var url = $"{_reportGeneratorAddr}/report/{order.OrderId}";
+        var url = $"{_orderValidationAddr}/validate/{order.OrderId}";
         var orderId = order.OrderId;
         _ = Task.Run(async () =>
         {

@@ -1,8 +1,8 @@
 {
   "$schema": "https://flagd.dev/schema/v0/flags.json",
   "flags": {
-    "reportGeneratorThrottle": {
-      "description": "report-generator runs full CPU-bound report path, exposing k8s CPU throttle scenario. Off returns precomputed stub.",
+    "orderValidationThrottle": {
+      "description": "order-validation runs full CPU-bound compliance/audit path, exposing k8s CPU throttle scenario. Off returns precomputed stub.",
       "state": "ENABLED",
       "variants": {
         "on": true,

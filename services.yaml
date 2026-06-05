@@ -154,7 +154,7 @@ services:
     build: true
     manifest: true
 
-  - name: report-generator
+  - name: order-validation
     build: true
     manifest: true
     group: throttle-demo
