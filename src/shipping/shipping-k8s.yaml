@@ -50,7 +50,7 @@ spec:
       containers:
       - name: shipping
         image: ghcr.io/open-telemetry/demo:2.2.0-shipping
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
           name: service

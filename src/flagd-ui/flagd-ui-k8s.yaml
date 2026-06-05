@@ -57,7 +57,7 @@ spec:
       containers:
       - name: flagd-ui
         image: ghcr.io/open-telemetry/demo:2.2.0-flagd-ui
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         ports:
         - containerPort: 4000
           name: service

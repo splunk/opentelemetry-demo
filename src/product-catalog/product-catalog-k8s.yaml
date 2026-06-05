@@ -50,7 +50,7 @@ spec:
       containers:
       - name: product-catalog
         image: ghcr.io/splunk/opentelemetry-demo/otel-product-catalog:2.0.4
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
           name: service
