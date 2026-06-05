@@ -83,6 +83,11 @@ spec:
           value: service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version=2.0.4,deployment.environment=$(WORKSHOP_ENV)-throttle-demo
         - name: OTEL_PYTHON_LOG_CORRELATION
           value: 'true'
+        # Skip liveness/readiness probe spans — they swamp the signal from
+        # the actual report-generation workload (~12 probe spans/min vs
+        # ~4 background-loop spans/min). Pattern matches the path portion.
+        - name: OTEL_PYTHON_FASTAPI_EXCLUDED_URLS
+          value: 'healthz,state'
         - name: REPORT_PORT
           value: '8080'
         # Workload sizing — tuned so each report comfortably exceeds the

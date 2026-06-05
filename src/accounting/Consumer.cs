@@ -6,6 +6,9 @@ using Microsoft.Extensions.Logging;
 using Oteldemo;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Accounting;
 
@@ -32,7 +35,9 @@ internal class Consumer : IDisposable
     private IConsumer<string, byte[]> _consumer;
     private bool _isListening;
     private readonly string? _dbConnectionString;
+    private readonly string? _reportGeneratorAddr;
     private static readonly ActivitySource MyActivitySource = new("Accounting.Consumer");
+    private static readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromMilliseconds(500) };
 
     public Consumer(ILogger<Consumer> logger)
     {
@@ -50,6 +55,7 @@ internal class Consumer : IDisposable
        }
 
         _dbConnectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
+        _reportGeneratorAddr = Environment.GetEnvironmentVariable("REPORT_GENERATOR_ADDR");
     }
 
     public void StartListening()
@@ -131,11 +137,37 @@ internal class Consumer : IDisposable
             };
             dbContext.Add(shipping);
             dbContext.SaveChanges();
+
+            TriggerReport(order.OrderId);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Order parsing failed:");
         }
+    }
+
+    // Fire-and-forget POST to report-generator. Errors, timeouts, DNS
+    // failures all swallowed by design — report generation is an optional
+    // throttle-demo side-channel and must not affect order processing.
+    private void TriggerReport(string orderId)
+    {
+        if (string.IsNullOrEmpty(_reportGeneratorAddr))
+        {
+            return;
+        }
+
+        var url = $"{_reportGeneratorAddr}/report/{orderId}";
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var resp = await _httpClient.PostAsync(url, content: null).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Intentionally swallowed.
+            }
+        });
     }
 
     private static IConsumer<string, byte[]> BuildConsumer(string servers)
