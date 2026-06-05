@@ -61,14 +61,28 @@ HIGH_VALUE_SKUS = {
     s.strip() for s in os.getenv("HIGH_VALUE_SKUS", "9SIQT8TOJO").split(",") if s.strip()
 }
 
-# Per-tier iteration counts (sha256 chain length). Tune to shape the
-# duration spread.
+# Per-tier iteration counts (sha256 chain length). For non-extreme tiers
+# the work is paced (chunks + sleeps) so per-100ms CPU stays well under
+# the container's quota — CPU chart shows flat-low w/ tiny spikes, no
+# throttle. Extreme runs a tight loop and pegs the limit for the full
+# duration, producing the dramatic single-tier signature.
 TIER_ITERATIONS = {
-    "light": int(os.getenv("VALIDATION_ITERATIONS_LIGHT", "100000")),
-    "medium": int(os.getenv("VALIDATION_ITERATIONS_MEDIUM", "500000")),
-    "heavy": int(os.getenv("VALIDATION_ITERATIONS_HEAVY", "2000000")),
-    "extreme": int(os.getenv("VALIDATION_ITERATIONS_EXTREME", "10000000")),
+    "light": int(os.getenv("VALIDATION_ITERATIONS_LIGHT", "30000")),
+    "medium": int(os.getenv("VALIDATION_ITERATIONS_MEDIUM", "100000")),
+    "heavy": int(os.getenv("VALIDATION_ITERATIONS_HEAVY", "300000")),
+    "extreme": int(os.getenv("VALIDATION_ITERATIONS_EXTREME", "3000000")),
 }
+
+# Wall-clock targets for non-extreme tiers — work is paced over this
+# duration with sleep slack so the CPU never sustains at the limit.
+# Extreme has no target: it runs tight, wall time = throttle * work.
+TIER_TARGET_SECONDS = {
+    "light": float(os.getenv("VALIDATION_TARGET_LIGHT_SECONDS", "2.0")),
+    "medium": float(os.getenv("VALIDATION_TARGET_MEDIUM_SECONDS", "5.0")),
+    "heavy": float(os.getenv("VALIDATION_TARGET_HEAVY_SECONDS", "10.0")),
+}
+
+PACING_CHUNKS = int(os.getenv("VALIDATION_PACING_CHUNKS", "10"))
 
 # Probability that any order — regardless of tier — gets flagged for a
 # "random audit" and forced to extreme. Adds genuine p99 tail noise.
@@ -90,6 +104,28 @@ def _cpu_burn(seed: str, iterations: int) -> str:
     h = hashlib.sha256(seed.encode()).digest()
     for _ in range(iterations):
         h = hashlib.sha256(h).digest()
+    return h.hex()
+
+
+def _paced_burn(seed: str, iterations: int, target_seconds: float, chunks: int) -> str:
+    """Spread CPU work across `target_seconds` wall time in N chunks.
+
+    Each chunk does a small CPU burst then sleeps to fill the per-chunk
+    budget. Per-100ms CPU usage stays well under the CFS quota, so
+    these tiers do not throttle. Wall time ≈ target_seconds regardless
+    of how fast the host CPU actually is.
+    """
+    per_chunk_iter = max(1, iterations // chunks)
+    per_chunk_budget = target_seconds / chunks
+    h = hashlib.sha256(seed.encode()).digest()
+    for i in range(chunks):
+        chunk_start = time.monotonic()
+        for _ in range(per_chunk_iter):
+            h = hashlib.sha256(h).digest()
+        elapsed = time.monotonic() - chunk_start
+        slack = per_chunk_budget - elapsed
+        if slack > 0:
+            time.sleep(slack)
     return h.hex()
 
 
@@ -155,7 +191,20 @@ def validate_order(
                 iterations = TIER_ITERATIONS[tier]
                 span.set_attribute("app.validation.path", "full")
                 span.set_attribute("app.validation.iterations", iterations)
-                digest = _cpu_burn(order_id, iterations)
+                if tier == "extreme":
+                    # Tight loop — peg the CPU at the container limit for
+                    # the full duration. Produces the dramatic single-tier
+                    # throttle signature in IM.
+                    span.set_attribute("app.validation.pacing", "tight")
+                    digest = _cpu_burn(order_id, iterations)
+                else:
+                    # Paced work — wall time held to TIER_TARGET_SECONDS,
+                    # per-100ms CPU stays sub-quota, no sustained throttle.
+                    target = TIER_TARGET_SECONDS[tier]
+                    span.set_attribute("app.validation.pacing", "paced")
+                    span.set_attribute("app.validation.target_seconds", target)
+                    span.set_attribute("app.validation.chunks", PACING_CHUNKS)
+                    digest = _paced_burn(order_id, iterations, target, PACING_CHUNKS)
             else:
                 span.set_attribute("app.validation.path", "stub")
                 digest = _STUB_DIGEST

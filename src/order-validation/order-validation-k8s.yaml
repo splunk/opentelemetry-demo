@@ -89,18 +89,37 @@ spec:
           value: 'healthz,state'
         - name: VALIDATION_PORT
           value: '8080'
-        # Tier iteration counts. light/medium fit under CPU quota,
-        # heavy/extreme guarantee CFS throttle visibility in APM.
-        # Spread tuned so p50≈light (~50ms), p90≈medium (~300ms),
-        # p99≈heavy (~5-10s), p99+≈extreme (~60s).
+        # Tier iteration counts + wall-clock targets.
+        #
+        # Non-extreme tiers run *paced* — CPU work is split into PACING_CHUNKS
+        # chunks with sleep slack between chunks so per-100ms CPU stays well
+        # under the container's quota. The IM CPU chart shows low baseline
+        # with small spikes; no throttling.
+        #
+        # Extreme runs *tight* — pure CPU burn, naturally pegs the limit
+        # for the full duration. Single dramatic throttle signature in IM,
+        # only triggered by orders that are non-USD AND contain a
+        # high-value SKU (~2% of carts). This is the demo's p99 story.
+        #
+        # Tuning iter counts: enough to be measurable CPU work but small
+        # enough that even a slow host doesn't blow the per-chunk budget.
         - name: VALIDATION_ITERATIONS_LIGHT
-          value: '100000'
+          value: '30000'
         - name: VALIDATION_ITERATIONS_MEDIUM
-          value: '500000'
+          value: '100000'
         - name: VALIDATION_ITERATIONS_HEAVY
-          value: '2000000'
+          value: '300000'
         - name: VALIDATION_ITERATIONS_EXTREME
-          value: '10000000'
+          value: '3000000'
+        # Wall-clock targets for paced tiers (light/medium/heavy).
+        - name: VALIDATION_TARGET_LIGHT_SECONDS
+          value: '2.0'
+        - name: VALIDATION_TARGET_MEDIUM_SECONDS
+          value: '5.0'
+        - name: VALIDATION_TARGET_HEAVY_SECONDS
+          value: '10.0'
+        - name: VALIDATION_PACING_CHUNKS
+          value: '10'
         # SKUs whose presence in cart triggers heavy/extreme tier.
         # Default: Optical Tube Assembly ($3599, most expensive).
         - name: HIGH_VALUE_SKUS
