@@ -110,7 +110,7 @@ spec:
         - name: VALIDATION_ITERATIONS_HEAVY
           value: '300000'
         - name: VALIDATION_ITERATIONS_EXTREME
-          value: '3000000'
+          value: '4000000'
         # Wall-clock targets for paced tiers (light/medium/heavy).
         - name: VALIDATION_TARGET_LIGHT_SECONDS
           value: '2.0'
