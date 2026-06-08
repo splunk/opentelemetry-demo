@@ -117,6 +117,7 @@ jobs:
           MANIFEST_LAMBDA="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-lambda.yaml"
           MANIFEST_DC_SHIM="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-dc-shim.yaml"
           MANIFEST_SECUREAPP="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-secureapp.yaml"
+          MANIFEST_THROTTLE_DEMO="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-throttle-demo.yaml"
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "#### Generated Manifests" >> $GITHUB_STEP_SUMMARY
@@ -124,7 +125,7 @@ jobs:
           echo "| Manifest | File | Size | Resources |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|------|------|-----------|" >> $GITHUB_STEP_SUMMARY
 
-          for MFILE in "$MANIFEST_FILE" "$MANIFEST_FILE_DIAB" "$MANIFEST_LAMBDA" "$MANIFEST_DC_SHIM" "$MANIFEST_SECUREAPP"; do
+          for MFILE in "$MANIFEST_FILE" "$MANIFEST_FILE_DIAB" "$MANIFEST_LAMBDA" "$MANIFEST_DC_SHIM" "$MANIFEST_SECUREAPP" "$MANIFEST_THROTTLE_DEMO"; do
             MNAME=$(basename "$MFILE")
             if [ -f "$MFILE" ]; then
               MSIZE=$(du -h "$MFILE" | cut -f1)
@@ -147,6 +148,7 @@ jobs:
           echo "manifest_lambda=$MANIFEST_LAMBDA" >> $GITHUB_OUTPUT
           echo "manifest_dc_shim=$MANIFEST_DC_SHIM" >> $GITHUB_OUTPUT
           echo "manifest_secureapp=$MANIFEST_SECUREAPP" >> $GITHUB_OUTPUT
+          echo "manifest_throttle_demo=$MANIFEST_THROTTLE_DEMO" >> $GITHUB_OUTPUT
 
       - name: Restore SPLUNK-VERSION
         run: mv SPLUNK-VERSION.backup SPLUNK-VERSION
@@ -162,7 +164,8 @@ jobs:
                        "${{ steps.stitch.outputs.manifest_file_diab }}" \
                        "${{ steps.stitch.outputs.manifest_lambda }}" \
                        "${{ steps.stitch.outputs.manifest_dc_shim }}" \
-                       "${{ steps.stitch.outputs.manifest_secureapp }}"; do
+                       "${{ steps.stitch.outputs.manifest_secureapp }}" \
+                       "${{ steps.stitch.outputs.manifest_throttle_demo }}"; do
             if [ -f "$MFILE" ]; then
               MNAME=$(basename "$MFILE")
               if python3 -c "import yaml; docs=list(yaml.safe_load_all(open('$MFILE'))); print(f'$MNAME: {len(docs)} documents')"; then
@@ -195,7 +198,8 @@ jobs:
                        "${{ steps.stitch.outputs.manifest_file_diab }}" \
                        "${{ steps.stitch.outputs.manifest_lambda }}" \
                        "${{ steps.stitch.outputs.manifest_dc_shim }}" \
-                       "${{ steps.stitch.outputs.manifest_secureapp }}"; do
+                       "${{ steps.stitch.outputs.manifest_secureapp }}" \
+                       "${{ steps.stitch.outputs.manifest_throttle_demo }}"; do
             [ -f "$MFILE" ] && git add -f "$MFILE"
           done
 
@@ -204,7 +208,7 @@ jobs:
             echo "No changes to commit." >> $GITHUB_STEP_SUMMARY
           else
             git commit -m "beta-manifest: ${{ steps.version.outputs.test_version }}" \
-              -m "Generated BETA manifests for Astronomy Shop (main + DIAB + lambda + dc-shim + secureapp)" \
+              -m "Generated BETA manifests for Astronomy Shop (main + DIAB + lambda + dc-shim + secureapp + throttle-demo)" \
               -m "" \
               -m "- Base Version: ${{ steps.version.outputs.current_version }} (unchanged)" \
               -m "- Test Version: ${{ steps.version.outputs.test_version }}"
@@ -224,6 +228,7 @@ jobs:
             ${{ steps.stitch.outputs.manifest_lambda }}
             ${{ steps.stitch.outputs.manifest_dc_shim }}
             ${{ steps.stitch.outputs.manifest_secureapp }}
+            ${{ steps.stitch.outputs.manifest_throttle_demo }}
           retention-days: 7
 
       - name: Deploy commands
@@ -256,6 +261,11 @@ jobs:
           echo "### SecureApp (secureapp-loadgen)" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "kubectl apply -f ${{ steps.stitch.outputs.manifest_secureapp }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Throttle Demo (order-validation)" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "kubectl apply -f ${{ steps.stitch.outputs.manifest_throttle_demo }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
       - name: Summary

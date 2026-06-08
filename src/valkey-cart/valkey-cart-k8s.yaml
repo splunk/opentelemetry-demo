@@ -48,7 +48,7 @@ spec:
       containers:
       - name: valkey-cart
         image: valkey/valkey:9.0.2-alpine3.23
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         ports:
         - containerPort: 6379
           name: valkey-cart

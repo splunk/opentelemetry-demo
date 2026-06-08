@@ -53,7 +53,7 @@ spec:
       containers:
       - name: kafka
         image: ghcr.io/open-telemetry/demo:2.2.0-kafka
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         ports:
         - containerPort: 9092
           name: plaintext

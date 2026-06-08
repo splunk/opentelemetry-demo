@@ -77,6 +77,7 @@ jobs:
           echo "MANIFEST_LAMBDA=${DOWNLOAD_DIR}/splunk-astronomy-shop-${VERSION}-lambda.yaml" >> $GITHUB_ENV
           echo "MANIFEST_DC_SHIM=${DOWNLOAD_DIR}/splunk-astronomy-shop-${VERSION}-dc-shim.yaml" >> $GITHUB_ENV
           echo "MANIFEST_SECUREAPP=${DOWNLOAD_DIR}/splunk-astronomy-shop-${VERSION}-secureapp.yaml" >> $GITHUB_ENV
+          echo "MANIFEST_THROTTLE_DEMO=${DOWNLOAD_DIR}/splunk-astronomy-shop-${VERSION}-throttle-demo.yaml" >> $GITHUB_ENV
 
           echo "### Selected Configuration" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -125,7 +126,8 @@ jobs:
             "splunk-astronomy-shop-${VERSION}-diab.yaml" \
             "splunk-astronomy-shop-${VERSION}-lambda.yaml" \
             "splunk-astronomy-shop-${VERSION}-dc-shim.yaml" \
-            "splunk-astronomy-shop-${VERSION}-secureapp.yaml"; do
+            "splunk-astronomy-shop-${VERSION}-secureapp.yaml" \
+            "splunk-astronomy-shop-${VERSION}-throttle-demo.yaml"; do
             if [ -f "${DOWNLOAD_DIR}/${FILE}" ]; then
               echo "| \`${FILE}\` | ✅ Downloaded |" >> $GITHUB_STEP_SUMMARY
             else
@@ -186,6 +188,7 @@ jobs:
           [ -f "$MANIFEST_LAMBDA" ] && echo "✅ Lambda manifest downloaded" >> $GITHUB_STEP_SUMMARY || echo "ℹ️ Lambda manifest not in release (optional)" >> $GITHUB_STEP_SUMMARY
           [ -f "$MANIFEST_DC_SHIM" ] && echo "✅ DC-Shim manifest downloaded" >> $GITHUB_STEP_SUMMARY || echo "ℹ️ DC-Shim manifest not in release (optional)" >> $GITHUB_STEP_SUMMARY
           [ -f "$MANIFEST_SECUREAPP" ] && echo "✅ SecureApp manifest downloaded" >> $GITHUB_STEP_SUMMARY || echo "ℹ️ SecureApp manifest not in release (optional)" >> $GITHUB_STEP_SUMMARY
+          [ -f "$MANIFEST_THROTTLE_DEMO" ] && echo "✅ Throttle-demo manifest downloaded" >> $GITHUB_STEP_SUMMARY || echo "ℹ️ Throttle-demo manifest not in release (optional)" >> $GITHUB_STEP_SUMMARY
 
           if [ $MISSING -eq 1 ]; then
             echo "" >> $GITHUB_STEP_SUMMARY
@@ -213,6 +216,7 @@ jobs:
           [ -f "$MANIFEST_LAMBDA" ] && cp "$MANIFEST_LAMBDA" "$PROD_DIR/"
           [ -f "$MANIFEST_DC_SHIM" ] && cp "$MANIFEST_DC_SHIM" "$PROD_DIR/"
           [ -f "$MANIFEST_SECUREAPP" ] && cp "$MANIFEST_SECUREAPP" "$PROD_DIR/"
+          [ -f "$MANIFEST_THROTTLE_DEMO" ] && cp "$MANIFEST_THROTTLE_DEMO" "$PROD_DIR/"
 
           echo "✅ Copied to \`$PROD_DIR/\`" >> $GITHUB_STEP_SUMMARY
 
@@ -246,6 +250,7 @@ jobs:
           [ -f "$MANIFEST_LAMBDA" ] && cp "$MANIFEST_LAMBDA" "$V3_DEPLOY_DIR/"
           [ -f "$MANIFEST_DC_SHIM" ] && cp "$MANIFEST_DC_SHIM" "$V3_DEPLOY_DIR/"
           [ -f "$MANIFEST_SECUREAPP" ] && cp "$MANIFEST_SECUREAPP" "$V3_DEPLOY_DIR/"
+          [ -f "$MANIFEST_THROTTLE_DEMO" ] && cp "$MANIFEST_THROTTLE_DEMO" "$V3_DEPLOY_DIR/"
 
           # Replace latest
           rm -rf "$V3_LATEST_DIR"
@@ -268,6 +273,7 @@ jobs:
           [ -f "$MANIFEST_LAMBDA" ] && cp "$MANIFEST_LAMBDA" "$V4_DEPLOY_DIR/"
           [ -f "$MANIFEST_DC_SHIM" ] && cp "$MANIFEST_DC_SHIM" "$V4_DEPLOY_DIR/"
           [ -f "$MANIFEST_SECUREAPP" ] && cp "$MANIFEST_SECUREAPP" "$V4_DEPLOY_DIR/"
+          [ -f "$MANIFEST_THROTTLE_DEMO" ] && cp "$MANIFEST_THROTTLE_DEMO" "$V4_DEPLOY_DIR/"
 
           # Replace latest
           rm -rf "$V4_LATEST_DIR"
