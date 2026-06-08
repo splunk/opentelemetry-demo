@@ -49,6 +49,14 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("order-validation")
 
 BACKGROUND_INTERVAL = int(os.getenv("VALIDATION_BACKGROUND_INTERVAL_SECONDS", "0"))
+# Foreign currencies used by background heartbeat to force the extreme
+# tier (non-USD + high-value SKU). Spread across regions so the demo
+# story isn't always the same country.
+BACKGROUND_CURRENCIES = [
+    c.strip() for c in os.getenv(
+        "VALIDATION_BACKGROUND_CURRENCIES", "RUB,ZAR,BRL,PLN,MMK"
+    ).split(",") if c.strip()
+]
 PORT = int(os.getenv("VALIDATION_PORT", "8080"))
 FLAGD_HOST = os.getenv("FLAGD_HOST", "flagd")
 FLAGD_PORT = int(os.getenv("FLAGD_PORT", "8013"))
@@ -232,13 +240,25 @@ def validate_order(
 
 
 async def _background_loop():
-    counter = 0
+    """Periodic heartbeat that guarantees the extreme tier appears.
+
+    Real orders skew light/medium; extreme depends on cart contents
+    (non-USD + high-value SKU) and is sparse, leaving the p99 chart
+    flat between hits. This loop forces an extreme call on a fixed
+    cadence so the throttle story is always visible.
+
+    Order id format `99-{16-digit}` is intentionally distinct from
+    the UUID format used by real orders, so synthetic traffic is
+    easy to filter out in APM.
+    """
     while True:
+        order_id = f"99-{random.randint(10**15, 10**16 - 1)}"
+        currency = random.choice(BACKGROUND_CURRENCIES) if BACKGROUND_CURRENCIES else "RUB"
+        product_ids = list(HIGH_VALUE_SKUS) or None
         try:
             await asyncio.get_running_loop().run_in_executor(
-                None, validate_order, f"bg-{counter}", "USD", None
+                None, validate_order, order_id, currency, product_ids
             )
-            counter += 1
         except Exception:
             log.exception("background validation failed")
         await asyncio.sleep(BACKGROUND_INTERVAL)

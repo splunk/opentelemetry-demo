@@ -128,11 +128,20 @@ spec:
         # regardless of cart, drives genuine p99+ tail noise.
         - name: VALIDATION_AUDIT_SAMPLE_RATE
           value: '0.05'
-        # Background loop disabled (0) — real load now comes from
-        # accounting after Kafka order consumption. Set >0 for a synthetic
-        # baseline if no order traffic.
+        # Background heartbeat that forces the extreme tier on a fixed
+        # cadence. Real orders skew light/medium and only hit extreme
+        # when the cart is non-USD + high-value SKU (~2%), so the p99
+        # chart goes flat between organic extremes. This guarantees at
+        # least one extreme call per interval so the throttle story
+        # stays visible. Synthetic order_ids use the `99-{16-digit}`
+        # format — distinct from real UUID order_ids so APM filters
+        # can separate organic vs. synthetic traffic.
         - name: VALIDATION_BACKGROUND_INTERVAL_SECONDS
-          value: '0'
+          value: '120'
+        # Random pick per heartbeat. Regions: Russian, African,
+        # South American, Eastern European, Asian (Burmese).
+        - name: VALIDATION_BACKGROUND_CURRENCIES
+          value: 'RUB,ZAR,BRL,PLN,MMK'
         - name: FLAGD_HOST
           value: flagd
         - name: FLAGD_PORT
