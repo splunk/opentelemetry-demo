@@ -1,0 +1,137 @@
+# Splunk OpenTelemetry Collector - Gateway Mode (CloudWatch Logs variant)
+#
+# Same as gateway-config.yaml but adds an `awscloudwatchlogs` receiver that
+# polls Lambda CloudWatch log groups and ships them to Splunk Cloud via HEC.
+# OTLP traces/metrics/logs from Lambda runtime instrumentation still flow
+# through the existing pipelines.
+#
+# Environment variables required (set in /etc/otel/collector/splunk-otel-collector.conf):
+#   SPLUNK_ACCESS_TOKEN      - Splunk Observability Cloud access token
+#   SPLUNK_REALM             - Splunk Observability Cloud realm (e.g., us0, us1, eu0)
+#   SPLUNK_LISTEN_INTERFACE  - Listen interface (default: 0.0.0.0)
+#   SPLUNK_HEC_URL           - Splunk Cloud HEC endpoint (e.g., https://<host>:8088/services/collector)
+#   SPLUNK_HEC_TOKEN         - Splunk Cloud HEC token
+#   SPLUNK_INDEX             - Target Splunk index
+#   AWS_REGION               - AWS region for CloudWatch Logs polling (e.g., us-east-1)
+#   LAMBDA_LOG_GROUP         - CloudWatch log group for the Lambda function (e.g., /aws/lambda/planning)
+#
+# The collector host must have IAM permissions: logs:DescribeLogGroups,
+# logs:DescribeLogStreams, logs:GetLogEvents, logs:FilterLogEvents on the
+# target log group(s).
+
+extensions:
+  health_check:
+    endpoint: "${SPLUNK_LISTEN_INTERFACE}:13133"
+  zpages:
+    endpoint: "${SPLUNK_LISTEN_INTERFACE}:55679"
+  headers_setter:
+    headers:
+      - action: upsert
+        key: X-SF-TOKEN
+        from_context: X-SF-TOKEN
+        default_value: "${SPLUNK_ACCESS_TOKEN}"
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+  awscloudwatchlogs:
+    region: "${AWS_REGION}"
+    log_groups:
+      - "${LAMBDA_LOG_GROUP}"
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 3000
+    spike_limit_mib: 1000
+
+  resource/add_environment:
+    attributes:
+      - action: insert
+        value: "demo"
+        key: deployment.environment
+
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+
+  attributes/logs:
+    actions:
+      - key: source
+        value: "lambda"
+        action: insert
+      - key: sourcetype
+        value: "_json"
+        action: insert
+
+  attributes/cloudwatch_logs:
+    actions:
+      - key: source
+        value: "aws:lambda"
+        action: insert
+      - key: sourcetype
+        value: "aws:cloudwatchlogs"
+        action: insert
+
+exporters:
+  # Traces and metrics to Splunk Observability Cloud via OTLP HTTP
+  otlphttp:
+    auth:
+      authenticator: headers_setter
+    traces_endpoint: "https://ingest.${SPLUNK_REALM}.signalfx.com/v2/trace/otlp"
+    metrics_endpoint: "https://ingest.${SPLUNK_REALM}.signalfx.com/v2/datapoint/otlp"
+
+  # OTLP-derived app logs to Splunk Cloud HEC
+  splunk_hec:
+    endpoint: "${SPLUNK_HEC_URL}"
+    token: "${SPLUNK_HEC_TOKEN}"
+    source: otel
+    sourcetype: _json
+    index: "${SPLUNK_INDEX}"
+    timeout: 10s
+    tls:
+      insecure_skip_verify: false
+
+  # CloudWatch-sourced Lambda logs to Splunk Cloud HEC (separate exporter so
+  # source/sourcetype defaults reflect the CloudWatch origin)
+  splunk_hec/cloudwatch:
+    endpoint: "${SPLUNK_HEC_URL}"
+    token: "${SPLUNK_HEC_TOKEN}"
+    source: "aws:lambda"
+    sourcetype: "aws:cloudwatchlogs"
+    index: "${SPLUNK_INDEX}"
+    timeout: 10s
+    tls:
+      insecure_skip_verify: false
+
+  # Debug exporter for troubleshooting (remove from pipelines when not needed)
+  debug:
+    verbosity: basic
+
+service:
+  extensions: [health_check, zpages, headers_setter]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource/add_environment]
+      exporters: [otlphttp, debug]
+
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource/add_environment]
+      exporters: [otlphttp, debug]
+
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource/add_environment, attributes/logs]
+      exporters: [splunk_hec, debug]
+
+    logs/cloudwatch:
+      receivers: [awscloudwatchlogs]
+      processors: [memory_limiter, batch, resource/add_environment, attributes/cloudwatch_logs]
+      exporters: [splunk_hec/cloudwatch, debug]
