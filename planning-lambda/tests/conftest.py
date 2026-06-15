@@ -102,6 +102,7 @@ def sample_orders_payload():
     """Sample orders payload from K8s planning service."""
     return {
         "service": "planning",
+        "env": "dev-astronomy",
         "timestamp": "2024-01-15T10:30:00Z",
         "orders_count": 2,
         "orders": [

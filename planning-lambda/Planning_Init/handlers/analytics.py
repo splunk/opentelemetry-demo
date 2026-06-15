@@ -14,11 +14,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
 
 from shared.tracing import create_span
 from shared.logging import get_logger
+from shared.env import STAMPED_ATTR, UNKNOWN_ENV, LAMBDA_SUFFIX
 
 logger = get_logger("Planning_Init.analytics")
 
 
-def handle(body: Dict[str, Any], context: Any, tracer: Tracer) -> Dict[str, Any]:
+def handle(body: Dict[str, Any], context: Any, tracer: Tracer, env_tagged: str = f"{UNKNOWN_ENV}{LAMBDA_SUFFIX}") -> Dict[str, Any]:
     """
     Handle analytics requests.
 
@@ -32,6 +33,7 @@ def handle(body: Dict[str, Any], context: Any, tracer: Tracer) -> Dict[str, Any]
         body: Request body.
         context: Lambda context.
         tracer: OpenTelemetry tracer.
+        env_tagged: Source env with "-lambda" suffix.
 
     Returns:
         API Gateway response dict.
@@ -39,6 +41,7 @@ def handle(body: Dict[str, Any], context: Any, tracer: Tracer) -> Dict[str, Any]
     with create_span("analytics.handle", kind=SpanKind.INTERNAL) as span:
         logger.info("Analytics handler called (stub)")
 
+        span.set_attribute(STAMPED_ATTR, env_tagged)
         span.set_attribute("handler.type", "analytics")
         span.set_attribute("handler.status", "stub")
 

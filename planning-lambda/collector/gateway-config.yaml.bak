@@ -1,0 +1,93 @@
+# Splunk OpenTelemetry Collector - Gateway Mode
+# Receives OTLP from Lambda functions and forwards to Splunk
+#
+# Environment variables required (set in /etc/otel/collector/splunk-otel-collector.conf):
+#   SPLUNK_ACCESS_TOKEN      - Splunk Observability Cloud access token
+#   SPLUNK_REALM             - Splunk Observability Cloud realm (e.g., us0, us1, eu0)
+#   SPLUNK_LISTEN_INTERFACE  - Listen interface (default: 0.0.0.0)
+#
+# The splunk_hec exporter uses hardcoded values below — update for your environment.
+
+extensions:
+  health_check:
+    endpoint: "${SPLUNK_LISTEN_INTERFACE}:13133"
+  zpages:
+    endpoint: "${SPLUNK_LISTEN_INTERFACE}:55679"
+  headers_setter:
+    headers:
+      - action: upsert
+        key: X-SF-TOKEN
+        from_context: X-SF-TOKEN
+        default_value: "${SPLUNK_ACCESS_TOKEN}"
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 3000
+    spike_limit_mib: 1000
+
+  resource/add_environment:
+    attributes:
+      - action: insert
+        value: "demo"
+        key: deployment.environment
+
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+
+  attributes/logs:
+    actions:
+      - key: source
+        value: "lambda"
+        action: insert
+      - key: sourcetype
+        value: "_json"
+        action: insert
+
+exporters:
+  # Traces and metrics to Splunk Observability Cloud via OTLP HTTP
+  otlphttp:
+    auth:
+      authenticator: headers_setter
+    traces_endpoint: "https://ingest.${SPLUNK_REALM}.signalfx.com/v2/trace/otlp"
+    metrics_endpoint: "https://ingest.${SPLUNK_REALM}.signalfx.com/v2/datapoint/otlp"
+
+  # Logs to Splunk Cloud/Enterprise via HEC
+  splunk_hec:
+    endpoint: "${SPLUNK_HEC_URL}"
+    token: "${SPLUNK_HEC_TOKEN}"
+    source: otel
+    sourcetype: _json
+    index: "${SPLUNK_INDEX}"
+    timeout: 10s
+
+  # Debug exporter for troubleshooting (remove from pipelines when not needed)
+  debug:
+    verbosity: basic
+
+service:
+  extensions: [health_check, zpages, headers_setter]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource/add_environment]
+      exporters: [otlphttp, debug]
+
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource/add_environment]
+      exporters: [otlphttp, debug]
+
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, attributes/logs]
+      exporters: [splunk_hec, debug]

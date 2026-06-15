@@ -168,15 +168,67 @@ Replace the default config with the gateway config from this repo:
 sudo cp planning-lambda/collector/gateway-config.yaml /etc/otel/collector/splunk-otel-collector.conf
 ```
 
-Set the required environment variables in `/etc/otel/collector/splunk-otel-collector.conf.d/env`:
+Set the required environment variables in `/etc/otel/collector/splunk-otel-collector.conf.d/env`.
+
+The gateway now routes telemetry per env (`deployment.environment` resource
+attribute) to one of four Splunk Observability + HEC orgs: `dev-astronomy`,
+`astronomy-shop-eu`, `astronomy-shop-us`, plus a `default` fallback for
+unmatched envs. Lambdas stamp `deployment.environment = "<env>-lambda"` per
+invocation; the gateway promotes that signal attribute to a resource
+attribute and matches it in a routing connector.
+
+Four sets of five vars (20 total):
 
 ```bash
-SPLUNK_ACCESS_TOKEN=<your-access-token>
-SPLUNK_REALM=<your-realm>
-SPLUNK_HEC_URL=https://http-inputs-<instance>.splunkcloud.com
-SPLUNK_HEC_TOKEN=<your-hec-token>
-SPLUNK_INDEX=main
+SPLUNK_LISTEN_INTERFACE=0.0.0.0
+
+# --- dev-astronomy ---
+SPLUNK_REALM_DEV=<realm>
+SPLUNK_TOKEN_DEV=<o11y-access-token>
+SPLUNK_HEC_URL_DEV=https://http-inputs-<instance>.splunkcloud.com:443/services/collector
+SPLUNK_HEC_TOKEN_DEV=<hec-token>
+SPLUNK_INDEX_DEV=main
+
+# --- astronomy-shop-eu ---
+SPLUNK_REALM_EU=<realm>
+SPLUNK_TOKEN_EU=<o11y-access-token>
+SPLUNK_HEC_URL_EU=https://http-inputs-<instance>.splunkcloud.com:443/services/collector
+SPLUNK_HEC_TOKEN_EU=<hec-token>
+SPLUNK_INDEX_EU=main
+
+# --- astronomy-shop-us ---
+SPLUNK_REALM_US=<realm>
+SPLUNK_TOKEN_US=<o11y-access-token>
+SPLUNK_HEC_URL_US=https://http-inputs-<instance>.splunkcloud.com:443/services/collector
+SPLUNK_HEC_TOKEN_US=<hec-token>
+SPLUNK_INDEX_US=main
+
+# --- default (catch-all for unmatched env) ---
+SPLUNK_REALM_DEFAULT=<realm>
+SPLUNK_TOKEN_DEFAULT=<o11y-access-token>
+SPLUNK_HEC_URL_DEFAULT=https://http-inputs-<instance>.splunkcloud.com:443/services/collector
+SPLUNK_HEC_TOKEN_DEFAULT=<hec-token>
+SPLUNK_INDEX_DEFAULT=main
 ```
+
+Tokens live in the env file for initial rollout. AWS Secrets Manager / SSM
+Parameter Store integration is a follow-up after multi-env is validated.
+
+Routing flow:
+```
+Lambda OTLP --> gateway:4317 --> transform/promote_env_* (attr->resource)
+                              --> routing/{traces,metrics,logs}
+                              --> per-env pipeline
+                              --> otlphttp/<env> + splunk_hec/<env>
+```
+
+Unmatched envs (or pre-rollout Lambdas without the `env` payload field) fall
+through to `default` pipelines and also fan out to the `debug` exporter for
+visibility during cutover.
+
+DIAB note: DIAB deployments may require a parallel `gateway-config-diab.yaml`
+with the same routing-connector shape plus DIAB-specific exporter/auth
+quirks. Flagged as a follow-up; does not block initial multi-env rollout.
 
 Restart the collector:
 

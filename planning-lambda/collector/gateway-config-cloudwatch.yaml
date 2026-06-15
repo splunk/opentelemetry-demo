@@ -5,6 +5,13 @@
 # OTLP traces/metrics/logs from Lambda runtime instrumentation still flow
 # through the existing pipelines.
 #
+# TODO (multi-env follow-up): This file remains single-org. The main
+# gateway-config.yaml now routes by env (deployment.environment) across three
+# Splunk Observability + HEC orgs plus a default. Rewriting this variant for
+# multi-env requires tagging CloudWatch logs by env -- either via log-group
+# naming convention (e.g. /aws/lambda/planning-<env>) or content parsing.
+# Design + implement after the main multi-env OTLP path is validated.
+#
 # Environment variables required (set in /etc/otel/collector/splunk-otel-collector.conf):
 #   SPLUNK_ACCESS_TOKEN      - Splunk Observability Cloud access token
 #   SPLUNK_REALM             - Splunk Observability Cloud realm (e.g., us0, us1, eu0)

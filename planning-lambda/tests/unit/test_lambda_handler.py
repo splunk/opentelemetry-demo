@@ -182,3 +182,30 @@ class TestLambdaHandler:
         response = lambda_handler(api_event_with_orders, None)
 
         assert response["statusCode"] == 200
+
+    def test_handler_propagates_env_to_handler(self, api_event_with_orders, mock_lambda_context):
+        """Env from body lands in orders.handle response (verifies end-to-end propagation)."""
+        from Planning_Init.lambda_function import lambda_handler
+
+        response = lambda_handler(api_event_with_orders, mock_lambda_context)
+
+        assert response["statusCode"] == 200
+        body = json.loads(response["body"])
+        # sample_orders_payload sets env=dev-astronomy
+        assert body["env"] == "dev-astronomy"
+        assert body["lambda"]["deployment.environment"] == "dev-astronomy-lambda"
+
+    def test_handler_env_default_when_missing(self, sample_api_gateway_event, mock_lambda_context):
+        """Missing env in body falls back to unknown."""
+        from Planning_Init.lambda_function import lambda_handler
+
+        event = sample_api_gateway_event.copy()
+        event["requestContext"]["http"]["path"] = "/orders"
+        event["body"] = json.dumps({"service": "planning", "orders_count": 0, "orders": []})
+
+        response = lambda_handler(event, mock_lambda_context)
+
+        assert response["statusCode"] == 200
+        body = json.loads(response["body"])
+        assert body["env"] == "unknown"
+        assert body["lambda"]["deployment.environment"] == "unknown-lambda"

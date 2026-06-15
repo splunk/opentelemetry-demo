@@ -36,6 +36,7 @@ KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "orders")
 KAFKA_GROUP_ID = os.getenv("KAFKA_GROUP_ID", "planning")
 LAMBDA_ENDPOINT = os.getenv("LAMBDA_ENDPOINT", "")
 LAMBDA_CALL_INTERVAL_MINUTES = int(os.getenv("LAMBDA_CALL_INTERVAL_MINUTES", "5"))
+WORKSHOP_ENV = os.getenv("WORKSHOP_ENV", "unknown")
 
 # Initialize logger
 logger = getJSONLogger(SERVICE_NAME)
@@ -187,6 +188,7 @@ def call_lambda():
             # Prepare payload
             payload = {
                 "service": SERVICE_NAME,
+                "env": WORKSHOP_ENV,
                 "timestamp": datetime.utcnow().isoformat(),
                 "orders_count": len(orders_to_send),
                 "orders": orders_to_send
@@ -303,6 +305,7 @@ def main():
     logger.info(f"Kafka: {KAFKA_ADDR}, Topic: {KAFKA_TOPIC}")
     logger.info(f"Lambda endpoint: {LAMBDA_ENDPOINT or 'NOT CONFIGURED'}")
     logger.info(f"Lambda call interval: {LAMBDA_CALL_INTERVAL_MINUTES} minutes")
+    logger.info(f"Workshop env: {WORKSHOP_ENV}")
 
     # Setup signal handlers
     signal.signal(signal.SIGTERM, signal_handler)

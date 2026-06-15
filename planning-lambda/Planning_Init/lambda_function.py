@@ -16,6 +16,7 @@ from typing import Any, Dict
 
 from shared.tracing import init_tracer, extract_context, create_span, force_flush
 from shared.logging import get_logger
+from shared.env import extract_env, stamp as stamp_env
 from opentelemetry.trace import SpanKind
 
 # Import handlers
@@ -89,6 +90,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
             span.set_attribute("request.body_size", len(json.dumps(body)))
 
+            # Extract per-invocation env (from body, ClientContext, SNS, or HTTP header)
+            # and stamp on root span so gateway collector can route by env.
+            env_raw = extract_env(body if isinstance(body, dict) else {}, context)
+            if env_raw == "unknown":
+                # Fall back to the full event for non-body sources (ClientContext, SNS).
+                env_raw = extract_env(event, context)
+            env_tagged = stamp_env(span, env_raw)
+
             # Log request info
             headers = event.get("headers", {}) or {}
             logger.info(
@@ -136,7 +145,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
             # Call handler
             logger.info(f"Routing to handler: {handler.__module__}.{handler.__name__}")
-            response = handler(body, context, tracer)
+            response = handler(body, context, tracer, env_tagged)
 
             # Ensure response has required fields
             if not isinstance(response, dict):

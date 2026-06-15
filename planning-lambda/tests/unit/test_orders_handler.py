@@ -40,7 +40,7 @@ class TestOrdersHandle:
             "orders": []
         }
 
-        response = handle(body, mock_lambda_context, self.tracer)
+        response = handle(body, mock_lambda_context, self.tracer, "dev-astronomy-lambda")
 
         assert response["statusCode"] == 200
         response_body = json.loads(response["body"])
@@ -63,7 +63,7 @@ class TestOrdersHandle:
             ]
         }
 
-        response = handle(body, mock_lambda_context, self.tracer)
+        response = handle(body, mock_lambda_context, self.tracer, "dev-astronomy-lambda")
 
         assert response["statusCode"] == 200
         response_body = json.loads(response["body"])
@@ -97,7 +97,7 @@ class TestOrdersHandle:
             ]
         }
 
-        response = handle(body, mock_lambda_context, self.tracer)
+        response = handle(body, mock_lambda_context, self.tracer, "dev-astronomy-lambda")
 
         response_body = json.loads(response["body"])
         assert response_body["processed_count"] == 15
@@ -122,6 +122,33 @@ class TestOrdersHandle:
         assert response_body["downstream_forwarded"] is True
         mock_invoke.assert_called_once()
 
+    def test_handle_env_in_response(self, mock_lambda_context, sample_orders_payload):
+        """Response carries bare env + tagged env in lambda block."""
+        response = handle(sample_orders_payload, mock_lambda_context, self.tracer, "astronomy-shop-eu-lambda")
+        response_body = json.loads(response["body"])
+        assert response_body["env"] == "astronomy-shop-eu"
+        assert response_body["lambda"]["deployment.environment"] == "astronomy-shop-eu-lambda"
+
+    def test_handle_env_default_when_missing(self, mock_lambda_context, sample_orders_payload):
+        """Handler defaults to unknown-lambda when env_tagged not passed."""
+        response = handle(sample_orders_payload, mock_lambda_context, self.tracer)
+        response_body = json.loads(response["body"])
+        assert response_body["env"] == "unknown"
+        assert response_body["lambda"]["deployment.environment"] == "unknown-lambda"
+
+    def test_downstream_invoke_receives_env(self, mock_lambda_context, sample_orders_payload):
+        """invoke_lambda called with env_raw + downstream payload includes env field."""
+        # DOWNSTREAM_LAMBDA_ARN is captured at module import; patch the module attr directly.
+        with patch('handlers.orders.DOWNSTREAM_LAMBDA_ARN', 'arn:aws:lambda:us-east-1:123456789012:function:Downstream'):
+            with patch('handlers.orders.invoke_lambda') as mock_invoke:
+                mock_invoke.return_value = {"statusCode": 200}
+                handle(sample_orders_payload, mock_lambda_context, self.tracer, "dev-astronomy-lambda")
+        assert mock_invoke.call_args is not None, "invoke_lambda was never called"
+        args, kwargs = mock_invoke.call_args
+        assert kwargs.get("env_raw") == "dev-astronomy"
+        downstream_payload = args[1]
+        assert downstream_payload["env"] == "dev-astronomy"
+
 
 class TestProcessOrder:
     """Tests for process_order function."""
@@ -143,7 +170,7 @@ class TestProcessOrder:
             "shipping_cost": {"units": 30, "currency_code": "USD"}
         }
 
-        result = process_order(order, self.tracer)
+        result = process_order(order, self.tracer, "dev-astronomy-lambda")
 
         assert result["order_id"] == "ORD-123"
         assert result["items_count"] == 5
@@ -156,7 +183,7 @@ class TestProcessOrder:
         """Handles order with missing optional fields."""
         order = {"order_id": "ORD-MINIMAL"}
 
-        result = process_order(order, self.tracer)
+        result = process_order(order, self.tracer, "dev-astronomy-lambda")
 
         assert result["order_id"] == "ORD-MINIMAL"
         assert result["items_count"] == 0
@@ -166,7 +193,7 @@ class TestProcessOrder:
         """Handles order without order_id."""
         order = {"items_count": 3}
 
-        result = process_order(order, self.tracer)
+        result = process_order(order, self.tracer, "dev-astronomy-lambda")
 
         assert result["order_id"] == "unknown"
 
