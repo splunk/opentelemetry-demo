@@ -1,7 +1,16 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
-"""OpenTelemetry tracing utilities for AWS Lambda."""
+"""
+OpenTelemetry tracing utilities for AWS Lambda.
+
+Resource attributes (service.name, cloud.provider, ...) are set once at
+cold-start in init_tracer(). The per-invocation `deployment.environment`
+attribute used for gateway-collector routing is NOT a resource attribute —
+it varies per request and is stamped on each root span by the handler via
+shared.env.stamp(). The gateway then promotes the span attribute to a
+resource attribute (transform/promote_env_traces) before routing.
+"""
 
 import os
 from contextlib import contextmanager

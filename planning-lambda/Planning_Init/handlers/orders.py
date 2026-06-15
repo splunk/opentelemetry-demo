@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
 from shared.tracing import create_span, get_current_trace_id, get_current_span_id
 from shared.logging import get_logger
 from shared.lambda_client import invoke_lambda
+from shared.env import STAMPED_ATTR, BARE_ENV_KEY, UNKNOWN_ENV, LAMBDA_SUFFIX
 
 logger = get_logger("Planning_Init.orders")
 
@@ -22,7 +23,7 @@ logger = get_logger("Planning_Init.orders")
 DOWNSTREAM_LAMBDA_ARN = os.getenv("DOWNSTREAM_LAMBDA_ARN", "")
 
 
-def handle(body: Dict[str, Any], context: Any, tracer: Tracer) -> Dict[str, Any]:
+def handle(body: Dict[str, Any], context: Any, tracer: Tracer, env_tagged: str = f"{UNKNOWN_ENV}{LAMBDA_SUFFIX}") -> Dict[str, Any]:
     """
     Handle incoming orders from the K8s planning service.
 
@@ -30,11 +31,18 @@ def handle(body: Dict[str, Any], context: Any, tracer: Tracer) -> Dict[str, Any]
         body: Request body containing orders data.
         context: Lambda context.
         tracer: OpenTelemetry tracer.
+        env_tagged: Source env with "-lambda" suffix (e.g. "dev-astronomy-lambda").
+            Stamped on every span so the gateway collector can route by env.
 
     Returns:
         API Gateway response dict.
     """
+    # Bare env (no suffix) — round-tripped to caller + sent to downstream Lambdas.
+    env_raw = env_tagged[:-len(LAMBDA_SUFFIX)] if env_tagged.endswith(LAMBDA_SUFFIX) else env_tagged
+
     with create_span("orders.handle", kind=SpanKind.INTERNAL) as span:
+        span.set_attribute(STAMPED_ATTR, env_tagged)
+
         # Extract order data
         service = body.get("service", "unknown")
         timestamp = body.get("timestamp", "")
@@ -56,7 +64,7 @@ def handle(body: Dict[str, Any], context: Any, tracer: Tracer) -> Dict[str, Any]
         # Process orders
         processed = []
         for order in orders:
-            order_result = process_order(order, tracer)
+            order_result = process_order(order, tracer, env_tagged)
             processed.append(order_result)
 
         span.set_attribute("orders.processed", len(processed))
@@ -65,16 +73,18 @@ def handle(body: Dict[str, Any], context: Any, tracer: Tracer) -> Dict[str, Any]
         if DOWNSTREAM_LAMBDA_ARN:
             with create_span("orders.forward_downstream", kind=SpanKind.CLIENT) as fwd_span:
                 fwd_span.set_attribute("downstream.function", DOWNSTREAM_LAMBDA_ARN)
+                fwd_span.set_attribute(STAMPED_ATTR, env_tagged)
                 try:
                     downstream_payload = {
                         "source": "Planning_Init",
+                        BARE_ENV_KEY: env_raw,
                         "orders": processed,
                         "original_timestamp": timestamp
                     }
-                    result = invoke_lambda(DOWNSTREAM_LAMBDA_ARN, downstream_payload)
+                    result = invoke_lambda(DOWNSTREAM_LAMBDA_ARN, downstream_payload, env_raw=env_raw)
                     logger.info(
                         "Forwarded orders to downstream Lambda",
-                        extra={"downstream_arn": DOWNSTREAM_LAMBDA_ARN}
+                        extra={"downstream_arn": DOWNSTREAM_LAMBDA_ARN, "env": env_raw}
                     )
                 except Exception as e:
                     logger.error(f"Failed to forward to downstream: {e}")
@@ -87,11 +97,13 @@ def handle(body: Dict[str, Any], context: Any, tracer: Tracer) -> Dict[str, Any]
             "message": f"Processed {len(processed)} orders",
             "processed_count": len(processed),
             "source_service": service,
+            BARE_ENV_KEY: env_raw,
             "downstream_forwarded": bool(DOWNSTREAM_LAMBDA_ARN),
             "lambda": {
                 "function_name": function_name,
                 "trace_id": get_current_trace_id(),
                 "span_id": get_current_span_id(),
+                STAMPED_ATTR: env_tagged,
             },
             "orders_summary": [
                 {
@@ -108,13 +120,14 @@ def handle(body: Dict[str, Any], context: Any, tracer: Tracer) -> Dict[str, Any]
         }
 
 
-def process_order(order: Dict[str, Any], tracer: Tracer) -> Dict[str, Any]:
+def process_order(order: Dict[str, Any], tracer: Tracer, env_tagged: str = f"{UNKNOWN_ENV}{LAMBDA_SUFFIX}") -> Dict[str, Any]:
     """
     Process a single order.
 
     Args:
         order: Order data dict.
         tracer: OpenTelemetry tracer.
+        env_tagged: Source env with "-lambda" suffix.
 
     Returns:
         Processed order result.
@@ -122,6 +135,7 @@ def process_order(order: Dict[str, Any], tracer: Tracer) -> Dict[str, Any]:
     order_id = order.get("order_id", "unknown")
 
     with create_span(f"orders.process_single", kind=SpanKind.INTERNAL) as span:
+        span.set_attribute(STAMPED_ATTR, env_tagged)
         span.set_attribute("order.id", order_id)
 
         logger.info(f"Processing order: {order_id}")
