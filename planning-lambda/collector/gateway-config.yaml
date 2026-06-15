@@ -293,15 +293,17 @@ service:
       receivers: [routing/metrics]
       exporters: [otlphttp/default, splunk_hec/default, debug]
 
+    # Logs go to Splunk Cloud HEC only (Splunk O11y log ingest path is HEC,
+    # not OTLP), so the otlphttp/* exporters are omitted from logs pipelines.
     logs/dev:
       receivers: [routing/logs]
-      exporters: [otlphttp/dev, splunk_hec/dev]
+      exporters: [splunk_hec/dev]
     logs/eu:
       receivers: [routing/logs]
-      exporters: [otlphttp/eu, splunk_hec/eu]
+      exporters: [splunk_hec/eu]
     logs/us:
       receivers: [routing/logs]
-      exporters: [otlphttp/us, splunk_hec/us]
+      exporters: [splunk_hec/us]
     logs/default:
       receivers: [routing/logs]
-      exporters: [otlphttp/default, splunk_hec/default, debug]
+      exporters: [splunk_hec/default, debug]
