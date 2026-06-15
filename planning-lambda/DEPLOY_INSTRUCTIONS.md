@@ -171,9 +171,15 @@ sudo cp planning-lambda/collector/gateway-config.yaml /etc/otel/collector/splunk
 Set the required environment variables in `/etc/otel/collector/splunk-otel-collector.conf.d/env`.
 
 The gateway now routes telemetry per env (`deployment.environment` resource
-attribute) to one of four Splunk Observability + HEC orgs: `dev-astronomy`,
-`astronomy-shop-eu`, `astronomy-shop-us`, plus a `default` fallback for
-unmatched envs. Lambdas stamp `deployment.environment = "<env>-lambda"` per
+attribute) to one of four Splunk Observability + HEC orgs based on the
+`workshop-secret.env` value in each cluster:
+
+  - `dev-astronomy-shop-demo-lambda`  → DEV exporters
+  - `astronomy-shop-eu-lambda`        → EU exporters
+  - `astronomy-shop-us-lambda`        → US exporters
+  - anything else                     → DEFAULT exporters
+
+Lambdas stamp `deployment.environment = "<WORKSHOP_ENV>-lambda"` per
 invocation; the gateway promotes that signal attribute to a resource
 attribute and matches it in a routing connector.
 

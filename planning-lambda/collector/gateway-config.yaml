@@ -94,7 +94,7 @@ connectors:
     default_pipelines: [traces/default]
     error_mode: ignore
     table:
-      - statement: route() where resource.attributes["deployment.environment"] == "dev-astronomy-lambda"
+      - statement: route() where resource.attributes["deployment.environment"] == "dev-astronomy-shop-demo-lambda"
         pipelines: [traces/dev]
       - statement: route() where resource.attributes["deployment.environment"] == "astronomy-shop-eu-lambda"
         pipelines: [traces/eu]
@@ -105,7 +105,7 @@ connectors:
     default_pipelines: [metrics/default]
     error_mode: ignore
     table:
-      - statement: route() where resource.attributes["deployment.environment"] == "dev-astronomy-lambda"
+      - statement: route() where resource.attributes["deployment.environment"] == "dev-astronomy-shop-demo-lambda"
         pipelines: [metrics/dev]
       - statement: route() where resource.attributes["deployment.environment"] == "astronomy-shop-eu-lambda"
         pipelines: [metrics/eu]
@@ -116,7 +116,7 @@ connectors:
     default_pipelines: [logs/default]
     error_mode: ignore
     table:
-      - statement: route() where resource.attributes["deployment.environment"] == "dev-astronomy-lambda"
+      - statement: route() where resource.attributes["deployment.environment"] == "dev-astronomy-shop-demo-lambda"
         pipelines: [logs/dev]
       - statement: route() where resource.attributes["deployment.environment"] == "astronomy-shop-eu-lambda"
         pipelines: [logs/eu]
