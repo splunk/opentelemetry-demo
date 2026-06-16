@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Any, Dict
 
 from .tracing import get_current_trace_id, get_current_span_id
+from . import otel_logs
 
 
 class JsonFormatter(logging.Formatter):
@@ -115,5 +116,12 @@ def get_logger(name: str = None) -> logging.Logger:
 
         # Prevent propagation to root logger
         logger.propagate = False
+
+    # Attach the OTLP log handler if not already present and an OTLP
+    # endpoint is configured. Safe to call on every get_logger() — the
+    # handler is initialised once per cold start.
+    otlp_handler = otel_logs.init_log_exporter(name)
+    if otlp_handler is not None and otlp_handler not in logger.handlers:
+        logger.addHandler(otlp_handler)
 
     return logger

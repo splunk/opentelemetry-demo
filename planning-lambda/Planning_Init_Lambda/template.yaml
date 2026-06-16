@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  Planning_Init Lambda - Entry point for AWS Lambda planning services.
+  Planning_Init_Lambda - Entry point for AWS Lambda planning services.
   Receives orders from K8s planning service and routes to handlers.
 
 Globals:
@@ -17,7 +17,7 @@ Globals:
     Environment:
       Variables:
         LOG_LEVEL: INFO
-        OTEL_SERVICE_NAME: Planning_Init
+        OTEL_SERVICE_NAME: Planning_Init_Lambda
         # Set OTEL_EXPORTER_OTLP_ENDPOINT to send traces to your collector
         # OTEL_EXPORTER_OTLP_ENDPOINT: http://your-collector:4317
 
@@ -68,10 +68,10 @@ Resources:
   PlanningInitFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "splunk-astronomy-${Stage}-planning-init"
+      FunctionName: !Sub "splunk-astronomy-${Stage}-planning-init-lambda"
       Description: Planning service entry point - processes orders from K8s
       CodeUri: ../
-      Handler: Planning_Init.lambda_function.lambda_handler
+      Handler: Planning_Init_Lambda.lambda_function.lambda_handler
       Environment:
         Variables:
           OTEL_EXPORTER_OTLP_ENDPOINT: !Ref OtelCollectorEndpoint
@@ -125,13 +125,13 @@ Resources:
 
 Outputs:
   PlanningApiEndpoint:
-    Description: API Gateway endpoint URL for Planning_Init
+    Description: API Gateway endpoint URL for Planning_Init_Lambda
     Value: !Sub "https://${PlanningApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}"
 
   PlanningInitFunctionArn:
-    Description: Planning_Init Lambda Function ARN
+    Description: Planning_Init_Lambda Function ARN
     Value: !GetAtt PlanningInitFunction.Arn
 
   PlanningInitFunctionName:
-    Description: Planning_Init Lambda Function Name
+    Description: Planning_Init_Lambda Function Name
     Value: !Ref PlanningInitFunction

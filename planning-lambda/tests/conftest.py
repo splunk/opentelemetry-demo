@@ -13,7 +13,7 @@ import pytest
 
 # Add parent directories to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'Planning_Init'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'Planning_Init_Lambda'))
 
 
 @pytest.fixture(autouse=True)
@@ -38,12 +38,12 @@ def reset_lambda_client():
 def mock_lambda_context():
     """Mock AWS Lambda context object."""
     context = MagicMock()
-    context.function_name = "Planning_Init"
+    context.function_name = "Planning_Init_Lambda"
     context.function_version = "$LATEST"
-    context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:Planning_Init"
+    context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:Planning_Init_Lambda"
     context.memory_limit_in_mb = 128
     context.aws_request_id = "test-request-id-12345"
-    context.log_group_name = "/aws/lambda/Planning_Init"
+    context.log_group_name = "/aws/lambda/Planning_Init_Lambda"
     context.log_stream_name = "2024/01/15/[$LATEST]abc123"
     context.get_remaining_time_in_millis = MagicMock(return_value=30000)
     return context

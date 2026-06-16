@@ -1,7 +1,7 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for Planning_Init/handlers/orders.py."""
+"""Unit tests for Planning_Init_Lambda/handlers/orders.py."""
 
 import json
 import pytest
@@ -10,7 +10,7 @@ import sys
 import os
 
 # Add paths
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'Planning_Init'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'Planning_Init_Lambda'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from shared.tracing import init_tracer, get_tracer

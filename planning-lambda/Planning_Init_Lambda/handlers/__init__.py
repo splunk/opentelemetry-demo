@@ -1,7 +1,7 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
-"""Planning_Init request handlers."""
+"""Planning_Init_Lambda request handlers."""
 
 from . import orders
 from . import analytics

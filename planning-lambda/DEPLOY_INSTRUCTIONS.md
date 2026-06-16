@@ -9,7 +9,7 @@
 
 ### 1. Build the Lambda
 ```bash
-cd planning-lambda/Planning_Init
+cd planning-lambda/Planning_Init_Lambda
 sam build
 ```
 
@@ -56,7 +56,7 @@ Key                        Value
 -------------------------  -------------------------------------------------------
 PlanningApiEndpoint        https://<unique-id>.execute-api.<region>.amazonaws.com/<stage>
 PlanningInitFunctionArn    arn:aws:lambda:<region>:<account-id>:function:<function-name>
-PlanningInitFunctionName   splunk-astronomy-<stage>-planning-init
+PlanningInitFunctionName   splunk-astronomy-<stage>-planning-init-lambda
 ```
 
 The API endpoint URL is unique to each deployment -- it changes if you delete and recreate the stack.
@@ -107,16 +107,16 @@ By default `LOG_LEVEL` is `INFO`. To see all received data (headers, body, raw e
 
 ```bash
 aws lambda update-function-configuration \
-  --function-name splunk-astronomy-demo-planning-init \
-  --environment "Variables={LOG_LEVEL=DEBUG,OTEL_SERVICE_NAME=Planning_Init}" \
+  --function-name splunk-astronomy-demo-planning-init-lambda \
+  --environment "Variables={LOG_LEVEL=DEBUG,OTEL_SERVICE_NAME=Planning_Init_Lambda}" \
   --region eu-west-1
 ```
 
 To switch back to INFO:
 ```bash
 aws lambda update-function-configuration \
-  --function-name splunk-astronomy-demo-planning-init \
-  --environment "Variables={LOG_LEVEL=INFO,OTEL_SERVICE_NAME=Planning_Init}" \
+  --function-name splunk-astronomy-demo-planning-init-lambda \
+  --environment "Variables={LOG_LEVEL=INFO,OTEL_SERVICE_NAME=Planning_Init_Lambda}" \
   --region eu-west-1
 ```
 
@@ -264,8 +264,8 @@ sam deploy --guided \
 Or update an existing deployment:
 ```bash
 aws lambda update-function-configuration \
-  --function-name splunk-astronomy-demo-planning-init \
-  --environment "Variables={LOG_LEVEL=INFO,OTEL_SERVICE_NAME=Planning_Init,OTEL_EXPORTER_OTLP_ENDPOINT=http://<gateway-private-ip>:4317}" \
+  --function-name splunk-astronomy-demo-planning-init-lambda \
+  --environment "Variables={LOG_LEVEL=INFO,OTEL_SERVICE_NAME=Planning_Init_Lambda,OTEL_EXPORTER_OTLP_ENDPOINT=http://<gateway-private-ip>:4317}" \
   --region eu-west-1
 ```
 
@@ -324,7 +324,7 @@ sam deploy --tags "splunkit_data_classification=public splunkit_environment_type
 ```
 
 ## Files Reference
-- SAM Template: `planning-lambda/Planning_Init/template.yaml`
-- SAM Config: `planning-lambda/Planning_Init/samconfig.toml`
-- Lambda Handler: `planning-lambda/Planning_Init/lambda_function.py`
+- SAM Template: `planning-lambda/Planning_Init_Lambda/template.yaml`
+- SAM Config: `planning-lambda/Planning_Init_Lambda/samconfig.toml`
+- Lambda Handler: `planning-lambda/Planning_Init_Lambda/lambda_function.py`
 - K8s Manifest: `src/planning/planning-k8s.yaml`

@@ -17,7 +17,7 @@ from shared.logging import get_logger
 from shared.lambda_client import invoke_lambda
 from shared.env import STAMPED_ATTR, BARE_ENV_KEY, UNKNOWN_ENV, LAMBDA_SUFFIX
 
-logger = get_logger("Planning_Init.orders")
+logger = get_logger("Planning_Init_Lambda.orders")
 
 # Environment config
 DOWNSTREAM_LAMBDA_ARN = os.getenv("DOWNSTREAM_LAMBDA_ARN", "")
@@ -76,7 +76,7 @@ def handle(body: Dict[str, Any], context: Any, tracer: Tracer, env_tagged: str =
                 fwd_span.set_attribute(STAMPED_ATTR, env_tagged)
                 try:
                     downstream_payload = {
-                        "source": "Planning_Init",
+                        "source": "Planning_Init_Lambda",
                         BARE_ENV_KEY: env_raw,
                         "orders": processed,
                         "original_timestamp": timestamp
@@ -91,7 +91,7 @@ def handle(body: Dict[str, Any], context: Any, tracer: Tracer, env_tagged: str =
                     fwd_span.set_attribute("error.message", str(e))
 
         # Build response with Lambda identity for handshake confirmation
-        function_name = context.function_name if context else "Planning_Init"
+        function_name = context.function_name if context else "Planning_Init_Lambda"
         response_body = {
             "status": "success",
             "message": f"Processed {len(processed)} orders",
