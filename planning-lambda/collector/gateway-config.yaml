@@ -57,30 +57,17 @@ processors:
     timeout: 5s
     send_batch_size: 1024
 
-  # Promote per-invocation env stamped by Lambda from signal attribute to
-  # resource attribute so the routing connector can match on it.
-  # Context-prefixed paths required by OTTL v0.148+; pre-prefix syntax is
-  # auto-rewritten with a warning.
-  transform/promote_env_traces:
-    error_mode: ignore
-    trace_statements:
-      - context: span
-        statements:
-          - set(resource.attributes["deployment.environment"], span.attributes["deployment.environment"]) where span.attributes["deployment.environment"] != nil
-
-  transform/promote_env_metrics:
-    error_mode: ignore
-    metric_statements:
-      - context: datapoint
-        statements:
-          - set(resource.attributes["deployment.environment"], datapoint.attributes["deployment.environment"]) where datapoint.attributes["deployment.environment"] != nil
-
-  transform/promote_env_logs:
-    error_mode: ignore
-    log_statements:
-      - context: log
-        statements:
-          - set(resource.attributes["deployment.environment"], log.attributes["deployment.environment"]) where log.attributes["deployment.environment"] != nil
+  # Re-group telemetry by `deployment.environment` so each unique env value
+  # gets its own ResourceSpans / ResourceMetrics / ResourceLogs with the
+  # attribute lifted onto the resource. Required because a single batch
+  # from one Lambda cold-start container can carry multiple invocations
+  # with different envs; promoting the per-signal attribute via a plain
+  # `transform` processor sets the SHARED resource to the last value seen,
+  # causing the routing connector to mis-route the whole batch.
+  # `groupbyattrs` reorganises the payload so each env routes cleanly.
+  groupbyattrs/env:
+    keys:
+      - deployment.environment
 
   attributes/logs:
     actions:
@@ -96,33 +83,42 @@ connectors:
     default_pipelines: [traces/default]
     error_mode: ignore
     table:
-      - statement: route() where resource.attributes["deployment.environment"] == "dev-astronomy-shop-demo-lambda"
+      - context: resource
+        condition: attributes["deployment.environment"] == "dev-astronomy-shop-demo-lambda"
         pipelines: [traces/dev]
-      - statement: route() where resource.attributes["deployment.environment"] == "astronomy-shop-eu-lambda"
+      - context: resource
+        condition: attributes["deployment.environment"] == "astronomy-shop-eu-lambda"
         pipelines: [traces/eu]
-      - statement: route() where resource.attributes["deployment.environment"] == "astronomy-shop-us-lambda"
+      - context: resource
+        condition: attributes["deployment.environment"] == "astronomy-shop-us-lambda"
         pipelines: [traces/us]
 
   routing/metrics:
     default_pipelines: [metrics/default]
     error_mode: ignore
     table:
-      - statement: route() where resource.attributes["deployment.environment"] == "dev-astronomy-shop-demo-lambda"
+      - context: resource
+        condition: attributes["deployment.environment"] == "dev-astronomy-shop-demo-lambda"
         pipelines: [metrics/dev]
-      - statement: route() where resource.attributes["deployment.environment"] == "astronomy-shop-eu-lambda"
+      - context: resource
+        condition: attributes["deployment.environment"] == "astronomy-shop-eu-lambda"
         pipelines: [metrics/eu]
-      - statement: route() where resource.attributes["deployment.environment"] == "astronomy-shop-us-lambda"
+      - context: resource
+        condition: attributes["deployment.environment"] == "astronomy-shop-us-lambda"
         pipelines: [metrics/us]
 
   routing/logs:
     default_pipelines: [logs/default]
     error_mode: ignore
     table:
-      - statement: route() where resource.attributes["deployment.environment"] == "dev-astronomy-shop-demo-lambda"
+      - context: resource
+        condition: attributes["deployment.environment"] == "dev-astronomy-shop-demo-lambda"
         pipelines: [logs/dev]
-      - statement: route() where resource.attributes["deployment.environment"] == "astronomy-shop-eu-lambda"
+      - context: resource
+        condition: attributes["deployment.environment"] == "astronomy-shop-eu-lambda"
         pipelines: [logs/eu]
-      - statement: route() where resource.attributes["deployment.environment"] == "astronomy-shop-us-lambda"
+      - context: resource
+        condition: attributes["deployment.environment"] == "astronomy-shop-us-lambda"
         pipelines: [logs/us]
 
 exporters:
@@ -255,17 +251,17 @@ service:
     # ---------- ingress pipelines (one per signal): receive, promote env, route ----------
     traces/in:
       receivers: [otlp]
-      processors: [memory_limiter, transform/promote_env_traces, batch]
+      processors: [memory_limiter, groupbyattrs/env, batch]
       exporters: [routing/traces]
 
     metrics/in:
       receivers: [otlp]
-      processors: [memory_limiter, transform/promote_env_metrics, batch]
+      processors: [memory_limiter, groupbyattrs/env, batch]
       exporters: [routing/metrics]
 
     logs/in:
       receivers: [otlp]
-      processors: [memory_limiter, transform/promote_env_logs, batch, attributes/logs]
+      processors: [memory_limiter, groupbyattrs/env, batch, attributes/logs]
       exporters: [routing/logs]
 
     # ---------- per-env terminal pipelines ----------
