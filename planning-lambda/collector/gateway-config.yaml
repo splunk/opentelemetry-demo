@@ -59,26 +59,28 @@ processors:
 
   # Promote per-invocation env stamped by Lambda from signal attribute to
   # resource attribute so the routing connector can match on it.
+  # Context-prefixed paths required by OTTL v0.148+; pre-prefix syntax is
+  # auto-rewritten with a warning.
   transform/promote_env_traces:
     error_mode: ignore
     trace_statements:
       - context: span
         statements:
-          - set(resource.attributes["deployment.environment"], attributes["deployment.environment"]) where attributes["deployment.environment"] != nil
+          - set(resource.attributes["deployment.environment"], span.attributes["deployment.environment"]) where span.attributes["deployment.environment"] != nil
 
   transform/promote_env_metrics:
     error_mode: ignore
     metric_statements:
       - context: datapoint
         statements:
-          - set(resource.attributes["deployment.environment"], attributes["deployment.environment"]) where attributes["deployment.environment"] != nil
+          - set(resource.attributes["deployment.environment"], datapoint.attributes["deployment.environment"]) where datapoint.attributes["deployment.environment"] != nil
 
   transform/promote_env_logs:
     error_mode: ignore
     log_statements:
       - context: log
         statements:
-          - set(resource.attributes["deployment.environment"], attributes["deployment.environment"]) where attributes["deployment.environment"] != nil
+          - set(resource.attributes["deployment.environment"], log.attributes["deployment.environment"]) where log.attributes["deployment.environment"] != nil
 
   attributes/logs:
     actions:
@@ -125,7 +127,7 @@ connectors:
 
 exporters:
   # ---------- dev-astronomy ----------
-  otlphttp/dev:
+  otlp_http/dev:
     traces_endpoint: "https://ingest.${SPLUNK_REALM_DEV}.signalfx.com/v2/trace/otlp"
     metrics_endpoint: "https://ingest.${SPLUNK_REALM_DEV}.signalfx.com/v2/datapoint/otlp"
     headers:
@@ -155,7 +157,7 @@ exporters:
       max_elapsed_time: 300s
 
   # ---------- astronomy-shop-eu ----------
-  otlphttp/eu:
+  otlp_http/eu:
     traces_endpoint: "https://ingest.${SPLUNK_REALM_EU}.signalfx.com/v2/trace/otlp"
     metrics_endpoint: "https://ingest.${SPLUNK_REALM_EU}.signalfx.com/v2/datapoint/otlp"
     headers:
@@ -185,7 +187,7 @@ exporters:
       max_elapsed_time: 300s
 
   # ---------- astronomy-shop-us ----------
-  otlphttp/us:
+  otlp_http/us:
     traces_endpoint: "https://ingest.${SPLUNK_REALM_US}.signalfx.com/v2/trace/otlp"
     metrics_endpoint: "https://ingest.${SPLUNK_REALM_US}.signalfx.com/v2/datapoint/otlp"
     headers:
@@ -215,7 +217,7 @@ exporters:
       max_elapsed_time: 300s
 
   # ---------- default (fallback for unmatched env) ----------
-  otlphttp/default:
+  otlp_http/default:
     traces_endpoint: "https://ingest.${SPLUNK_REALM_DEFAULT}.signalfx.com/v2/trace/otlp"
     metrics_endpoint: "https://ingest.${SPLUNK_REALM_DEFAULT}.signalfx.com/v2/datapoint/otlp"
     headers:
@@ -269,32 +271,32 @@ service:
     # ---------- per-env terminal pipelines ----------
     traces/dev:
       receivers: [routing/traces]
-      exporters: [otlphttp/dev, splunk_hec/dev]
+      exporters: [otlp_http/dev, splunk_hec/dev]
     traces/eu:
       receivers: [routing/traces]
-      exporters: [otlphttp/eu, splunk_hec/eu]
+      exporters: [otlp_http/eu, splunk_hec/eu]
     traces/us:
       receivers: [routing/traces]
-      exporters: [otlphttp/us, splunk_hec/us]
+      exporters: [otlp_http/us, splunk_hec/us]
     traces/default:
       receivers: [routing/traces]
-      exporters: [otlphttp/default, splunk_hec/default, debug]
+      exporters: [otlp_http/default, splunk_hec/default, debug]
 
     metrics/dev:
       receivers: [routing/metrics]
-      exporters: [otlphttp/dev, splunk_hec/dev]
+      exporters: [otlp_http/dev, splunk_hec/dev]
     metrics/eu:
       receivers: [routing/metrics]
-      exporters: [otlphttp/eu, splunk_hec/eu]
+      exporters: [otlp_http/eu, splunk_hec/eu]
     metrics/us:
       receivers: [routing/metrics]
-      exporters: [otlphttp/us, splunk_hec/us]
+      exporters: [otlp_http/us, splunk_hec/us]
     metrics/default:
       receivers: [routing/metrics]
-      exporters: [otlphttp/default, splunk_hec/default, debug]
+      exporters: [otlp_http/default, splunk_hec/default, debug]
 
     # Logs go to Splunk Cloud HEC only (Splunk O11y log ingest path is HEC,
-    # not OTLP), so the otlphttp/* exporters are omitted from logs pipelines.
+    # not OTLP), so the otlp_http/* exporters are omitted from logs pipelines.
     logs/dev:
       receivers: [routing/logs]
       exporters: [splunk_hec/dev]
