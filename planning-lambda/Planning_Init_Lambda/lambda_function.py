@@ -17,7 +17,7 @@ from typing import Any, Dict
 from shared.tracing import init_tracer, extract_context, create_span, force_flush
 from shared.logging import get_logger
 from shared.env import extract_env, stamp as stamp_env, set_current as set_current_env
-from shared import otel_logs
+from shared import otel_logs, otel_metrics
 from opentelemetry.trace import SpanKind
 
 # Import handlers
@@ -26,6 +26,7 @@ from Planning_Init_Lambda.handlers import orders, analytics, forecasting
 # Initialize
 logger = get_logger("Planning_Init_Lambda")
 tracer = init_tracer("Planning_Init_Lambda")
+otel_metrics.init_meter("Planning_Init_Lambda")
 
 # Route mapping
 ROUTES = {
@@ -173,9 +174,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 extra={"status_code": response["statusCode"]}
             )
 
-            # Flush spans + logs before Lambda freezes
+            # Flush spans + logs + metrics before Lambda freezes
             force_flush()
             otel_logs.force_flush()
+            otel_metrics.force_flush()
             return response
 
         except Exception as e:
@@ -183,9 +185,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             span.set_attribute("error.type", type(e).__name__)
             span.set_attribute("error.message", str(e))
 
-            # Flush spans + logs before Lambda freezes
+            # Flush spans + logs + metrics before Lambda freezes
             force_flush()
             otel_logs.force_flush()
+            otel_metrics.force_flush()
             return {
                 "statusCode": 500,
                 "headers": {"Content-Type": "application/json"},

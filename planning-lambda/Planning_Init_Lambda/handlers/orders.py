@@ -1,7 +1,16 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
-"""Orders handler - processes incoming orders from the planning service."""
+"""
+Orders handler - receives orders from the K8s planning service and
+forwards them to Planning_Process_Lambda for per-order work.
+
+Init no longer iterates per-order spans -- that was duplicating work
+the downstream Process Lambda already does. Init now records a single
+summary span (`orders.handle`) plus the outgoing invoke (`orders.forward_downstream`
+-> `Lambda.Invoke...`). Per-order spans, metrics, and logs live in
+Process.
+"""
 
 import json
 import os
@@ -25,52 +34,36 @@ DOWNSTREAM_LAMBDA_ARN = os.getenv("DOWNSTREAM_LAMBDA_ARN", "")
 
 def handle(body: Dict[str, Any], context: Any, tracer: Tracer, env_tagged: str = f"{UNKNOWN_ENV}{LAMBDA_SUFFIX}") -> Dict[str, Any]:
     """
-    Handle incoming orders from the K8s planning service.
-
-    Args:
-        body: Request body containing orders data.
-        context: Lambda context.
-        tracer: OpenTelemetry tracer.
-        env_tagged: Source env with "-lambda" suffix (e.g. "dev-astronomy-lambda").
-            Stamped on every span so the gateway collector can route by env.
-
-    Returns:
-        API Gateway response dict.
+    Receive orders from the K8s planning service, forward them to
+    Planning_Process_Lambda, and return a summary response.
     """
-    # Bare env (no suffix) — round-tripped to caller + sent to downstream Lambdas.
     env_raw = env_tagged[:-len(LAMBDA_SUFFIX)] if env_tagged.endswith(LAMBDA_SUFFIX) else env_tagged
 
     with create_span("orders.handle", kind=SpanKind.INTERNAL) as span:
         span.set_attribute(STAMPED_ATTR, env_tagged)
 
-        # Extract order data
         service = body.get("service", "unknown")
         timestamp = body.get("timestamp", "")
         orders_count = body.get("orders_count", 0)
         orders: List[Dict] = body.get("orders", [])
 
         span.set_attribute("orders.count", orders_count)
+        span.set_attribute("orders.received", len(orders))
         span.set_attribute("orders.source_service", service)
 
         logger.info(
-            f"Processing {orders_count} orders from {service}",
+            f"Received {len(orders)} orders from {service}, forwarding to Process",
             extra={
                 "service": service,
                 "timestamp": timestamp,
-                "orders_count": orders_count
-            }
+                "orders_count": orders_count,
+            },
         )
 
-        # Process orders
-        processed = []
-        for order in orders:
-            order_result = process_order(order, tracer, env_tagged)
-            processed.append(order_result)
+        downstream_status = "skipped"
+        downstream_processed = 0
 
-        span.set_attribute("orders.processed", len(processed))
-
-        # If downstream Lambda is configured, forward orders
-        if DOWNSTREAM_LAMBDA_ARN:
+        if DOWNSTREAM_LAMBDA_ARN and orders:
             with create_span("orders.forward_downstream", kind=SpanKind.CLIENT) as fwd_span:
                 fwd_span.set_attribute("downstream.function", DOWNSTREAM_LAMBDA_ARN)
                 fwd_span.set_attribute(STAMPED_ATTR, env_tagged)
@@ -78,130 +71,47 @@ def handle(body: Dict[str, Any], context: Any, tracer: Tracer, env_tagged: str =
                     downstream_payload = {
                         "source": "Planning_Init_Lambda",
                         BARE_ENV_KEY: env_raw,
-                        "orders": processed,
-                        "original_timestamp": timestamp
+                        "orders": orders,
+                        "original_timestamp": timestamp,
                     }
-                    result = invoke_lambda(DOWNSTREAM_LAMBDA_ARN, downstream_payload, env_raw=env_raw)
+                    result = invoke_lambda(
+                        DOWNSTREAM_LAMBDA_ARN, downstream_payload, env_raw=env_raw
+                    )
+                    if isinstance(result, dict):
+                        downstream_processed = int(result.get("processed_count", 0))
+                        downstream_status = result.get("status", "unknown")
                     logger.info(
                         "Forwarded orders to downstream Lambda",
-                        extra={"downstream_arn": DOWNSTREAM_LAMBDA_ARN, "env": env_raw}
+                        extra={
+                            "downstream_arn": DOWNSTREAM_LAMBDA_ARN,
+                            "env": env_raw,
+                            "downstream_processed": downstream_processed,
+                        },
                     )
                 except Exception as e:
+                    downstream_status = "error"
                     logger.error(f"Failed to forward to downstream: {e}")
                     fwd_span.set_attribute("error.message", str(e))
 
-        # Build response with Lambda identity for handshake confirmation
         function_name = context.function_name if context else "Planning_Init_Lambda"
         response_body = {
             "status": "success",
-            "message": f"Processed {len(processed)} orders",
-            "processed_count": len(processed),
+            "message": f"Forwarded {len(orders)} orders",
+            "orders_received": len(orders),
             "source_service": service,
             BARE_ENV_KEY: env_raw,
-            "downstream_forwarded": bool(DOWNSTREAM_LAMBDA_ARN),
+            "downstream_forwarded": bool(DOWNSTREAM_LAMBDA_ARN and orders),
+            "downstream_status": downstream_status,
+            "downstream_processed": downstream_processed,
             "lambda": {
                 "function_name": function_name,
                 "trace_id": get_current_trace_id(),
                 "span_id": get_current_span_id(),
                 STAMPED_ATTR: env_tagged,
             },
-            "orders_summary": [
-                {
-                    "order_id": o.get("order_id"),
-                    "status": o.get("status")
-                }
-                for o in processed[:10]  # Limit summary to first 10
-            ]
         }
 
         return {
             "statusCode": 200,
-            "body": json.dumps(response_body)
+            "body": json.dumps(response_body),
         }
-
-
-def process_order(order: Dict[str, Any], tracer: Tracer, env_tagged: str = f"{UNKNOWN_ENV}{LAMBDA_SUFFIX}") -> Dict[str, Any]:
-    """
-    Process a single order.
-
-    Args:
-        order: Order data dict.
-        tracer: OpenTelemetry tracer.
-        env_tagged: Source env with "-lambda" suffix.
-
-    Returns:
-        Processed order result.
-    """
-    order_id = order.get("order_id", "unknown")
-
-    with create_span(f"orders.process_single", kind=SpanKind.INTERNAL) as span:
-        span.set_attribute(STAMPED_ATTR, env_tagged)
-        span.set_attribute("order.id", order_id)
-
-        logger.info(f"Processing order: {order_id}")
-
-        # Extract and validate order fields
-        shipping_address = order.get("shipping_address", {})
-        shipping_cost = order.get("shipping_cost", {})
-        items_count = order.get("items_count", 0)
-
-        span.set_attribute("order.items_count", items_count)
-        span.set_attribute("order.shipping_country", shipping_address.get("country", "unknown"))
-
-        # Perform planning logic (placeholder for actual business logic)
-        planning_result = {
-            "order_id": order_id,
-            "status": "processed",
-            "shipping_tracking_id": order.get("shipping_tracking_id"),
-            "items_count": items_count,
-            "shipping_cost_units": shipping_cost.get("units", 0),
-            "shipping_cost_currency": shipping_cost.get("currency_code", "USD"),
-            "region": determine_region(shipping_address),
-            "priority": calculate_priority(order),
-            "processed_at": order.get("processed_at"),
-        }
-
-        logger.info(
-            f"Order {order_id} processed",
-            extra={
-                "order_id": order_id,
-                "region": planning_result["region"],
-                "priority": planning_result["priority"]
-            }
-        )
-
-        return planning_result
-
-
-def determine_region(address: Dict[str, Any]) -> str:
-    """Determine fulfillment region based on shipping address."""
-    country = address.get("country", "").upper()
-
-    region_mapping = {
-        "US": "na",
-        "CA": "na",
-        "MX": "na",
-        "GB": "eu",
-        "DE": "eu",
-        "FR": "eu",
-        "JP": "apac",
-        "AU": "apac",
-        "CN": "apac",
-    }
-
-    return region_mapping.get(country, "global")
-
-
-def calculate_priority(order: Dict[str, Any]) -> str:
-    """Calculate order priority based on order attributes."""
-    items_count = order.get("items_count", 0)
-    shipping_cost = order.get("shipping_cost", {})
-    cost_units = shipping_cost.get("units", 0)
-
-    # Simple priority logic
-    if cost_units > 50:
-        return "high"
-    elif items_count > 5:
-        return "medium"
-    else:
-        return "normal"
