@@ -132,6 +132,11 @@ Resources:
         Variables:
           OTEL_EXPORTER_OTLP_ENDPOINT: !Ref OtelCollectorEndpoint
           STAGE: !Ref Stage
+          # Override the Globals.Function OTEL_SERVICE_NAME so Process
+          # logs/spans/metrics tag with the correct service name. Without
+          # this override, both Lambdas would inherit "Planning_Init_Lambda"
+          # from Globals and Splunk APM would conflate them.
+          OTEL_SERVICE_NAME: Planning_Process_Lambda
       VpcConfig:
         SecurityGroupIds:
           - sg-0f67076d7425fd810

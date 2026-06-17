@@ -69,6 +69,24 @@ processors:
     keys:
       - deployment.environment
 
+  # Splunk O11y log-trace correlation looks for `otelTraceID` /
+  # `otelSpanID` / `otelTraceSampled` / `otelServiceName` field names on
+  # HEC events. Spans serialised by `splunk_hec` use the OTLP intrinsic
+  # field names (`trace_id`, `span_id`) which O11y doesn't recognise as
+  # log correlation keys. Copy the intrinsics to span attributes with
+  # the Splunk-recognised names so HEC events carry them. APM (via
+  # `otlp_http`) sees them as harmless extra attributes.
+  transform/hec_friendly_traces:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - set(span.attributes["otelTraceID"], TraceID(span.trace_id))
+          - set(span.attributes["otelSpanID"], SpanID(span.span_id))
+          - set(span.attributes["otelParentSpanID"], SpanID(span.parent_span_id)) where span.parent_span_id != nil
+          - set(span.attributes["otelTraceSampled"], true)
+          - set(span.attributes["otelServiceName"], resource.attributes["service.name"]) where resource.attributes["service.name"] != nil
+
   attributes/logs:
     actions:
       - key: source
@@ -251,7 +269,7 @@ service:
     # ---------- ingress pipelines (one per signal): receive, promote env, route ----------
     traces/in:
       receivers: [otlp]
-      processors: [memory_limiter, groupbyattrs/env, batch]
+      processors: [memory_limiter, groupbyattrs/env, transform/hec_friendly_traces, batch]
       exporters: [routing/traces]
 
     metrics/in:

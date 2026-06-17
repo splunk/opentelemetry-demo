@@ -73,7 +73,7 @@ class TestInitLogExporter:
 class TestEnvAttributeFilter:
     def test_filter_injects_tagged_env(self):
         env_mod.set_current("astronomy-shop-eu")
-        flt = otel_logs._EnvAttributeFilter()
+        flt = otel_logs._EnvAttributeFilter("Planning_Init_Lambda")
         rec = logging.LogRecord(
             name="test", level=logging.INFO, pathname=__file__, lineno=0,
             msg="hello", args=(), exc_info=None,
@@ -83,13 +83,30 @@ class TestEnvAttributeFilter:
 
     def test_filter_with_unknown_env(self):
         env_mod.set_current(env_mod.UNKNOWN_ENV)
-        flt = otel_logs._EnvAttributeFilter()
+        flt = otel_logs._EnvAttributeFilter("Planning_Init_Lambda")
         rec = logging.LogRecord(
             name="test", level=logging.INFO, pathname=__file__, lineno=0,
             msg="hello", args=(), exc_info=None,
         )
         flt.filter(rec)
         assert rec.__dict__[env_mod.STAMPED_ATTR] == "unknown-lambda"
+
+    def test_filter_injects_splunk_otel_fields(self):
+        env_mod.set_current("dev-astronomy-shop-demo")
+        flt = otel_logs._EnvAttributeFilter("Planning_Process_Lambda")
+        rec = logging.LogRecord(
+            name="test", level=logging.INFO, pathname=__file__, lineno=0,
+            msg="hi", args=(), exc_info=None,
+        )
+        flt.filter(rec)
+        # Splunk-O11y-recognized log correlation fields must be present.
+        assert "otelTraceID" in rec.__dict__
+        assert "otelSpanID" in rec.__dict__
+        assert "otelTraceSampled" in rec.__dict__
+        assert rec.__dict__["otelServiceName"] == "Planning_Process_Lambda"
+        # No active span in this test context -> invalid trace_id, unsampled
+        assert rec.__dict__["otelTraceID"] == "0" * 32
+        assert rec.__dict__["otelTraceSampled"] is False
 
 
 class TestForceFlush:

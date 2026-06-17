@@ -29,13 +29,24 @@ class JsonFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         """Format the log record as JSON."""
+        trace_id = get_current_trace_id()
+        span_id = get_current_span_id()
+        # Splunk O11y log-trace correlation expects the otel* field names
+        # emitted by the splunk-otel-python distro. Include those alongside
+        # the generic trace_id/span_id for compatibility with both. A trace_id
+        # of all zeros indicates no active span; flag accordingly.
+        sampled = trace_id != "00000000000000000000000000000000"
         log_data: Dict[str, Any] = {
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
-            "trace_id": get_current_trace_id(),
-            "span_id": get_current_span_id(),
+            "trace_id": trace_id,
+            "span_id": span_id,
+            "otelTraceID": trace_id,
+            "otelSpanID": span_id,
+            "otelTraceSampled": sampled,
+            "otelServiceName": os.getenv("OTEL_SERVICE_NAME", record.name),
         }
 
         # Add location info

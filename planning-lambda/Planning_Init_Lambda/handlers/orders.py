@@ -75,7 +75,10 @@ def handle(body: Dict[str, Any], context: Any, tracer: Tracer, env_tagged: str =
                         "original_timestamp": timestamp,
                     }
                     result = invoke_lambda(
-                        DOWNSTREAM_LAMBDA_ARN, downstream_payload, env_raw=env_raw
+                        DOWNSTREAM_LAMBDA_ARN,
+                        downstream_payload,
+                        env_raw=env_raw,
+                        peer_service="Planning_Process_Lambda",
                     )
                     if isinstance(result, dict):
                         downstream_processed = int(result.get("processed_count", 0))

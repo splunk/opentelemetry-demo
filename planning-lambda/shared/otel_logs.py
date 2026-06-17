@@ -26,16 +26,37 @@ from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk.resources import Resource
 
 from . import env as env_mod
+from .tracing import get_current_trace_id, get_current_span_id
+
+_INVALID_TRACE_ID = "0" * 32
 
 _provider: Optional[LoggerProvider] = None
 _handler: Optional[LoggingHandler] = None
 
 
 class _EnvAttributeFilter(logging.Filter):
-    """Inject the per-invocation env onto every log record."""
+    """
+    Inject per-invocation env + Splunk-O11y-recognized log correlation
+    fields onto every log record. The OTel `LoggingHandler` lifts these
+    record-dict keys into LogRecord attributes, which the gateway's
+    `splunk_hec/<env>` exporter then writes as HEC event fields. Splunk
+    O11y log-trace correlation requires the `otelTraceID` / `otelSpanID`
+    / `otelTraceSampled` / `otelServiceName` field names (the same set
+    the splunk-otel-python distro emits on the K8s planning service).
+    """
+
+    def __init__(self, service_name: str):
+        super().__init__()
+        self._service_name = service_name
 
     def filter(self, record: logging.LogRecord) -> bool:
         record.__dict__[env_mod.STAMPED_ATTR] = env_mod.get_current_tagged()
+        trace_id = get_current_trace_id()
+        span_id = get_current_span_id()
+        record.__dict__["otelTraceID"] = trace_id
+        record.__dict__["otelSpanID"] = span_id
+        record.__dict__["otelTraceSampled"] = trace_id != _INVALID_TRACE_ID
+        record.__dict__["otelServiceName"] = self._service_name
         return True
 
 
@@ -69,7 +90,7 @@ def init_log_exporter(service_name: str) -> Optional[LoggingHandler]:
     set_logger_provider(_provider)
 
     _handler = LoggingHandler(level=logging.NOTSET, logger_provider=_provider)
-    _handler.addFilter(_EnvAttributeFilter())
+    _handler.addFilter(_EnvAttributeFilter(service_name))
     return _handler
 
 
