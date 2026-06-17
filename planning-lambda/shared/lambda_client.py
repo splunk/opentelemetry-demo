@@ -44,6 +44,7 @@ def invoke_lambda(
     invocation_type: str = "RequestResponse",
     propagate_context: bool = True,
     env_raw: Optional[str] = None,
+    peer_service: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Invoke another Lambda function with trace context + env propagation.
@@ -56,6 +57,10 @@ def invoke_lambda(
         env_raw: Bare source env (e.g. "dev-astronomy"). When set, packed into
             ClientContext.custom["env"] so the invoked Lambda can stamp its own
             telemetry with the same env for gateway-collector routing.
+        peer_service: OTel `service.name` of the target Lambda. Stamped as
+            `peer.service` on the outgoing client span so Splunk APM draws a
+            service-map edge from this Lambda to the target. Defaults to the
+            function name basename when omitted.
 
     Returns:
         Response payload for sync invocations, None for async.
@@ -70,6 +75,7 @@ def invoke_lambda(
         "faas.invoked_name": function_name,
         "faas.invoked_provider": "aws",
         "faas.invocation_type": invocation_type.lower(),
+        "peer.service": peer_service or function_name.split(":")[-1],
     }
     if env_raw:
         span_attributes[STAMPED_ATTR] = tag_env(env_raw)
@@ -170,6 +176,7 @@ def invoke_lambda_async(
     payload: Dict[str, Any],
     propagate_context: bool = True,
     env_raw: Optional[str] = None,
+    peer_service: Optional[str] = None,
 ) -> None:
     """
     Invoke Lambda function asynchronously.
@@ -179,6 +186,7 @@ def invoke_lambda_async(
         payload: Request payload to send.
         propagate_context: Whether to propagate trace context.
         env_raw: Bare source env (see invoke_lambda).
+        peer_service: OTel service.name of the target (see invoke_lambda).
     """
     invoke_lambda(
         function_name=function_name,
@@ -186,4 +194,5 @@ def invoke_lambda_async(
         invocation_type="Event",
         propagate_context=propagate_context,
         env_raw=env_raw,
+        peer_service=peer_service,
     )

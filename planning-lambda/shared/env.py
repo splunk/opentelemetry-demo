@@ -17,6 +17,7 @@ This module centralises the contract across all communication channels:
 """
 
 import base64
+import contextvars
 import json
 from typing import Any, Dict, Optional
 
@@ -28,6 +29,28 @@ HTTP_HEADER = "x-demo-env"
 STAMPED_ATTR = "deployment.environment"
 LAMBDA_SUFFIX = "-lambda"
 UNKNOWN_ENV = "unknown"
+
+# Per-invocation env state. Set at handler entry; read by the OTel
+# LoggingHandler filter so every emitted log record carries the same
+# deployment.environment attribute the gateway routes on.
+_current_env: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "planning_lambda_env_raw", default=UNKNOWN_ENV
+)
+
+
+def set_current(env_raw: str) -> None:
+    """Set the per-invocation bare env. Call at handler entry."""
+    _current_env.set(env_raw or UNKNOWN_ENV)
+
+
+def get_current() -> str:
+    """Return the per-invocation bare env (or UNKNOWN_ENV default)."""
+    return _current_env.get()
+
+
+def get_current_tagged() -> str:
+    """Return the per-invocation env with the Lambda suffix applied."""
+    return tag(get_current())
 
 
 def extract_env(event: Dict[str, Any], context: Any = None) -> str:

@@ -6,4 +6,4 @@ moto>=4.0.0
 freezegun>=1.2.0
 
 # Include main dependencies
--r Planning_Init/requirements.txt
+-r Planning_Init_Lambda/requirements.txt

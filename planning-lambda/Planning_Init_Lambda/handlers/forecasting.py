@@ -16,7 +16,7 @@ from shared.tracing import create_span
 from shared.logging import get_logger
 from shared.env import STAMPED_ATTR, UNKNOWN_ENV, LAMBDA_SUFFIX
 
-logger = get_logger("Planning_Init.forecasting")
+logger = get_logger("Planning_Init_Lambda.forecasting")
 
 
 def handle(body: Dict[str, Any], context: Any, tracer: Tracer, env_tagged: str = f"{UNKNOWN_ENV}{LAMBDA_SUFFIX}") -> Dict[str, Any]:

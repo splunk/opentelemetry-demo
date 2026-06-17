@@ -57,28 +57,49 @@ processors:
     timeout: 5s
     send_batch_size: 1024
 
-  # Promote per-invocation env stamped by Lambda from signal attribute to
-  # resource attribute so the routing connector can match on it.
-  transform/promote_env_traces:
+  # Re-group telemetry by `deployment.environment` so each unique env value
+  # gets its own ResourceSpans / ResourceMetrics / ResourceLogs with the
+  # attribute lifted onto the resource. Required because a single batch
+  # from one Lambda cold-start container can carry multiple invocations
+  # with different envs; promoting the per-signal attribute via a plain
+  # `transform` processor sets the SHARED resource to the last value seen,
+  # causing the routing connector to mis-route the whole batch.
+  # `groupbyattrs` reorganises the payload so each env routes cleanly.
+  groupbyattrs/env:
+    keys:
+      - deployment.environment
+
+  # Make spans correlation-friendly when serialised to HEC events.
+  # Splunk O11y Related Content (see
+  # https://help.splunk.com/en/splunk-observability-cloud/data-tools/related-content)
+  # links logs/spans/metrics by the field names `trace_id`, `span_id`,
+  # `service.name`, `host.name`, `deployment.environment`. `splunk_hec`
+  # serialises spans with intrinsic `trace_id`/`span_id` at the top
+  # level but leaves `service.name` etc. inside the (nested) resource
+  # block. Copy the resource attrs the docs require onto span
+  # attributes so the HEC event has them flat. Also emit the
+  # otel*-prefixed names that the splunk-otel-python distro produces
+  # (some Splunk surfaces look for those). APM (otlp_http path) ignores
+  # the extra attributes.
+  transform/hec_friendly_traces:
     error_mode: ignore
     trace_statements:
       - context: span
         statements:
-          - set(resource.attributes["deployment.environment"], attributes["deployment.environment"]) where attributes["deployment.environment"] != nil
-
-  transform/promote_env_metrics:
-    error_mode: ignore
-    metric_statements:
-      - context: datapoint
-        statements:
-          - set(resource.attributes["deployment.environment"], attributes["deployment.environment"]) where attributes["deployment.environment"] != nil
-
-  transform/promote_env_logs:
-    error_mode: ignore
-    log_statements:
-      - context: log
-        statements:
-          - set(resource.attributes["deployment.environment"], attributes["deployment.environment"]) where attributes["deployment.environment"] != nil
+          # splunk-otel distro convention
+          - set(span.attributes["otelTraceID"], TraceID(span.trace_id))
+          - set(span.attributes["otelSpanID"], SpanID(span.span_id))
+          - set(span.attributes["otelParentSpanID"], SpanID(span.parent_span_id)) where span.parent_span_id != nil
+          - set(span.attributes["otelTraceSampled"], true)
+          - set(span.attributes["otelServiceName"], resource.attributes["service.name"]) where resource.attributes["service.name"] != nil
+          # Splunk O11y Related Content primary fields, flattened.
+          - set(span.attributes["service.name"], resource.attributes["service.name"]) where resource.attributes["service.name"] != nil
+          - set(span.attributes["deployment.environment"], resource.attributes["deployment.environment"]) where resource.attributes["deployment.environment"] != nil
+          - set(span.attributes["host.name"], resource.attributes["host.name"]) where resource.attributes["host.name"] != nil
+          - set(span.attributes["k8s.cluster.name"], resource.attributes["k8s.cluster.name"]) where resource.attributes["k8s.cluster.name"] != nil
+          - set(span.attributes["k8s.pod.name"], resource.attributes["k8s.pod.name"]) where resource.attributes["k8s.pod.name"] != nil
+          - set(span.attributes["k8s.namespace.name"], resource.attributes["k8s.namespace.name"]) where resource.attributes["k8s.namespace.name"] != nil
+          - set(span.attributes["container.id"], resource.attributes["container.id"]) where resource.attributes["container.id"] != nil
 
   attributes/logs:
     actions:
@@ -94,38 +115,47 @@ connectors:
     default_pipelines: [traces/default]
     error_mode: ignore
     table:
-      - statement: route() where resource.attributes["deployment.environment"] == "dev-astronomy-lambda"
+      - context: resource
+        condition: attributes["deployment.environment"] == "dev-astronomy-shop-demo-lambda"
         pipelines: [traces/dev]
-      - statement: route() where resource.attributes["deployment.environment"] == "astronomy-shop-eu-lambda"
+      - context: resource
+        condition: attributes["deployment.environment"] == "astronomy-shop-eu-lambda"
         pipelines: [traces/eu]
-      - statement: route() where resource.attributes["deployment.environment"] == "astronomy-shop-us-lambda"
+      - context: resource
+        condition: attributes["deployment.environment"] == "astronomy-shop-us-lambda"
         pipelines: [traces/us]
 
   routing/metrics:
     default_pipelines: [metrics/default]
     error_mode: ignore
     table:
-      - statement: route() where resource.attributes["deployment.environment"] == "dev-astronomy-lambda"
+      - context: resource
+        condition: attributes["deployment.environment"] == "dev-astronomy-shop-demo-lambda"
         pipelines: [metrics/dev]
-      - statement: route() where resource.attributes["deployment.environment"] == "astronomy-shop-eu-lambda"
+      - context: resource
+        condition: attributes["deployment.environment"] == "astronomy-shop-eu-lambda"
         pipelines: [metrics/eu]
-      - statement: route() where resource.attributes["deployment.environment"] == "astronomy-shop-us-lambda"
+      - context: resource
+        condition: attributes["deployment.environment"] == "astronomy-shop-us-lambda"
         pipelines: [metrics/us]
 
   routing/logs:
     default_pipelines: [logs/default]
     error_mode: ignore
     table:
-      - statement: route() where resource.attributes["deployment.environment"] == "dev-astronomy-lambda"
+      - context: resource
+        condition: attributes["deployment.environment"] == "dev-astronomy-shop-demo-lambda"
         pipelines: [logs/dev]
-      - statement: route() where resource.attributes["deployment.environment"] == "astronomy-shop-eu-lambda"
+      - context: resource
+        condition: attributes["deployment.environment"] == "astronomy-shop-eu-lambda"
         pipelines: [logs/eu]
-      - statement: route() where resource.attributes["deployment.environment"] == "astronomy-shop-us-lambda"
+      - context: resource
+        condition: attributes["deployment.environment"] == "astronomy-shop-us-lambda"
         pipelines: [logs/us]
 
 exporters:
   # ---------- dev-astronomy ----------
-  otlphttp/dev:
+  otlp_http/dev:
     traces_endpoint: "https://ingest.${SPLUNK_REALM_DEV}.signalfx.com/v2/trace/otlp"
     metrics_endpoint: "https://ingest.${SPLUNK_REALM_DEV}.signalfx.com/v2/datapoint/otlp"
     headers:
@@ -155,7 +185,7 @@ exporters:
       max_elapsed_time: 300s
 
   # ---------- astronomy-shop-eu ----------
-  otlphttp/eu:
+  otlp_http/eu:
     traces_endpoint: "https://ingest.${SPLUNK_REALM_EU}.signalfx.com/v2/trace/otlp"
     metrics_endpoint: "https://ingest.${SPLUNK_REALM_EU}.signalfx.com/v2/datapoint/otlp"
     headers:
@@ -185,7 +215,7 @@ exporters:
       max_elapsed_time: 300s
 
   # ---------- astronomy-shop-us ----------
-  otlphttp/us:
+  otlp_http/us:
     traces_endpoint: "https://ingest.${SPLUNK_REALM_US}.signalfx.com/v2/trace/otlp"
     metrics_endpoint: "https://ingest.${SPLUNK_REALM_US}.signalfx.com/v2/datapoint/otlp"
     headers:
@@ -215,7 +245,7 @@ exporters:
       max_elapsed_time: 300s
 
   # ---------- default (fallback for unmatched env) ----------
-  otlphttp/default:
+  otlp_http/default:
     traces_endpoint: "https://ingest.${SPLUNK_REALM_DEFAULT}.signalfx.com/v2/trace/otlp"
     metrics_endpoint: "https://ingest.${SPLUNK_REALM_DEFAULT}.signalfx.com/v2/datapoint/otlp"
     headers:
@@ -253,48 +283,48 @@ service:
     # ---------- ingress pipelines (one per signal): receive, promote env, route ----------
     traces/in:
       receivers: [otlp]
-      processors: [memory_limiter, transform/promote_env_traces, batch]
+      processors: [memory_limiter, groupbyattrs/env, transform/hec_friendly_traces, batch]
       exporters: [routing/traces]
 
     metrics/in:
       receivers: [otlp]
-      processors: [memory_limiter, transform/promote_env_metrics, batch]
+      processors: [memory_limiter, groupbyattrs/env, batch]
       exporters: [routing/metrics]
 
     logs/in:
       receivers: [otlp]
-      processors: [memory_limiter, transform/promote_env_logs, batch, attributes/logs]
+      processors: [memory_limiter, groupbyattrs/env, batch, attributes/logs]
       exporters: [routing/logs]
 
     # ---------- per-env terminal pipelines ----------
     traces/dev:
       receivers: [routing/traces]
-      exporters: [otlphttp/dev, splunk_hec/dev]
+      exporters: [otlp_http/dev, splunk_hec/dev]
     traces/eu:
       receivers: [routing/traces]
-      exporters: [otlphttp/eu, splunk_hec/eu]
+      exporters: [otlp_http/eu, splunk_hec/eu]
     traces/us:
       receivers: [routing/traces]
-      exporters: [otlphttp/us, splunk_hec/us]
+      exporters: [otlp_http/us, splunk_hec/us]
     traces/default:
       receivers: [routing/traces]
-      exporters: [otlphttp/default, splunk_hec/default, debug]
+      exporters: [otlp_http/default, splunk_hec/default, debug]
 
     metrics/dev:
       receivers: [routing/metrics]
-      exporters: [otlphttp/dev, splunk_hec/dev]
+      exporters: [otlp_http/dev, splunk_hec/dev]
     metrics/eu:
       receivers: [routing/metrics]
-      exporters: [otlphttp/eu, splunk_hec/eu]
+      exporters: [otlp_http/eu, splunk_hec/eu]
     metrics/us:
       receivers: [routing/metrics]
-      exporters: [otlphttp/us, splunk_hec/us]
+      exporters: [otlp_http/us, splunk_hec/us]
     metrics/default:
       receivers: [routing/metrics]
-      exporters: [otlphttp/default, splunk_hec/default, debug]
+      exporters: [otlp_http/default, splunk_hec/default, debug]
 
     # Logs go to Splunk Cloud HEC only (Splunk O11y log ingest path is HEC,
-    # not OTLP), so the otlphttp/* exporters are omitted from logs pipelines.
+    # not OTLP), so the otlp_http/* exporters are omitted from logs pipelines.
     logs/dev:
       receivers: [routing/logs]
       exporters: [splunk_hec/dev]

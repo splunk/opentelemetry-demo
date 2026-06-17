@@ -1,4 +1,4 @@
-# SAM CLI configuration for Planning_Init Lambda deployment
+# SAM CLI configuration for Planning_Init_Lambda + Planning_Process_Lambda
 # Run 'sam deploy --guided' for interactive deployment
 
 version = 0.1
@@ -9,7 +9,7 @@ resolve_s3 = true
 s3_prefix = "splunk-astronomy-planning"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "Stage=\"planning\" OtelCollectorEndpoint=\"\" DownstreamLambdaArn=\"\""
+parameter_overrides = "Stage=\"planning\" OtelCollectorEndpoint=\"\""
 image_repositories = []
 
 [default.build.parameters]

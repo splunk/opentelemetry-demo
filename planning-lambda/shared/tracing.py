@@ -114,6 +114,36 @@ def extract_context(event: Dict[str, Any]) -> trace.Context:
     return _propagator.extract(carrier=normalized_headers)
 
 
+def extract_context_from_invoke(event: Dict[str, Any], context: Any = None) -> trace.Context:
+    """
+    Extract trace context from a Lambda invocation (boto3 lambda.invoke).
+
+    Looks for W3C traceparent / tracestate in, in order:
+      1. event["_trace_context"] (payload field set by shared.lambda_client)
+      2. context.client_context.custom (when invoke was called with
+         ClientContext, e.g. via shared.env.for_invoke)
+
+    Returns an empty Context if none found, which makes the next created
+    span a new root.
+    """
+    if isinstance(event, dict):
+        tc = event.get("_trace_context")
+        if isinstance(tc, dict) and tc:
+            carrier = {k.lower(): str(v) for k, v in tc.items()}
+            return _propagator.extract(carrier=carrier)
+
+    if context is not None:
+        cc = getattr(context, "client_context", None)
+        if cc is not None:
+            custom = getattr(cc, "custom", None)
+            if isinstance(custom, dict) and custom:
+                carrier = {k.lower(): str(v) for k, v in custom.items()}
+                return _propagator.extract(carrier=carrier)
+
+    from opentelemetry.context import Context
+    return Context()
+
+
 def inject_context(headers: Dict[str, str] = None) -> Dict[str, str]:
     """
     Inject current trace context into headers for outgoing requests.

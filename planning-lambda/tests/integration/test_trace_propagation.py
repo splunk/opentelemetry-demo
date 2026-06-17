@@ -11,7 +11,7 @@ import os
 
 # Add paths
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'Planning_Init'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'Planning_Init_Lambda'))
 
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -45,7 +45,7 @@ class TestTracePropagation:
 
     def test_trace_context_preserved_from_request(self, api_event_with_orders, mock_lambda_context):
         """Parent trace ID preserved from request to response span."""
-        from Planning_Init.lambda_function import lambda_handler
+        from Planning_Init_Lambda.lambda_function import lambda_handler
 
         # Set a specific traceparent to track
         parent_trace_id = "0af7651916cd43dd8448eb211c80319c"
@@ -65,14 +65,14 @@ class TestTracePropagation:
 
         # Find the root handler span
         handler_span = next(
-            (s for s in spans if "Planning_Init.handler" in s.name),
+            (s for s in spans if "Planning_Init_Lambda.handler" in s.name),
             None
         )
         assert handler_span is not None
 
     def test_span_hierarchy(self, api_event_with_orders, mock_lambda_context):
         """Correct parent-child relationships in span hierarchy."""
-        from Planning_Init.lambda_function import lambda_handler
+        from Planning_Init_Lambda.lambda_function import lambda_handler
 
         init_tracer("test-service")
 
@@ -94,7 +94,7 @@ class TestTracePropagation:
 
     def test_child_spans_have_same_trace_id(self, api_event_with_orders, mock_lambda_context):
         """All spans in the request share the same trace ID."""
-        from Planning_Init.lambda_function import lambda_handler
+        from Planning_Init_Lambda.lambda_function import lambda_handler
 
         init_tracer("test-service")
 
@@ -115,7 +115,7 @@ class TestTracePropagation:
             with patch('handlers.orders.invoke_lambda') as mock_invoke:
                 mock_invoke.return_value = {"statusCode": 200}
 
-                from Planning_Init.lambda_function import lambda_handler
+                from Planning_Init_Lambda.lambda_function import lambda_handler
                 response = lambda_handler(api_event_with_orders, mock_lambda_context)
 
                 assert response["statusCode"] == 200

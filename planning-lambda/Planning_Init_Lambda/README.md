@@ -1,4 +1,4 @@
-# Planning_Init Lambda Service
+# Planning_Init_Lambda Lambda Service
 
 Entry point Lambda for the AWS planning services. Receives orders from the K8s planning service and routes to appropriate handlers.
 
@@ -23,7 +23,7 @@ This Lambda function serves as the primary landing point for the AWS portion of 
 
 ```bash
 # Navigate to this directory
-cd Planning_Init
+cd Planning_Init_Lambda
 
 # Build the Lambda package
 sam build
@@ -144,7 +144,7 @@ sam local invoke PlanningInitFunction -e events/sample-order.json
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `LOG_LEVEL` | Logging verbosity | INFO |
-| `OTEL_SERVICE_NAME` | Service name for traces | Planning_Init |
+| `OTEL_SERVICE_NAME` | Service name for traces | Planning_Init_Lambda |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP exporter endpoint | (none) |
 | `DOWNSTREAM_LAMBDA_ARN` | Downstream Lambda ARN | (none) |
 | `STAGE` | Deployment stage | prod |
@@ -166,7 +166,7 @@ Logs are JSON formatted with automatic trace correlation:
 {
   "timestamp": "2024-01-15T10:30:00.000Z",
   "level": "INFO",
-  "logger": "Planning_Init.orders",
+  "logger": "Planning_Init_Lambda.orders",
   "message": "Processing orders",
   "trace_id": "12345678901234567890123456789012",
   "span_id": "1234567890123456",

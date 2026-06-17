@@ -14,7 +14,7 @@ This directory contains AWS Lambda functions that extend the demo into AWS serve
 
 ```
 +-----------------+     HTTP/REST      +-----------------------------+
-|  Planning       | ------------------>|  Planning_Init (Lambda)     |
+|  Planning       | ------------------>|  Planning_Init_Lambda (Lambda)     |
 |  Service (K8s)  |                    |  (API Gateway + Lambda)     |
 +-----------------+                    +--------------+--------------+
                                                       |
@@ -37,7 +37,7 @@ planning-lambda/
 |   |-- logging.py             # Structured JSON logging
 |   +-- lambda_client.py       # Lambda-to-Lambda invocation
 |
-+-- Planning_Init/              # First Lambda service
++-- Planning_Init_Lambda/              # First Lambda service
     |-- lambda_function.py     # Main handler with routing
     |-- handlers/              # Request handlers
     |   |-- orders.py          # Order processing
@@ -69,7 +69,7 @@ planning-lambda/
 
 | Service | Description | Status |
 |---------|-------------|--------|
-| Planning_Init | Entry point, receives orders from K8s planning service | [x] Active |
+| Planning_Init_Lambda | Entry point, receives orders from K8s planning service | [x] Active |
 | (Future) | Additional planning/analytics services | Planned |
 
 ## Quick Start
@@ -77,8 +77,8 @@ planning-lambda/
 See individual service READMEs for deployment instructions.
 
 ```bash
-# Deploy Planning_Init
-cd Planning_Init
+# Deploy Planning_Init_Lambda
+cd Planning_Init_Lambda
 sam build
 sam deploy --guided
 ```
