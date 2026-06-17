@@ -31,22 +31,29 @@ class JsonFormatter(logging.Formatter):
         """Format the log record as JSON."""
         trace_id = get_current_trace_id()
         span_id = get_current_span_id()
-        # Splunk O11y log-trace correlation expects the otel* field names
-        # emitted by the splunk-otel-python distro. Include those alongside
-        # the generic trace_id/span_id for compatibility with both. A trace_id
-        # of all zeros indicates no active span; flag accordingly.
+        # Splunk O11y Related Content log-to-trace correlation fields per
+        # https://help.splunk.com/en/splunk-observability-cloud/data-tools/related-content
+        # are: trace_id, span_id, service.name, host.name. Include the
+        # otel*-prefixed names (splunk-otel-python distro convention) too;
+        # both are recognised and the duplicates are harmless.
         sampled = trace_id != "00000000000000000000000000000000"
+        service_name = os.getenv("OTEL_SERVICE_NAME", record.name)
+        host_name = os.getenv("AWS_LAMBDA_FUNCTION_NAME", service_name)
         log_data: Dict[str, Any] = {
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
+            # Primary correlation fields (per docs).
             "trace_id": trace_id,
             "span_id": span_id,
+            "service.name": service_name,
+            "host.name": host_name,
+            # Backup correlation fields (splunk-otel distro convention).
             "otelTraceID": trace_id,
             "otelSpanID": span_id,
             "otelTraceSampled": sampled,
-            "otelServiceName": os.getenv("OTEL_SERVICE_NAME", record.name),
+            "otelServiceName": service_name,
         }
 
         # Add location info

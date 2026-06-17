@@ -36,23 +36,40 @@ _handler: Optional[LoggingHandler] = None
 
 class _EnvAttributeFilter(logging.Filter):
     """
-    Inject per-invocation env + Splunk-O11y-recognized log correlation
-    fields onto every log record. The OTel `LoggingHandler` lifts these
-    record-dict keys into LogRecord attributes, which the gateway's
-    `splunk_hec/<env>` exporter then writes as HEC event fields. Splunk
-    O11y log-trace correlation requires the `otelTraceID` / `otelSpanID`
-    / `otelTraceSampled` / `otelServiceName` field names (the same set
-    the splunk-otel-python distro emits on the K8s planning service).
+    Inject the fields Splunk O11y Related Content uses to link logs to
+    traces, metrics and infrastructure onto every log record. The OTel
+    `LoggingHandler` lifts these record-dict keys into LogRecord
+    attributes, which the gateway's `splunk_hec/<env>` exporter then
+    writes as HEC event fields.
+
+    Per the Splunk O11y docs (data-tools/related-content), the
+    log-to-trace correlation fields are: `trace_id`, `span_id`,
+    `service.name`, `host.name`. The `deployment.environment` attribute
+    discriminates between envs in the same service.
+
+    We additionally emit the `otelTraceID` / `otelSpanID` /
+    `otelTraceSampled` / `otelServiceName` field names the
+    splunk-otel-python distro produces (the K8s planning service uses
+    those). Both forms are harmless duplicates and Splunk O11y
+    recognises either.
     """
 
     def __init__(self, service_name: str):
         super().__init__()
         self._service_name = service_name
+        # AWS Lambda runtime sets this; fall back to function-name pattern.
+        self._host_name = os.getenv("AWS_LAMBDA_FUNCTION_NAME", service_name)
 
     def filter(self, record: logging.LogRecord) -> bool:
         record.__dict__[env_mod.STAMPED_ATTR] = env_mod.get_current_tagged()
         trace_id = get_current_trace_id()
         span_id = get_current_span_id()
+        # Splunk O11y Related Content primary fields (per docs).
+        record.__dict__["trace_id"] = trace_id
+        record.__dict__["span_id"] = span_id
+        record.__dict__["service.name"] = self._service_name
+        record.__dict__["host.name"] = self._host_name
+        # splunk-otel-python convention (also recognised by Splunk O11y).
         record.__dict__["otelTraceID"] = trace_id
         record.__dict__["otelSpanID"] = span_id
         record.__dict__["otelTraceSampled"] = trace_id != _INVALID_TRACE_ID

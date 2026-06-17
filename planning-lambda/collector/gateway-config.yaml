@@ -69,23 +69,37 @@ processors:
     keys:
       - deployment.environment
 
-  # Splunk O11y log-trace correlation looks for `otelTraceID` /
-  # `otelSpanID` / `otelTraceSampled` / `otelServiceName` field names on
-  # HEC events. Spans serialised by `splunk_hec` use the OTLP intrinsic
-  # field names (`trace_id`, `span_id`) which O11y doesn't recognise as
-  # log correlation keys. Copy the intrinsics to span attributes with
-  # the Splunk-recognised names so HEC events carry them. APM (via
-  # `otlp_http`) sees them as harmless extra attributes.
+  # Make spans correlation-friendly when serialised to HEC events.
+  # Splunk O11y Related Content (see
+  # https://help.splunk.com/en/splunk-observability-cloud/data-tools/related-content)
+  # links logs/spans/metrics by the field names `trace_id`, `span_id`,
+  # `service.name`, `host.name`, `deployment.environment`. `splunk_hec`
+  # serialises spans with intrinsic `trace_id`/`span_id` at the top
+  # level but leaves `service.name` etc. inside the (nested) resource
+  # block. Copy the resource attrs the docs require onto span
+  # attributes so the HEC event has them flat. Also emit the
+  # otel*-prefixed names that the splunk-otel-python distro produces
+  # (some Splunk surfaces look for those). APM (otlp_http path) ignores
+  # the extra attributes.
   transform/hec_friendly_traces:
     error_mode: ignore
     trace_statements:
       - context: span
         statements:
+          # splunk-otel distro convention
           - set(span.attributes["otelTraceID"], TraceID(span.trace_id))
           - set(span.attributes["otelSpanID"], SpanID(span.span_id))
           - set(span.attributes["otelParentSpanID"], SpanID(span.parent_span_id)) where span.parent_span_id != nil
           - set(span.attributes["otelTraceSampled"], true)
           - set(span.attributes["otelServiceName"], resource.attributes["service.name"]) where resource.attributes["service.name"] != nil
+          # Splunk O11y Related Content primary fields, flattened.
+          - set(span.attributes["service.name"], resource.attributes["service.name"]) where resource.attributes["service.name"] != nil
+          - set(span.attributes["deployment.environment"], resource.attributes["deployment.environment"]) where resource.attributes["deployment.environment"] != nil
+          - set(span.attributes["host.name"], resource.attributes["host.name"]) where resource.attributes["host.name"] != nil
+          - set(span.attributes["k8s.cluster.name"], resource.attributes["k8s.cluster.name"]) where resource.attributes["k8s.cluster.name"] != nil
+          - set(span.attributes["k8s.pod.name"], resource.attributes["k8s.pod.name"]) where resource.attributes["k8s.pod.name"] != nil
+          - set(span.attributes["k8s.namespace.name"], resource.attributes["k8s.namespace.name"]) where resource.attributes["k8s.namespace.name"] != nil
+          - set(span.attributes["container.id"], resource.attributes["container.id"]) where resource.attributes["container.id"] != nil
 
   attributes/logs:
     actions:

@@ -99,14 +99,33 @@ class TestEnvAttributeFilter:
             msg="hi", args=(), exc_info=None,
         )
         flt.filter(rec)
-        # Splunk-O11y-recognized log correlation fields must be present.
+        # Splunk O11y Related Content primary correlation fields (per docs).
+        assert "trace_id" in rec.__dict__
+        assert "span_id" in rec.__dict__
+        assert rec.__dict__["service.name"] == "Planning_Process_Lambda"
+        assert "host.name" in rec.__dict__
+        # splunk-otel distro convention duplicates (backup).
         assert "otelTraceID" in rec.__dict__
         assert "otelSpanID" in rec.__dict__
         assert "otelTraceSampled" in rec.__dict__
         assert rec.__dict__["otelServiceName"] == "Planning_Process_Lambda"
         # No active span in this test context -> invalid trace_id, unsampled
+        assert rec.__dict__["trace_id"] == "0" * 32
         assert rec.__dict__["otelTraceID"] == "0" * 32
         assert rec.__dict__["otelTraceSampled"] is False
+
+    def test_filter_uses_aws_function_name_for_host(self):
+        env_mod.set_current("dev-astronomy-shop-demo")
+        import os as _os
+        with pytest.MonkeyPatch.context() as m:
+            m.setenv("AWS_LAMBDA_FUNCTION_NAME", "splunk-astronomy-demo-planning-process-lambda")
+            flt = otel_logs._EnvAttributeFilter("Planning_Process_Lambda")
+        rec = logging.LogRecord(
+            name="t", level=logging.INFO, pathname=__file__, lineno=0,
+            msg="x", args=(), exc_info=None,
+        )
+        flt.filter(rec)
+        assert rec.__dict__["host.name"] == "splunk-astronomy-demo-planning-process-lambda"
 
 
 class TestForceFlush:
