@@ -13,6 +13,19 @@ clusterReceiver:
   # Disabled eventsEnabled and k8s_objects - these generate non-HEC data
   # that gets refused by Splunk Platform endpoints
   eventsEnabled: true
+  # Bump from 500Mi/200m — pod was OOM-restarting under export back-pressure
+  # (memorylimiter soft=450Mi vs pod limit=500Mi had only 50Mi headroom).
+  # 149 restarts in 14d on dev-astronomy traced to signalfx/HEC exporter
+  # timeouts back-pressuring the pipeline. Chart does not expose liveness/
+  # readiness probe tuning — if restarts persist post-upgrade, patch
+  # deployment probes via kubectl after helm install.
+  resources:
+    requests:
+      cpu: 200m
+      memory: 500Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
 
 agent:
   extraEnvs:
