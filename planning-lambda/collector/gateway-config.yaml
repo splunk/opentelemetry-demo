@@ -1,24 +1,43 @@
-# Splunk OpenTelemetry Collector - Gateway Mode
-# Receives OTLP from Lambda functions and forwards to Splunk
+# Splunk OpenTelemetry Collector - Gateway Mode (Multi-Env Routing)
 #
-# Environment variables required (set in /etc/otel/collector/splunk-otel-collector.conf):
-#   SPLUNK_ACCESS_TOKEN      - Splunk Observability Cloud access token
-#   SPLUNK_REALM             - Splunk Observability Cloud realm (e.g., us0, us1, eu0)
-#   SPLUNK_LISTEN_INTERFACE  - Listen interface (default: 0.0.0.0)
+# Receives OTLP from Lambda functions, promotes the per-invocation
+# `deployment.environment` span/datapoint/log attribute to a resource attribute,
+# and routes telemetry to one of four Splunk Observability + HEC orgs based on
+# the env value. Lambdas stamp `deployment.environment = "<env>-lambda"` per
+# invocation, where <env> is the source K8s cluster (dev-astronomy,
+# astronomy-shop-eu, astronomy-shop-us). Anything unmatched falls through to
+# the `default` pipelines.
 #
-# The splunk_hec exporter uses hardcoded values below — update for your environment.
+# Required env vars (set in /etc/otel/collector/splunk-otel-collector.conf.d/env):
+#
+#   SPLUNK_LISTEN_INTERFACE          - Listen interface (default: 0.0.0.0)
+#
+#   # --- dev-astronomy ---
+#   SPLUNK_REALM_DEV                 - Splunk O11y realm (e.g. us0, us1, eu0)
+#   SPLUNK_TOKEN_DEV                 - Splunk O11y access token
+#   SPLUNK_HEC_URL_DEV               - HEC endpoint (https://<host>:8088/services/collector)
+#   SPLUNK_HEC_TOKEN_DEV             - HEC token
+#   SPLUNK_INDEX_DEV                 - HEC target index
+#
+#   # --- astronomy-shop-eu ---     (same five vars, _EU suffix)
+#   SPLUNK_REALM_EU, SPLUNK_TOKEN_EU, SPLUNK_HEC_URL_EU, SPLUNK_HEC_TOKEN_EU, SPLUNK_INDEX_EU
+#
+#   # --- astronomy-shop-us ---     (same five vars, _US suffix)
+#   SPLUNK_REALM_US, SPLUNK_TOKEN_US, SPLUNK_HEC_URL_US, SPLUNK_HEC_TOKEN_US, SPLUNK_INDEX_US
+#
+#   # --- default fallback ---     (same five vars, _DEFAULT suffix)
+#   SPLUNK_REALM_DEFAULT, SPLUNK_TOKEN_DEFAULT, SPLUNK_HEC_URL_DEFAULT,
+#   SPLUNK_HEC_TOKEN_DEFAULT, SPLUNK_INDEX_DEFAULT
+#
+# DIAB note: DIAB deployments may require a parallel gateway-config-diab.yaml
+# with the same routing-connector shape plus DIAB-specific exporter/auth
+# settings. Tracked as a follow-up after multi-env OTLP path is validated.
 
 extensions:
   health_check:
     endpoint: "${SPLUNK_LISTEN_INTERFACE}:13133"
   zpages:
     endpoint: "${SPLUNK_LISTEN_INTERFACE}:55679"
-  headers_setter:
-    headers:
-      - action: upsert
-        key: X-SF-TOKEN
-        from_context: X-SF-TOKEN
-        default_value: "${SPLUNK_ACCESS_TOKEN}"
 
 receivers:
   otlp:
@@ -34,15 +53,53 @@ processors:
     limit_mib: 3000
     spike_limit_mib: 1000
 
-  resource/add_environment:
-    attributes:
-      - action: insert
-        value: "demo"
-        key: deployment.environment
-
   batch:
     timeout: 5s
     send_batch_size: 1024
+
+  # Re-group telemetry by `deployment.environment` so each unique env value
+  # gets its own ResourceSpans / ResourceMetrics / ResourceLogs with the
+  # attribute lifted onto the resource. Required because a single batch
+  # from one Lambda cold-start container can carry multiple invocations
+  # with different envs; promoting the per-signal attribute via a plain
+  # `transform` processor sets the SHARED resource to the last value seen,
+  # causing the routing connector to mis-route the whole batch.
+  # `groupbyattrs` reorganises the payload so each env routes cleanly.
+  groupbyattrs/env:
+    keys:
+      - deployment.environment
+
+  # Make spans correlation-friendly when serialised to HEC events.
+  # Splunk O11y Related Content (see
+  # https://help.splunk.com/en/splunk-observability-cloud/data-tools/related-content)
+  # links logs/spans/metrics by the field names `trace_id`, `span_id`,
+  # `service.name`, `host.name`, `deployment.environment`. `splunk_hec`
+  # serialises spans with intrinsic `trace_id`/`span_id` at the top
+  # level but leaves `service.name` etc. inside the (nested) resource
+  # block. Copy the resource attrs the docs require onto span
+  # attributes so the HEC event has them flat. Also emit the
+  # otel*-prefixed names that the splunk-otel-python distro produces
+  # (some Splunk surfaces look for those). APM (otlp_http path) ignores
+  # the extra attributes.
+  transform/hec_friendly_traces:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          # splunk-otel distro convention
+          - set(span.attributes["otelTraceID"], TraceID(span.trace_id))
+          - set(span.attributes["otelSpanID"], SpanID(span.span_id))
+          - set(span.attributes["otelParentSpanID"], SpanID(span.parent_span_id)) where span.parent_span_id != nil
+          - set(span.attributes["otelTraceSampled"], true)
+          - set(span.attributes["otelServiceName"], resource.attributes["service.name"]) where resource.attributes["service.name"] != nil
+          # Splunk O11y Related Content primary fields, flattened.
+          - set(span.attributes["service.name"], resource.attributes["service.name"]) where resource.attributes["service.name"] != nil
+          - set(span.attributes["deployment.environment"], resource.attributes["deployment.environment"]) where resource.attributes["deployment.environment"] != nil
+          - set(span.attributes["host.name"], resource.attributes["host.name"]) where resource.attributes["host.name"] != nil
+          - set(span.attributes["k8s.cluster.name"], resource.attributes["k8s.cluster.name"]) where resource.attributes["k8s.cluster.name"] != nil
+          - set(span.attributes["k8s.pod.name"], resource.attributes["k8s.pod.name"]) where resource.attributes["k8s.pod.name"] != nil
+          - set(span.attributes["k8s.namespace.name"], resource.attributes["k8s.namespace.name"]) where resource.attributes["k8s.namespace.name"] != nil
+          - set(span.attributes["container.id"], resource.attributes["container.id"]) where resource.attributes["container.id"] != nil
 
   attributes/logs:
     actions:
@@ -53,41 +110,230 @@ processors:
         value: "_json"
         action: insert
 
-exporters:
-  # Traces and metrics to Splunk Observability Cloud via OTLP HTTP
-  otlphttp:
-    auth:
-      authenticator: headers_setter
-    traces_endpoint: "https://ingest.${SPLUNK_REALM}.signalfx.com/v2/trace/otlp"
-    metrics_endpoint: "https://ingest.${SPLUNK_REALM}.signalfx.com/v2/datapoint/otlp"
+connectors:
+  routing/traces:
+    default_pipelines: [traces/default]
+    error_mode: ignore
+    table:
+      - context: resource
+        condition: attributes["deployment.environment"] == "dev-astronomy-shop-demo-lambda"
+        pipelines: [traces/dev]
+      - context: resource
+        condition: attributes["deployment.environment"] == "astronomy-shop-eu-lambda"
+        pipelines: [traces/eu]
+      - context: resource
+        condition: attributes["deployment.environment"] == "astronomy-shop-us-lambda"
+        pipelines: [traces/us]
 
-  # Logs to Splunk Cloud/Enterprise via HEC
-  splunk_hec:
-    endpoint: "${SPLUNK_HEC_URL}"
-    token: "${SPLUNK_HEC_TOKEN}"
+  routing/metrics:
+    default_pipelines: [metrics/default]
+    error_mode: ignore
+    table:
+      - context: resource
+        condition: attributes["deployment.environment"] == "dev-astronomy-shop-demo-lambda"
+        pipelines: [metrics/dev]
+      - context: resource
+        condition: attributes["deployment.environment"] == "astronomy-shop-eu-lambda"
+        pipelines: [metrics/eu]
+      - context: resource
+        condition: attributes["deployment.environment"] == "astronomy-shop-us-lambda"
+        pipelines: [metrics/us]
+
+  routing/logs:
+    default_pipelines: [logs/default]
+    error_mode: ignore
+    table:
+      - context: resource
+        condition: attributes["deployment.environment"] == "dev-astronomy-shop-demo-lambda"
+        pipelines: [logs/dev]
+      - context: resource
+        condition: attributes["deployment.environment"] == "astronomy-shop-eu-lambda"
+        pipelines: [logs/eu]
+      - context: resource
+        condition: attributes["deployment.environment"] == "astronomy-shop-us-lambda"
+        pipelines: [logs/us]
+
+exporters:
+  # ---------- dev-astronomy ----------
+  otlp_http/dev:
+    traces_endpoint: "https://ingest.${SPLUNK_REALM_DEV}.signalfx.com/v2/trace/otlp"
+    metrics_endpoint: "https://ingest.${SPLUNK_REALM_DEV}.signalfx.com/v2/datapoint/otlp"
+    headers:
+      X-SF-TOKEN: "${SPLUNK_TOKEN_DEV}"
+    sending_queue:
+      enabled: true
+      queue_size: 5000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+  splunk_hec/dev:
+    endpoint: "${SPLUNK_HEC_URL_DEV}"
+    token: "${SPLUNK_HEC_TOKEN_DEV}"
+    index: "${SPLUNK_INDEX_DEV}"
     source: otel
     sourcetype: _json
-    index: "${SPLUNK_INDEX}"
     timeout: 10s
+    sending_queue:
+      enabled: true
+      queue_size: 5000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
 
-  # Debug exporter for troubleshooting (remove from pipelines when not needed)
+  # ---------- astronomy-shop-eu ----------
+  otlp_http/eu:
+    traces_endpoint: "https://ingest.${SPLUNK_REALM_EU}.signalfx.com/v2/trace/otlp"
+    metrics_endpoint: "https://ingest.${SPLUNK_REALM_EU}.signalfx.com/v2/datapoint/otlp"
+    headers:
+      X-SF-TOKEN: "${SPLUNK_TOKEN_EU}"
+    sending_queue:
+      enabled: true
+      queue_size: 5000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+  splunk_hec/eu:
+    endpoint: "${SPLUNK_HEC_URL_EU}"
+    token: "${SPLUNK_HEC_TOKEN_EU}"
+    index: "${SPLUNK_INDEX_EU}"
+    source: otel
+    sourcetype: _json
+    timeout: 10s
+    sending_queue:
+      enabled: true
+      queue_size: 5000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+  # ---------- astronomy-shop-us ----------
+  otlp_http/us:
+    traces_endpoint: "https://ingest.${SPLUNK_REALM_US}.signalfx.com/v2/trace/otlp"
+    metrics_endpoint: "https://ingest.${SPLUNK_REALM_US}.signalfx.com/v2/datapoint/otlp"
+    headers:
+      X-SF-TOKEN: "${SPLUNK_TOKEN_US}"
+    sending_queue:
+      enabled: true
+      queue_size: 5000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+  splunk_hec/us:
+    endpoint: "${SPLUNK_HEC_URL_US}"
+    token: "${SPLUNK_HEC_TOKEN_US}"
+    index: "${SPLUNK_INDEX_US}"
+    source: otel
+    sourcetype: _json
+    timeout: 10s
+    sending_queue:
+      enabled: true
+      queue_size: 5000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+  # ---------- default (fallback for unmatched env) ----------
+  otlp_http/default:
+    traces_endpoint: "https://ingest.${SPLUNK_REALM_DEFAULT}.signalfx.com/v2/trace/otlp"
+    metrics_endpoint: "https://ingest.${SPLUNK_REALM_DEFAULT}.signalfx.com/v2/datapoint/otlp"
+    headers:
+      X-SF-TOKEN: "${SPLUNK_TOKEN_DEFAULT}"
+    sending_queue:
+      enabled: true
+      queue_size: 5000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+  splunk_hec/default:
+    endpoint: "${SPLUNK_HEC_URL_DEFAULT}"
+    token: "${SPLUNK_HEC_TOKEN_DEFAULT}"
+    index: "${SPLUNK_INDEX_DEFAULT}"
+    source: otel
+    sourcetype: _json
+    timeout: 10s
+    sending_queue:
+      enabled: true
+      queue_size: 5000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
   debug:
     verbosity: basic
 
 service:
-  extensions: [health_check, zpages, headers_setter]
+  extensions: [health_check, zpages]
   pipelines:
-    traces:
+    # ---------- ingress pipelines (one per signal): receive, promote env, route ----------
+    traces/in:
       receivers: [otlp]
-      processors: [memory_limiter, batch, resource/add_environment]
-      exporters: [otlphttp, debug]
+      processors: [memory_limiter, groupbyattrs/env, transform/hec_friendly_traces, batch]
+      exporters: [routing/traces]
 
-    metrics:
+    metrics/in:
       receivers: [otlp]
-      processors: [memory_limiter, batch, resource/add_environment]
-      exporters: [otlphttp, debug]
+      processors: [memory_limiter, groupbyattrs/env, batch]
+      exporters: [routing/metrics]
 
-    logs:
+    logs/in:
       receivers: [otlp]
-      processors: [memory_limiter, batch, attributes/logs]
-      exporters: [splunk_hec, debug]
+      processors: [memory_limiter, groupbyattrs/env, batch, attributes/logs]
+      exporters: [routing/logs]
+
+    # ---------- per-env terminal pipelines ----------
+    traces/dev:
+      receivers: [routing/traces]
+      exporters: [otlp_http/dev, splunk_hec/dev]
+    traces/eu:
+      receivers: [routing/traces]
+      exporters: [otlp_http/eu, splunk_hec/eu]
+    traces/us:
+      receivers: [routing/traces]
+      exporters: [otlp_http/us, splunk_hec/us]
+    traces/default:
+      receivers: [routing/traces]
+      exporters: [otlp_http/default, splunk_hec/default, debug]
+
+    metrics/dev:
+      receivers: [routing/metrics]
+      exporters: [otlp_http/dev, splunk_hec/dev]
+    metrics/eu:
+      receivers: [routing/metrics]
+      exporters: [otlp_http/eu, splunk_hec/eu]
+    metrics/us:
+      receivers: [routing/metrics]
+      exporters: [otlp_http/us, splunk_hec/us]
+    metrics/default:
+      receivers: [routing/metrics]
+      exporters: [otlp_http/default, splunk_hec/default, debug]
+
+    # Logs go to Splunk Cloud HEC only (Splunk O11y log ingest path is HEC,
+    # not OTLP), so the otlp_http/* exporters are omitted from logs pipelines.
+    logs/dev:
+      receivers: [routing/logs]
+      exporters: [splunk_hec/dev]
+    logs/eu:
+      receivers: [routing/logs]
+      exporters: [splunk_hec/eu]
+    logs/us:
+      receivers: [routing/logs]
+      exporters: [splunk_hec/us]
+    logs/default:
+      receivers: [routing/logs]
+      exporters: [splunk_hec/default, debug]

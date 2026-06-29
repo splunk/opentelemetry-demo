@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Planning_Init Lambda Function
+Planning_Init_Lambda function
 
 Entry point Lambda that receives orders from the K8s planning service.
 Routes requests to appropriate handlers based on the API Gateway path.
@@ -16,14 +16,17 @@ from typing import Any, Dict
 
 from shared.tracing import init_tracer, extract_context, create_span, force_flush
 from shared.logging import get_logger
+from shared.env import extract_env, stamp as stamp_env, set_current as set_current_env
+from shared import otel_logs, otel_metrics
 from opentelemetry.trace import SpanKind
 
 # Import handlers
-from Planning_Init.handlers import orders, analytics, forecasting
+from Planning_Init_Lambda.handlers import orders, analytics, forecasting
 
 # Initialize
-logger = get_logger("Planning_Init")
-tracer = init_tracer("Planning_Init")
+logger = get_logger("Planning_Init_Lambda")
+tracer = init_tracer("Planning_Init_Lambda")
+otel_metrics.init_meter("Planning_Init_Lambda")
 
 # Route mapping
 ROUTES = {
@@ -68,11 +71,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         "http.target": path,
         "cloud.provider": "aws",
         "cloud.platform": "aws_lambda",
-        "faas.name": context.function_name if context else "Planning_Init",
+        "faas.name": context.function_name if context else "Planning_Init_Lambda",
     }
 
     with create_span(
-        "Planning_Init.handler",
+        "Planning_Init_Lambda.handler",
         kind=SpanKind.SERVER,
         attributes=span_attributes,
         parent_context=parent_context
@@ -88,6 +91,17 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     body = {"raw": body}
 
             span.set_attribute("request.body_size", len(json.dumps(body)))
+
+            # Extract per-invocation env (from body, ClientContext, SNS, or HTTP header)
+            # and stamp on root span so gateway collector can route by env.
+            env_raw = extract_env(body if isinstance(body, dict) else {}, context)
+            if env_raw == "unknown":
+                # Fall back to the full event for non-body sources (ClientContext, SNS).
+                env_raw = extract_env(event, context)
+            # Stash on the ContextVar so the OTLP log handler stamps each
+            # log record with this env for gateway routing.
+            set_current_env(env_raw)
+            env_tagged = stamp_env(span, env_raw)
 
             # Log request info
             headers = event.get("headers", {}) or {}
@@ -136,7 +150,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
             # Call handler
             logger.info(f"Routing to handler: {handler.__module__}.{handler.__name__}")
-            response = handler(body, context, tracer)
+            response = handler(body, context, tracer, env_tagged)
 
             # Ensure response has required fields
             if not isinstance(response, dict):
@@ -160,8 +174,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 extra={"status_code": response["statusCode"]}
             )
 
-            # Flush spans before Lambda freezes
+            # Flush spans + logs + metrics before Lambda freezes
             force_flush()
+            otel_logs.force_flush()
+            otel_metrics.force_flush()
             return response
 
         except Exception as e:
@@ -169,8 +185,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             span.set_attribute("error.type", type(e).__name__)
             span.set_attribute("error.message", str(e))
 
-            # Flush spans before Lambda freezes
+            # Flush spans + logs + metrics before Lambda freezes
             force_flush()
+            otel_logs.force_flush()
+            otel_metrics.force_flush()
             return {
                 "statusCode": 500,
                 "headers": {"Content-Type": "application/json"},

@@ -1,266 +1,89 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for Planning_Init/handlers/orders.py."""
+"""Unit tests for Planning_Init_Lambda/handlers/orders.py.
+
+After the per-order refactor: Init no longer iterates orders or enriches
+them. Per-order processing, region/priority enrichment, and per-order
+spans/metrics/logs live in Planning_Process_Lambda.processor. See
+tests/unit/test_process_handler.py for those.
+"""
 
 import json
-import pytest
-from unittest.mock import MagicMock, patch
-import sys
 import os
+import sys
+from unittest.mock import patch
 
-# Add paths
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'Planning_Init'))
+import pytest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'Planning_Init_Lambda'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from shared.tracing import init_tracer, get_tracer
-from handlers.orders import (
-    handle,
-    process_order,
-    determine_region,
-    calculate_priority,
-)
+from handlers.orders import handle
 
 
 class TestOrdersHandle:
-    """Tests for orders.handle function."""
 
     @pytest.fixture(autouse=True)
     def setup(self):
-        """Setup tracer for each test."""
         init_tracer("test-service")
         self.tracer = get_tracer()
 
     def test_handle_empty_orders(self, mock_lambda_context):
-        """Handles request with no orders."""
-        body = {
-            "service": "planning",
-            "timestamp": "2024-01-15T10:30:00Z",
-            "orders_count": 0,
-            "orders": []
-        }
-
-        response = handle(body, mock_lambda_context, self.tracer)
-
+        body = {"service": "planning", "orders_count": 0, "orders": []}
+        response = handle(body, mock_lambda_context, self.tracer, "dev-astronomy-shop-demo-lambda")
         assert response["statusCode"] == 200
-        response_body = json.loads(response["body"])
-        assert response_body["processed_count"] == 0
-        assert response_body["status"] == "success"
+        rb = json.loads(response["body"])
+        assert rb["status"] == "success"
+        assert rb["orders_received"] == 0
+        assert rb["downstream_forwarded"] is False  # empty list -> nothing forwarded
 
-    def test_handle_single_order(self, mock_lambda_context):
-        """Processes single order correctly."""
-        body = {
-            "service": "planning",
-            "timestamp": "2024-01-15T10:30:00Z",
-            "orders_count": 1,
-            "orders": [
-                {
-                    "order_id": "ORD-001",
-                    "items_count": 3,
-                    "shipping_address": {"country": "US"},
-                    "shipping_cost": {"units": 25, "currency_code": "USD"}
-                }
-            ]
-        }
+    def test_handle_includes_source_service(self, mock_lambda_context, sample_orders_payload):
+        response = handle(sample_orders_payload, mock_lambda_context, self.tracer, "dev-astronomy-shop-demo-lambda")
+        rb = json.loads(response["body"])
+        assert rb["source_service"] == "planning"
 
-        response = handle(body, mock_lambda_context, self.tracer)
+    def test_handle_env_round_trip(self, mock_lambda_context, sample_orders_payload):
+        response = handle(sample_orders_payload, mock_lambda_context, self.tracer, "astronomy-shop-eu-lambda")
+        rb = json.loads(response["body"])
+        assert rb["env"] == "astronomy-shop-eu"
+        assert rb["lambda"]["deployment.environment"] == "astronomy-shop-eu-lambda"
 
-        assert response["statusCode"] == 200
-        response_body = json.loads(response["body"])
-        assert response_body["processed_count"] == 1
-        assert len(response_body["orders_summary"]) == 1
-
-    def test_handle_multiple_orders(self, mock_lambda_context, sample_orders_payload):
-        """Processes batch of orders."""
+    def test_handle_env_default_when_missing(self, mock_lambda_context, sample_orders_payload):
         response = handle(sample_orders_payload, mock_lambda_context, self.tracer)
+        rb = json.loads(response["body"])
+        assert rb["env"] == "unknown"
+        assert rb["lambda"]["deployment.environment"] == "unknown-lambda"
 
-        assert response["statusCode"] == 200
-        response_body = json.loads(response["body"])
-        assert response_body["processed_count"] == 2
-        assert len(response_body["orders_summary"]) == 2
+    def test_no_forward_when_no_downstream_arn(self, mock_lambda_context, sample_orders_payload):
+        with patch("handlers.orders.DOWNSTREAM_LAMBDA_ARN", ""):
+            response = handle(sample_orders_payload, mock_lambda_context, self.tracer, "dev-astronomy-shop-demo-lambda")
+        rb = json.loads(response["body"])
+        assert rb["downstream_forwarded"] is False
 
-    def test_handle_response_includes_source_service(self, mock_lambda_context, sample_orders_payload):
-        """Response includes source service name."""
-        response = handle(sample_orders_payload, mock_lambda_context, self.tracer)
+    def test_forwards_raw_orders_unchanged(self, mock_lambda_context, sample_orders_payload):
+        """Init must forward the orders list verbatim, no per-order enrichment."""
+        with patch("handlers.orders.DOWNSTREAM_LAMBDA_ARN", "arn:aws:lambda:us-east-1:123:function:Downstream"):
+            with patch("handlers.orders.invoke_lambda") as mock_invoke:
+                mock_invoke.return_value = {"statusCode": 200, "status": "success", "processed_count": 2}
+                handle(sample_orders_payload, mock_lambda_context, self.tracer, "dev-astronomy-shop-demo-lambda")
 
-        response_body = json.loads(response["body"])
-        assert response_body["source_service"] == "planning"
+        args, kwargs = mock_invoke.call_args
+        downstream_payload = args[1]
+        assert downstream_payload["source"] == "Planning_Init_Lambda"
+        assert downstream_payload["env"] == "dev-astronomy-shop-demo"
+        assert downstream_payload["orders"] == sample_orders_payload["orders"], (
+            "Init must forward orders verbatim; enrichment belongs to Process"
+        )
+        assert kwargs.get("env_raw") == "dev-astronomy-shop-demo"
 
-    def test_handle_limits_summary_to_ten(self, mock_lambda_context):
-        """Orders summary limited to first 10 orders."""
-        body = {
-            "service": "planning",
-            "orders_count": 15,
-            "orders": [
-                {"order_id": f"ORD-{i:03d}", "items_count": 1, "shipping_address": {}, "shipping_cost": {}}
-                for i in range(15)
-            ]
-        }
-
-        response = handle(body, mock_lambda_context, self.tracer)
-
-        response_body = json.loads(response["body"])
-        assert response_body["processed_count"] == 15
-        assert len(response_body["orders_summary"]) == 10
-
-    def test_no_forward_when_no_downstream(self, mock_lambda_context, sample_orders_payload):
-        """No forward when DOWNSTREAM_LAMBDA_ARN not set."""
-        with patch.dict(os.environ, {"DOWNSTREAM_LAMBDA_ARN": ""}):
-            response = handle(sample_orders_payload, mock_lambda_context, self.tracer)
-
-        response_body = json.loads(response["body"])
-        assert response_body["downstream_forwarded"] is False
-
-    def test_forward_to_downstream_lambda(self, mock_lambda_context, sample_orders_payload):
-        """Forwards when DOWNSTREAM_LAMBDA_ARN set."""
-        with patch.dict(os.environ, {"DOWNSTREAM_LAMBDA_ARN": "arn:aws:lambda:us-east-1:123456789012:function:Downstream"}):
-            with patch('handlers.orders.invoke_lambda') as mock_invoke:
-                mock_invoke.return_value = {"statusCode": 200}
-                response = handle(sample_orders_payload, mock_lambda_context, self.tracer)
-
-        response_body = json.loads(response["body"])
-        assert response_body["downstream_forwarded"] is True
-        mock_invoke.assert_called_once()
-
-
-class TestProcessOrder:
-    """Tests for process_order function."""
-
-    @pytest.fixture(autouse=True)
-    def setup(self):
-        """Setup tracer for each test."""
-        init_tracer("test-service")
-        self.tracer = get_tracer()
-
-    def test_process_order_extracts_fields(self):
-        """Extracts order_id, shipping_address, etc."""
-        order = {
-            "order_id": "ORD-123",
-            "items_count": 5,
-            "shipping_tracking_id": "TRK-456",
-            "processed_at": "2024-01-15T10:00:00Z",
-            "shipping_address": {"country": "US", "city": "New York"},
-            "shipping_cost": {"units": 30, "currency_code": "USD"}
-        }
-
-        result = process_order(order, self.tracer)
-
-        assert result["order_id"] == "ORD-123"
-        assert result["items_count"] == 5
-        assert result["shipping_tracking_id"] == "TRK-456"
-        assert result["shipping_cost_units"] == 30
-        assert result["shipping_cost_currency"] == "USD"
-        assert result["status"] == "processed"
-
-    def test_process_order_handles_missing_fields(self):
-        """Handles order with missing optional fields."""
-        order = {"order_id": "ORD-MINIMAL"}
-
-        result = process_order(order, self.tracer)
-
-        assert result["order_id"] == "ORD-MINIMAL"
-        assert result["items_count"] == 0
-        assert result["status"] == "processed"
-
-    def test_process_order_unknown_order_id(self):
-        """Handles order without order_id."""
-        order = {"items_count": 3}
-
-        result = process_order(order, self.tracer)
-
-        assert result["order_id"] == "unknown"
-
-
-class TestDetermineRegion:
-    """Tests for determine_region function."""
-
-    def test_determine_region_us(self):
-        """US → na."""
-        assert determine_region({"country": "US"}) == "na"
-
-    def test_determine_region_canada(self):
-        """CA → na."""
-        assert determine_region({"country": "CA"}) == "na"
-
-    def test_determine_region_mexico(self):
-        """MX → na."""
-        assert determine_region({"country": "MX"}) == "na"
-
-    def test_determine_region_gb(self):
-        """GB → eu."""
-        assert determine_region({"country": "GB"}) == "eu"
-
-    def test_determine_region_germany(self):
-        """DE → eu."""
-        assert determine_region({"country": "DE"}) == "eu"
-
-    def test_determine_region_france(self):
-        """FR → eu."""
-        assert determine_region({"country": "FR"}) == "eu"
-
-    def test_determine_region_japan(self):
-        """JP → apac."""
-        assert determine_region({"country": "JP"}) == "apac"
-
-    def test_determine_region_australia(self):
-        """AU → apac."""
-        assert determine_region({"country": "AU"}) == "apac"
-
-    def test_determine_region_china(self):
-        """CN → apac."""
-        assert determine_region({"country": "CN"}) == "apac"
-
-    def test_determine_region_unknown(self):
-        """Unknown country → global."""
-        assert determine_region({"country": "XY"}) == "global"
-
-    def test_determine_region_empty(self):
-        """Empty address → global."""
-        assert determine_region({}) == "global"
-
-    def test_determine_region_lowercase(self):
-        """Handles lowercase country codes."""
-        assert determine_region({"country": "us"}) == "na"
-
-
-class TestCalculatePriority:
-    """Tests for calculate_priority function."""
-
-    def test_calculate_priority_high(self):
-        """shipping_cost > 50 → high."""
-        order = {"shipping_cost": {"units": 75}}
-        assert calculate_priority(order) == "high"
-
-    def test_calculate_priority_high_boundary(self):
-        """shipping_cost = 51 → high."""
-        order = {"shipping_cost": {"units": 51}}
-        assert calculate_priority(order) == "high"
-
-    def test_calculate_priority_medium(self):
-        """items_count > 5 → medium."""
-        order = {"items_count": 10, "shipping_cost": {"units": 20}}
-        assert calculate_priority(order) == "medium"
-
-    def test_calculate_priority_medium_boundary(self):
-        """items_count = 6 → medium."""
-        order = {"items_count": 6, "shipping_cost": {"units": 20}}
-        assert calculate_priority(order) == "medium"
-
-    def test_calculate_priority_normal(self):
-        """Default → normal."""
-        order = {"items_count": 2, "shipping_cost": {"units": 10}}
-        assert calculate_priority(order) == "normal"
-
-    def test_calculate_priority_high_takes_precedence(self):
-        """High cost takes precedence over high item count."""
-        order = {"items_count": 10, "shipping_cost": {"units": 100}}
-        assert calculate_priority(order) == "high"
-
-    def test_calculate_priority_empty_order(self):
-        """Empty order → normal."""
-        assert calculate_priority({}) == "normal"
-
-    def test_calculate_priority_missing_shipping_cost(self):
-        """Missing shipping_cost handled."""
-        order = {"items_count": 3}
-        assert calculate_priority(order) == "normal"
+    def test_response_carries_downstream_processed_count(self, mock_lambda_context, sample_orders_payload):
+        with patch("handlers.orders.DOWNSTREAM_LAMBDA_ARN", "arn:aws:lambda:us-east-1:123:function:Downstream"):
+            with patch("handlers.orders.invoke_lambda") as mock_invoke:
+                mock_invoke.return_value = {"statusCode": 200, "status": "success", "processed_count": 7}
+                response = handle(sample_orders_payload, mock_lambda_context, self.tracer, "astronomy-shop-us-lambda")
+        rb = json.loads(response["body"])
+        assert rb["downstream_processed"] == 7
+        assert rb["downstream_status"] == "success"
+        assert rb["downstream_forwarded"] is True

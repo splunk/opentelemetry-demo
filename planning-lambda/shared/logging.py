@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Any, Dict
 
 from .tracing import get_current_trace_id, get_current_span_id
+from . import otel_logs
 
 
 class JsonFormatter(logging.Formatter):
@@ -28,13 +29,31 @@ class JsonFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         """Format the log record as JSON."""
+        trace_id = get_current_trace_id()
+        span_id = get_current_span_id()
+        # Splunk O11y Related Content log-to-trace correlation fields per
+        # https://help.splunk.com/en/splunk-observability-cloud/data-tools/related-content
+        # are: trace_id, span_id, service.name, host.name. Include the
+        # otel*-prefixed names (splunk-otel-python distro convention) too;
+        # both are recognised and the duplicates are harmless.
+        sampled = trace_id != "00000000000000000000000000000000"
+        service_name = os.getenv("OTEL_SERVICE_NAME", record.name)
+        host_name = os.getenv("AWS_LAMBDA_FUNCTION_NAME", service_name)
         log_data: Dict[str, Any] = {
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
-            "trace_id": get_current_trace_id(),
-            "span_id": get_current_span_id(),
+            # Primary correlation fields (per docs).
+            "trace_id": trace_id,
+            "span_id": span_id,
+            "service.name": service_name,
+            "host.name": host_name,
+            # Backup correlation fields (splunk-otel distro convention).
+            "otelTraceID": trace_id,
+            "otelSpanID": span_id,
+            "otelTraceSampled": sampled,
+            "otelServiceName": service_name,
         }
 
         # Add location info
@@ -115,5 +134,12 @@ def get_logger(name: str = None) -> logging.Logger:
 
         # Prevent propagation to root logger
         logger.propagate = False
+
+    # Attach the OTLP log handler if not already present and an OTLP
+    # endpoint is configured. Safe to call on every get_logger() — the
+    # handler is initialised once per cold start.
+    otlp_handler = otel_logs.init_log_exporter(name)
+    if otlp_handler is not None and otlp_handler not in logger.handlers:
+        logger.addHandler(otlp_handler)
 
     return logger

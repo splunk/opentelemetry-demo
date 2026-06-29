@@ -123,6 +123,45 @@ class TestInvokeLambda:
 
             assert "Lambda function error" in str(exc_info.value)
 
+    def test_invoke_lambda_attaches_client_context_when_env_set(self):
+        """env_raw → ClientContext base64 JSON with custom.env."""
+        import base64
+
+        init_tracer("test-service")
+
+        with patch('shared.lambda_client.get_lambda_client') as mock_get_client:
+            mock_client = MagicMock()
+            mock_response = {'StatusCode': 200, 'Payload': MagicMock()}
+            mock_response['Payload'].read.return_value = json.dumps({}).encode('utf-8')
+            mock_client.invoke.return_value = mock_response
+            mock_get_client.return_value = mock_client
+
+            invoke_lambda("test-function", {"k": "v"}, env_raw="dev-astronomy")
+
+            call_args = mock_client.invoke.call_args
+            client_ctx_b64 = call_args.kwargs.get("ClientContext")
+            assert client_ctx_b64 is not None
+            decoded = json.loads(base64.b64decode(client_ctx_b64).decode("utf-8"))
+            assert decoded["custom"]["env"] == "dev-astronomy"
+            # Trace headers also propagated when propagate_context default True
+            assert "traceparent" in decoded["custom"]
+
+    def test_invoke_lambda_no_client_context_when_env_unset(self):
+        """No ClientContext when env_raw not supplied (backward-compat)."""
+        init_tracer("test-service")
+
+        with patch('shared.lambda_client.get_lambda_client') as mock_get_client:
+            mock_client = MagicMock()
+            mock_response = {'StatusCode': 200, 'Payload': MagicMock()}
+            mock_response['Payload'].read.return_value = json.dumps({}).encode('utf-8')
+            mock_client.invoke.return_value = mock_response
+            mock_get_client.return_value = mock_client
+
+            invoke_lambda("test-function", {"k": "v"})
+
+            call_args = mock_client.invoke.call_args
+            assert "ClientContext" not in call_args.kwargs
+
     def test_invoke_lambda_async_invocation(self):
         """Async invocation returns None."""
         init_tracer("test-service")

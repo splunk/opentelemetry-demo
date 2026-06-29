@@ -14,6 +14,7 @@ from opentelemetry.trace import SpanKind
 
 from .tracing import create_span, inject_context
 from .logging import get_logger
+from .env import for_invoke, STAMPED_ATTR, tag as tag_env
 
 logger = get_logger(__name__)
 
@@ -41,16 +42,25 @@ def invoke_lambda(
     function_name: str,
     payload: Dict[str, Any],
     invocation_type: str = "RequestResponse",
-    propagate_context: bool = True
+    propagate_context: bool = True,
+    env_raw: Optional[str] = None,
+    peer_service: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """
-    Invoke another Lambda function with trace context propagation.
+    Invoke another Lambda function with trace context + env propagation.
 
     Args:
         function_name: Lambda function name or ARN.
         payload: Request payload to send.
         invocation_type: 'RequestResponse' (sync) or 'Event' (async).
         propagate_context: Whether to propagate trace context.
+        env_raw: Bare source env (e.g. "dev-astronomy"). When set, packed into
+            ClientContext.custom["env"] so the invoked Lambda can stamp its own
+            telemetry with the same env for gateway-collector routing.
+        peer_service: OTel `service.name` of the target Lambda. Stamped as
+            `peer.service` on the outgoing client span so Splunk APM draws a
+            service-map edge from this Lambda to the target. Defaults to the
+            function name basename when omitted.
 
     Returns:
         Response payload for sync invocations, None for async.
@@ -65,7 +75,10 @@ def invoke_lambda(
         "faas.invoked_name": function_name,
         "faas.invoked_provider": "aws",
         "faas.invocation_type": invocation_type.lower(),
+        "peer.service": peer_service or function_name.split(":")[-1],
     }
+    if env_raw:
+        span_attributes[STAMPED_ATTR] = tag_env(env_raw)
 
     with create_span(
         f"Lambda.Invoke.{function_name.split(':')[-1]}",
@@ -80,21 +93,30 @@ def invoke_lambda(
                 "_trace_context": headers
             }
 
+        # Build ClientContext carrying env + trace headers (custom values must be strings).
+        invoke_kwargs: Dict[str, Any] = {
+            "FunctionName": function_name,
+            "InvocationType": invocation_type,
+            "Payload": json.dumps(payload).encode('utf-8'),
+        }
+        if env_raw:
+            invoke_kwargs["ClientContext"] = for_invoke(
+                env_raw,
+                extra=headers if propagate_context else None,
+            )
+
         logger.info(
             f"Invoking Lambda: {function_name}",
             extra={
                 "function_name": function_name,
                 "invocation_type": invocation_type,
-                "payload_size": len(json.dumps(payload))
+                "payload_size": len(json.dumps(payload)),
+                "env": env_raw or "unset",
             }
         )
 
         try:
-            response = client.invoke(
-                FunctionName=function_name,
-                InvocationType=invocation_type,
-                Payload=json.dumps(payload).encode('utf-8')
-            )
+            response = client.invoke(**invoke_kwargs)
 
             status_code = response.get('StatusCode', 0)
             span.set_attribute("http.status_code", status_code)
@@ -152,7 +174,9 @@ def invoke_lambda(
 def invoke_lambda_async(
     function_name: str,
     payload: Dict[str, Any],
-    propagate_context: bool = True
+    propagate_context: bool = True,
+    env_raw: Optional[str] = None,
+    peer_service: Optional[str] = None,
 ) -> None:
     """
     Invoke Lambda function asynchronously.
@@ -161,10 +185,14 @@ def invoke_lambda_async(
         function_name: Lambda function name or ARN.
         payload: Request payload to send.
         propagate_context: Whether to propagate trace context.
+        env_raw: Bare source env (see invoke_lambda).
+        peer_service: OTel service.name of the target (see invoke_lambda).
     """
     invoke_lambda(
         function_name=function_name,
         payload=payload,
         invocation_type="Event",
-        propagate_context=propagate_context
+        propagate_context=propagate_context,
+        env_raw=env_raw,
+        peer_service=peer_service,
     )

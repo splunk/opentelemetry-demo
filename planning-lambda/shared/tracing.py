@@ -1,7 +1,16 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
-"""OpenTelemetry tracing utilities for AWS Lambda."""
+"""
+OpenTelemetry tracing utilities for AWS Lambda.
+
+Resource attributes (service.name, cloud.provider, ...) are set once at
+cold-start in init_tracer(). The per-invocation `deployment.environment`
+attribute used for gateway-collector routing is NOT a resource attribute —
+it varies per request and is stamped on each root span by the handler via
+shared.env.stamp(). The gateway then promotes the span attribute to a
+resource attribute (transform/promote_env_traces) before routing.
+"""
 
 import os
 from contextlib import contextmanager
@@ -103,6 +112,36 @@ def extract_context(event: Dict[str, Any]) -> trace.Context:
     # Normalize header keys to lowercase
     normalized_headers = {k.lower(): v for k, v in headers.items()}
     return _propagator.extract(carrier=normalized_headers)
+
+
+def extract_context_from_invoke(event: Dict[str, Any], context: Any = None) -> trace.Context:
+    """
+    Extract trace context from a Lambda invocation (boto3 lambda.invoke).
+
+    Looks for W3C traceparent / tracestate in, in order:
+      1. event["_trace_context"] (payload field set by shared.lambda_client)
+      2. context.client_context.custom (when invoke was called with
+         ClientContext, e.g. via shared.env.for_invoke)
+
+    Returns an empty Context if none found, which makes the next created
+    span a new root.
+    """
+    if isinstance(event, dict):
+        tc = event.get("_trace_context")
+        if isinstance(tc, dict) and tc:
+            carrier = {k.lower(): str(v) for k, v in tc.items()}
+            return _propagator.extract(carrier=carrier)
+
+    if context is not None:
+        cc = getattr(context, "client_context", None)
+        if cc is not None:
+            custom = getattr(cc, "custom", None)
+            if isinstance(custom, dict) and custom:
+                carrier = {k.lower(): str(v) for k, v in custom.items()}
+                return _propagator.extract(carrier=carrier)
+
+    from opentelemetry.context import Context
+    return Context()
 
 
 def inject_context(headers: Dict[str, str] = None) -> Dict[str, str]:

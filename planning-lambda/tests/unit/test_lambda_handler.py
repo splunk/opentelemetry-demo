@@ -1,7 +1,7 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for Planning_Init/lambda_function.py."""
+"""Unit tests for Planning_Init_Lambda/lambda_function.py."""
 
 import json
 import pytest
@@ -9,8 +9,8 @@ from unittest.mock import MagicMock, patch
 import sys
 import os
 
-# Add Planning_Init to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'Planning_Init'))
+# Add Planning_Init_Lambda to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'Planning_Init_Lambda'))
 
 from shared.tracing import init_tracer
 
@@ -25,7 +25,7 @@ class TestLambdaHandler:
 
     def test_handler_routes_to_orders(self, api_event_with_orders, mock_lambda_context):
         """POST /orders routes to orders.handle."""
-        from Planning_Init.lambda_function import lambda_handler
+        from Planning_Init_Lambda.lambda_function import lambda_handler
 
         response = lambda_handler(api_event_with_orders, mock_lambda_context)
 
@@ -35,7 +35,7 @@ class TestLambdaHandler:
 
     def test_handler_routes_to_analytics(self, sample_api_gateway_event, mock_lambda_context):
         """POST /analytics routes to analytics.handle."""
-        from Planning_Init.lambda_function import lambda_handler
+        from Planning_Init_Lambda.lambda_function import lambda_handler
 
         event = sample_api_gateway_event.copy()
         event["requestContext"]["http"]["path"] = "/analytics"
@@ -49,7 +49,7 @@ class TestLambdaHandler:
 
     def test_handler_routes_to_forecast(self, sample_api_gateway_event, mock_lambda_context):
         """POST /forecast routes to forecasting.handle."""
-        from Planning_Init.lambda_function import lambda_handler
+        from Planning_Init_Lambda.lambda_function import lambda_handler
 
         event = sample_api_gateway_event.copy()
         event["requestContext"]["http"]["path"] = "/forecast"
@@ -63,7 +63,7 @@ class TestLambdaHandler:
 
     def test_handler_root_routes_to_orders(self, sample_api_gateway_event, mock_lambda_context, sample_orders_payload):
         """POST / defaults to orders.handle."""
-        from Planning_Init.lambda_function import lambda_handler
+        from Planning_Init_Lambda.lambda_function import lambda_handler
 
         event = sample_api_gateway_event.copy()
         event["requestContext"]["http"]["path"] = "/"
@@ -77,7 +77,7 @@ class TestLambdaHandler:
 
     def test_handler_404_unknown_route(self, sample_api_gateway_event, mock_lambda_context):
         """Unknown path returns 404 with available routes."""
-        from Planning_Init.lambda_function import lambda_handler
+        from Planning_Init_Lambda.lambda_function import lambda_handler
 
         event = sample_api_gateway_event.copy()
         event["requestContext"]["http"]["path"] = "/unknown"
@@ -92,7 +92,7 @@ class TestLambdaHandler:
 
     def test_handler_extracts_trace_context(self, api_event_with_orders, mock_lambda_context, sample_traceparent):
         """Trace context extracted from headers."""
-        from Planning_Init.lambda_function import lambda_handler
+        from Planning_Init_Lambda.lambda_function import lambda_handler
 
         # Ensure traceparent is in headers
         api_event_with_orders["headers"]["traceparent"] = sample_traceparent
@@ -103,7 +103,7 @@ class TestLambdaHandler:
 
     def test_handler_parses_json_body(self, sample_api_gateway_event, mock_lambda_context):
         """JSON body parsed correctly."""
-        from Planning_Init.lambda_function import lambda_handler
+        from Planning_Init_Lambda.lambda_function import lambda_handler
 
         payload = {"test": "data", "number": 42}
         event = sample_api_gateway_event.copy()
@@ -115,7 +115,7 @@ class TestLambdaHandler:
 
     def test_handler_invalid_json_body(self, sample_api_gateway_event, mock_lambda_context):
         """Invalid JSON handled gracefully."""
-        from Planning_Init.lambda_function import lambda_handler
+        from Planning_Init_Lambda.lambda_function import lambda_handler
 
         event = sample_api_gateway_event.copy()
         event["body"] = "not valid json {"
@@ -127,7 +127,7 @@ class TestLambdaHandler:
 
     def test_handler_empty_body(self, sample_api_gateway_event, mock_lambda_context):
         """Empty body handled correctly."""
-        from Planning_Init.lambda_function import lambda_handler
+        from Planning_Init_Lambda.lambda_function import lambda_handler
 
         event = sample_api_gateway_event.copy()
         event["body"] = ""
@@ -138,7 +138,7 @@ class TestLambdaHandler:
 
     def test_handler_null_body(self, sample_api_gateway_event, mock_lambda_context):
         """Null body handled correctly."""
-        from Planning_Init.lambda_function import lambda_handler
+        from Planning_Init_Lambda.lambda_function import lambda_handler
 
         event = sample_api_gateway_event.copy()
         event["body"] = None
@@ -149,7 +149,7 @@ class TestLambdaHandler:
 
     def test_handler_ensures_response_format(self, api_event_with_orders, mock_lambda_context):
         """Response always has statusCode, headers, body."""
-        from Planning_Init.lambda_function import lambda_handler
+        from Planning_Init_Lambda.lambda_function import lambda_handler
 
         response = lambda_handler(api_event_with_orders, mock_lambda_context)
 
@@ -161,13 +161,13 @@ class TestLambdaHandler:
 
     def test_handler_exception_returns_500(self, sample_api_gateway_event, mock_lambda_context):
         """Handler exception returns 500 response."""
-        from Planning_Init.lambda_function import lambda_handler
+        from Planning_Init_Lambda.lambda_function import lambda_handler
 
         event = sample_api_gateway_event.copy()
         event["body"] = json.dumps({"orders": []})
 
         # Patch handler to raise exception
-        with patch('Planning_Init.lambda_function.orders.handle', side_effect=RuntimeError("Test error")):
+        with patch('Planning_Init_Lambda.lambda_function.orders.handle', side_effect=RuntimeError("Test error")):
             response = lambda_handler(event, mock_lambda_context)
 
         assert response["statusCode"] == 500
@@ -177,8 +177,35 @@ class TestLambdaHandler:
 
     def test_handler_without_context(self, api_event_with_orders):
         """Handler works when context is None."""
-        from Planning_Init.lambda_function import lambda_handler
+        from Planning_Init_Lambda.lambda_function import lambda_handler
 
         response = lambda_handler(api_event_with_orders, None)
 
         assert response["statusCode"] == 200
+
+    def test_handler_propagates_env_to_handler(self, api_event_with_orders, mock_lambda_context):
+        """Env from body lands in orders.handle response (verifies end-to-end propagation)."""
+        from Planning_Init_Lambda.lambda_function import lambda_handler
+
+        response = lambda_handler(api_event_with_orders, mock_lambda_context)
+
+        assert response["statusCode"] == 200
+        body = json.loads(response["body"])
+        # sample_orders_payload sets env=dev-astronomy
+        assert body["env"] == "dev-astronomy"
+        assert body["lambda"]["deployment.environment"] == "dev-astronomy-lambda"
+
+    def test_handler_env_default_when_missing(self, sample_api_gateway_event, mock_lambda_context):
+        """Missing env in body falls back to unknown."""
+        from Planning_Init_Lambda.lambda_function import lambda_handler
+
+        event = sample_api_gateway_event.copy()
+        event["requestContext"]["http"]["path"] = "/orders"
+        event["body"] = json.dumps({"service": "planning", "orders_count": 0, "orders": []})
+
+        response = lambda_handler(event, mock_lambda_context)
+
+        assert response["statusCode"] == 200
+        body = json.loads(response["body"])
+        assert body["env"] == "unknown"
+        assert body["lambda"]["deployment.environment"] == "unknown-lambda"
