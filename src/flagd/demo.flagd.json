@@ -112,7 +112,7 @@
         "on": true,
         "off": false
       },
-      "defaultVariant": "off"
+      "defaultVariant": "on"
     },
     "paymentUnreachable": {
       "description": "Payment service is unavailable",
@@ -172,7 +172,7 @@
         "on": true,
         "off": false
       },
-      "defaultVariant": "off"
+      "defaultVariant": "on"
     },
     "secureappAttack": {
       "description": "Controls secureapp loadgen pace. Minimal spreads vuln probes across ~2 days. Max fires all attacks aggressively every few minutes.",
