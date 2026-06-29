@@ -179,6 +179,7 @@ jobs:
           MANIFEST_LAMBDA="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-lambda${EXTRA_SUFFIX}.yaml"
           MANIFEST_DC_SHIM="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-dc-shim${EXTRA_SUFFIX}.yaml"
           MANIFEST_SECUREAPP="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-secureapp${EXTRA_SUFFIX}.yaml"
+          MANIFEST_THROTTLE_DEMO="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-throttle-demo${EXTRA_SUFFIX}.yaml"
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "#### Generated Manifests" >> $GITHUB_STEP_SUMMARY
@@ -186,7 +187,7 @@ jobs:
           echo "| Manifest | File | Size | Resources |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|------|------|-----------|" >> $GITHUB_STEP_SUMMARY
 
-          for MFILE in "$MANIFEST_FILE" "$MANIFEST_FILE_DIAB" "$MANIFEST_LAMBDA" "$MANIFEST_DC_SHIM" "$MANIFEST_SECUREAPP"; do
+          for MFILE in "$MANIFEST_FILE" "$MANIFEST_FILE_DIAB" "$MANIFEST_LAMBDA" "$MANIFEST_DC_SHIM" "$MANIFEST_SECUREAPP" "$MANIFEST_THROTTLE_DEMO"; do
             MNAME=$(basename "$MFILE")
             if [ -f "$MFILE" ]; then
               MSIZE=$(du -h "$MFILE" | cut -f1)
@@ -213,6 +214,7 @@ jobs:
           echo "manifest_lambda=$MANIFEST_LAMBDA" >> $GITHUB_OUTPUT
           echo "manifest_dc_shim=$MANIFEST_DC_SHIM" >> $GITHUB_OUTPUT
           echo "manifest_secureapp=$MANIFEST_SECUREAPP" >> $GITHUB_OUTPUT
+          echo "manifest_throttle_demo=$MANIFEST_THROTTLE_DEMO" >> $GITHUB_OUTPUT
           echo "output_dir=$OUTPUT_DIR" >> $GITHUB_OUTPUT
           echo "extra_suffix=$EXTRA_SUFFIX" >> $GITHUB_OUTPUT
 
@@ -227,7 +229,8 @@ jobs:
                        "${{ steps.stitch.outputs.manifest_file_diab }}" \
                        "${{ steps.stitch.outputs.manifest_lambda }}" \
                        "${{ steps.stitch.outputs.manifest_dc_shim }}" \
-                       "${{ steps.stitch.outputs.manifest_secureapp }}"; do
+                       "${{ steps.stitch.outputs.manifest_secureapp }}" \
+                       "${{ steps.stitch.outputs.manifest_throttle_demo }}"; do
             if [ -f "$MFILE" ]; then
               MNAME=$(basename "$MFILE")
               if python3 -c "import yaml; docs=list(yaml.safe_load_all(open('$MFILE'))); print(f'$MNAME: {len(docs)} documents')"; then
@@ -295,7 +298,8 @@ jobs:
                        "${{ steps.stitch.outputs.manifest_file_diab }}" \
                        "${{ steps.stitch.outputs.manifest_lambda }}" \
                        "${{ steps.stitch.outputs.manifest_dc_shim }}" \
-                       "${{ steps.stitch.outputs.manifest_secureapp }}"; do
+                       "${{ steps.stitch.outputs.manifest_secureapp }}" \
+                       "${{ steps.stitch.outputs.manifest_throttle_demo }}"; do
             [ -f "$MFILE" ] && ASSETS="$ASSETS $MFILE"
           done
 
@@ -344,6 +348,7 @@ jobs:
             ${{ steps.stitch.outputs.manifest_lambda }}
             ${{ steps.stitch.outputs.manifest_dc_shim }}
             ${{ steps.stitch.outputs.manifest_secureapp }}
+            ${{ steps.stitch.outputs.manifest_throttle_demo }}
           retention-days: 90
 
       - name: Summary

@@ -400,6 +400,36 @@ jobs:
             fi
           done
 
+      - name: Generate per-service version pinning for partial builds
+        # For partial builds (services!=all), the stitched manifest must
+        # pin only the freshly-built services at the new tag and leave
+        # everything else at the prior stable version. Otherwise pods
+        # ImagePullBackOff on tags that were never pushed for un-built
+        # services. The stitcher already supports this via
+        # .service-versions.yaml; we just need to generate it.
+        if: ${{ inputs.services != 'all' }}
+        run: |
+          OLD_VERSION="${{ steps.old-version.outputs.old_version }}"
+          NEW_VERSION="${{ needs.determine-version.outputs.version }}"
+          BUILT_SERVICES="${{ inputs.services }}"
+
+          python3 - "$BUILT_SERVICES" "$NEW_VERSION" "$OLD_VERSION" <<'PYEOF' > .service-versions.yaml
+          import sys, yaml
+          built = {s.strip() for s in sys.argv[1].split(',') if s.strip()}
+          new_version, old_version = sys.argv[2], sys.argv[3]
+          with open('services.yaml') as f:
+              cfg = yaml.safe_load(f)
+          print('services:')
+          for svc in cfg.get('services', []):
+              if svc.get('build', False):
+                  name = svc['name']
+                  pin = new_version if name in built else old_version
+                  print(f"  {name}: {pin}")
+          PYEOF
+
+          echo "Per-service version pinning (partial build):"
+          cat .service-versions.yaml
+
       - name: Stitch production manifests
         id: stitch
         run: |
@@ -420,15 +450,17 @@ jobs:
           MANIFEST_LAMBDA="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-lambda.yaml"
           MANIFEST_DC_SHIM="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-dc-shim.yaml"
           MANIFEST_SECUREAPP="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-secureapp.yaml"
+          MANIFEST_THROTTLE_DEMO="${OUTPUT_DIR}/splunk-astronomy-shop-${VERSION}-throttle-demo.yaml"
 
           echo "manifest_file=$MANIFEST_FILE" >> $GITHUB_OUTPUT
           echo "manifest_file_diab=$MANIFEST_FILE_DIAB" >> $GITHUB_OUTPUT
           echo "manifest_lambda=$MANIFEST_LAMBDA" >> $GITHUB_OUTPUT
           echo "manifest_dc_shim=$MANIFEST_DC_SHIM" >> $GITHUB_OUTPUT
           echo "manifest_secureapp=$MANIFEST_SECUREAPP" >> $GITHUB_OUTPUT
+          echo "manifest_throttle_demo=$MANIFEST_THROTTLE_DEMO" >> $GITHUB_OUTPUT
 
           echo "Generated manifests:"
-          for MFILE in "$MANIFEST_FILE" "$MANIFEST_FILE_DIAB" "$MANIFEST_LAMBDA" "$MANIFEST_DC_SHIM" "$MANIFEST_SECUREAPP"; do
+          for MFILE in "$MANIFEST_FILE" "$MANIFEST_FILE_DIAB" "$MANIFEST_LAMBDA" "$MANIFEST_DC_SHIM" "$MANIFEST_SECUREAPP" "$MANIFEST_THROTTLE_DEMO"; do
             [ -f "$MFILE" ] && echo "  [ok] $(basename $MFILE)" || echo "  [--] $(basename $MFILE) (not generated)"
           done
 
@@ -440,6 +472,10 @@ jobs:
           else
             echo "${{ needs.determine-version.outputs.base_version }}" > SPLUNK-VERSION
           fi
+
+          # Remove the temporary per-service pinning file so it never gets
+          # committed by downstream PR/branch steps.
+          rm -f .service-versions.yaml
 
       - name: Ensure values.yaml exists for this version
         if: ${{ needs.determine-version.outputs.is_beta != 'true' }}
@@ -488,7 +524,8 @@ jobs:
                        "${{ steps.stitch.outputs.manifest_file_diab }}" \
                        "${{ steps.stitch.outputs.manifest_lambda }}" \
                        "${{ steps.stitch.outputs.manifest_dc_shim }}" \
-                       "${{ steps.stitch.outputs.manifest_secureapp }}"; do
+                       "${{ steps.stitch.outputs.manifest_secureapp }}" \
+                       "${{ steps.stitch.outputs.manifest_throttle_demo }}"; do
             if [ -f "$MFILE" ]; then
               python3 -c "import yaml; docs=list(yaml.safe_load_all(open('$MFILE'))); print(f'$(basename $MFILE): {len(docs)} documents')"
             fi
@@ -526,7 +563,8 @@ jobs:
                        "${{ steps.stitch.outputs.manifest_file_diab }}" \
                        "${{ steps.stitch.outputs.manifest_lambda }}" \
                        "${{ steps.stitch.outputs.manifest_dc_shim }}" \
-                       "${{ steps.stitch.outputs.manifest_secureapp }}"; do
+                       "${{ steps.stitch.outputs.manifest_secureapp }}" \
+                       "${{ steps.stitch.outputs.manifest_throttle_demo }}"; do
             [ -f "$MFILE" ] && ASSETS="$ASSETS $MFILE"
           done
 

@@ -6,6 +6,12 @@ using Microsoft.Extensions.Logging;
 using Oteldemo;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
+using System.Linq;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Accounting;
 
@@ -32,7 +38,13 @@ internal class Consumer : IDisposable
     private IConsumer<string, byte[]> _consumer;
     private bool _isListening;
     private readonly string? _dbConnectionString;
+    private readonly string? _orderValidationAddr;
     private static readonly ActivitySource MyActivitySource = new("Accounting.Consumer");
+    // Timeout chosen to cover the slowest validation tier (extreme ~60s
+    // under CPU throttle). Validation is the demo's *intentional* slow path
+    // — if accounting cancels too early the trace shows a false error
+    // instead of the real p99 latency story.
+    private static readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromSeconds(120) };
 
     public Consumer(ILogger<Consumer> logger)
     {
@@ -50,6 +62,7 @@ internal class Consumer : IDisposable
        }
 
         _dbConnectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
+        _orderValidationAddr = Environment.GetEnvironmentVariable("ORDER_VALIDATION_ADDR");
     }
 
     public void StartListening()
@@ -131,11 +144,62 @@ internal class Consumer : IDisposable
             };
             dbContext.Add(shipping);
             dbContext.SaveChanges();
+
+            TriggerValidation(order);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Order parsing failed:");
         }
+    }
+
+    // Fire-and-forget POST to order-validation with order context.
+    // Body shape: { "currency": "<code>", "product_ids": [...] }.
+    // order-validation uses cart contents + currency to derive workload
+    // tier (light/medium/heavy/extreme) — drives the bimodal+ duration
+    // distribution that produces the demo's p50/p90/p99 spread.
+    // All errors swallowed by design — optional throttle-demo side-channel.
+    private void TriggerValidation(OrderResult order)
+    {
+        if (string.IsNullOrEmpty(_orderValidationAddr))
+        {
+            return;
+        }
+
+        // Pick currency from the first item's cost (all items in an order
+        // share a currency in this demo) — fall back to shipping currency
+        // and finally USD.
+        var currency = order.Items
+            .Select(i => i.Cost?.CurrencyCode)
+            .FirstOrDefault(c => !string.IsNullOrEmpty(c))
+            ?? order.ShippingCost?.CurrencyCode
+            ?? "USD";
+
+        var productIds = order.Items
+            .Select(i => i.Item?.ProductId)
+            .Where(p => !string.IsNullOrEmpty(p))
+            .ToArray();
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            currency = currency,
+            product_ids = productIds,
+        });
+
+        var url = $"{_orderValidationAddr}/validate/{order.OrderId}";
+        var orderId = order.OrderId;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var content = new StringContent(payload, Encoding.UTF8, "application/json");
+                using var resp = await _httpClient.PostAsync(url, content).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Intentionally swallowed.
+            }
+        });
     }
 
     private static IConsumer<string, byte[]> BuildConsumer(string servers)

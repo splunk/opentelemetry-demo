@@ -50,7 +50,7 @@ spec:
       containers:
       - name: flagd
         image: ghcr.io/open-feature/flagd:v0.14.2
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         command:
         - /flagd-build
         - start

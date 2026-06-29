@@ -100,6 +100,33 @@ data:
       return shuffled.slice(0, numProducts);
     }
 
+    // Currency rotation for throttle-demo: a fraction of orders is placed in
+    // a non-USD currency to drive cross-border-compliance code paths in the
+    // order-validation (heavier compliance work → CPU-throttle in APM).
+    const NON_USD_PROBABILITY = parseFloat(process.env.NON_USD_PROBABILITY || '0');
+    const NON_USD_CURRENCIES = (process.env.NON_USD_CURRENCIES || 'EUR,GBP,JPY,CAD,CHF')
+      .split(',').map(c => c.trim()).filter(c => c);
+
+    function pickCurrency() {
+      if (NON_USD_PROBABILITY > 0 && Math.random() < NON_USD_PROBABILITY && NON_USD_CURRENCIES.length) {
+        return NON_USD_CURRENCIES[Math.floor(Math.random() * NON_USD_CURRENCIES.length)];
+      }
+      return 'USD';
+    }
+
+    /** Switch the frontend currency dropdown. No-op for USD (page default). */
+    async function setCurrency(page, code) {
+      if (!code || code === 'USD') return;
+      try {
+        await page.waitForSelector('#currency-select', { timeout: 5000 });
+        await page.select('#currency-select', code);
+        console.log(`💱 Currency switched to ${code}`);
+        await delay(500);
+      } catch (e) {
+        console.log(`⚠️ Currency switch to ${code} failed: ${e.message}`);
+      }
+    }
+
     // Throttle quick prompts — parsed from env, default 5 min
     const QUICK_PROMPT_INTERVAL_MS = parseInt(process.env.QUICK_PROMPT_INTERVAL_MS || '300000', 10);
     let lastQuickPromptTime = 0;
@@ -186,7 +213,8 @@ data:
 
         const base = buildBaseUrl();
         const productsToOrder = getRandomProducts();
-        console.log(`🛒 Ordering ${productsToOrder.length} product(s): ${productsToOrder.join(', ')}`);
+        const cycleCurrency = pickCurrency();
+        console.log(`🛒 Ordering ${productsToOrder.length} product(s) in ${cycleCurrency}: ${productsToOrder.join(', ')}`);
 
         // Visit homepage first so the user enters the sequential RUM funnel
         // at step 1. Without this the loadgen lands on /product/<id> and the
@@ -195,6 +223,10 @@ data:
         console.log(`🏠 Visiting homepage ${homeUrl}`);
         await page.goto(homeUrl, { waitUntil: 'networkidle2', timeout: 60000 });
         await delay(1500);
+
+        // Switch currency before product browsing so prices + cart totals
+        // already reflect the target currency.
+        await setCurrency(page, cycleCurrency);
 
         // Loop through each product and add to cart
         for (const productId of productsToOrder) {
@@ -412,6 +444,13 @@ spec:
               name: workshop-secret
               key: shipping_api
               optional: true
+        # Throttle-demo: fraction of orders placed in a non-USD currency to
+        # drive the cross-border path in order-validation. Default 0
+        # (USD-only). Tune up to ~0.10 for visible non-USD signal in APM.
+        - name: NON_USD_PROBABILITY
+          value: "0.10"
+        - name: NON_USD_CURRENCIES
+          value: "EUR,GBP,JPY,CAD,CHF"
         resources:
           requests:
             memory: "768Mi"

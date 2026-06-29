@@ -1,6 +1,15 @@
 {
   "$schema": "https://flagd.dev/schema/v0/flags.json",
   "flags": {
+    "orderValidationThrottle": {
+      "description": "order-validation runs full CPU-bound compliance/audit path, exposing k8s CPU throttle scenario. Off returns precomputed stub.",
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "on"
+    },
     "llmInaccurateResponse": {
       "defaultVariant": "off",
       "description": "LLM returns an inaccurate product summary for product ID L9ECAV7KIM",
