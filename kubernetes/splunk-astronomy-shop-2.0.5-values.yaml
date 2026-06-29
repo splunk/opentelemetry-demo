@@ -214,9 +214,14 @@ agent:
       # Inject environment as a resource attribute for traces
       resource/add_environment:
         attributes:
+          # `insert` (not `upsert`): only inject WORKSHOP_ENVIRONMENT when the
+          # service hasn't set deployment.environment itself. Services like
+          # planning and report-generator set their own variant suffix
+          # (e.g. ${WORKSHOP_ENV}-lambda, ${WORKSHOP_ENV}-throttle-demo) and
+          # were getting clobbered by upsert.
           - key: deployment.environment
             value: ${WORKSHOP_ENVIRONMENT}
-            action: upsert
+            action: insert
       filter/drop_flagd:
         traces:
           span:
