@@ -315,7 +315,11 @@ agent:
           processors: [memory_limiter, k8s_attributes, batch, resourcedetection, resource, resource/add_environment, transform/dbmon]
           receivers: [host_metrics, kubeletstats, otlp, receiver_creator]
         traces:
-          exporters: [signalfx, otlp_http]
+          # signalfx exporter removed from traces — chart 0.153.1 align.
+          # OTLP alone is sufficient for trace correlation; dropping signalfx
+          # here reduces load on the exporter currently timing out under
+          # back-pressure on the cluster-receiver.
+          exporters: [otlp_http]
           processors: [memory_limiter, filter/drop_flagd, transform/dc_not_error, k8s_attributes, batch, resourcedetection, resource, resource/add_environment]
           receivers: [otlp, jaeger, zipkin]
         # DBMon logs pipeline - sends query samples and top queries to Splunk O11y
