@@ -45,6 +45,8 @@ def init_meter(service_name: str) -> metrics.Meter:
     if _meter is not None:
         return _meter
 
+    service_name = os.getenv("OTEL_SERVICE_NAME", service_name)
+
     endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
     if not endpoint:
         # Fall back to the no-op default global meter.
