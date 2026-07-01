@@ -52,7 +52,7 @@ def init_tracer(service_name: str = None) -> trace.Tracer:
     if _tracer is not None:
         return _tracer
 
-    service_name = service_name or os.getenv("OTEL_SERVICE_NAME", "planning-lambda")
+    service_name = os.getenv("OTEL_SERVICE_NAME", service_name or "planning-lambda")
 
     # Create resource with service info
     resource = Resource.create({
