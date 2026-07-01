@@ -49,6 +49,25 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     Returns:
         API Gateway response.
     """
+    # Parse body up front so extract_env can inspect its "env" field
+    # before any span/log emission that would inherit the ContextVar default.
+    body = event.get("body", "{}")
+    body_parse_failed = False
+    if isinstance(body, str):
+        try:
+            body = json.loads(body) if body else {}
+        except json.JSONDecodeError:
+            body_parse_failed = True
+            body = {"raw": body}
+
+    # Extract per-invocation env (from body, ClientContext, SNS, or HTTP header)
+    # and set the ContextVar FIRST so every subsequent log/span carries the
+    # correct deployment.environment for gateway routing.
+    env_raw = extract_env(body if isinstance(body, dict) else {}, context)
+    if env_raw == "unknown":
+        env_raw = extract_env(event, context)
+    set_current_env(env_raw)
+
     # Extract parent trace context from incoming headers
     parent_context = extract_context(event)
 
@@ -81,26 +100,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         parent_context=parent_context
     ) as span:
         try:
-            # Parse body
-            body = event.get("body", "{}")
-            if isinstance(body, str):
-                try:
-                    body = json.loads(body) if body else {}
-                except json.JSONDecodeError:
-                    logger.warning("Failed to parse request body as JSON")
-                    body = {"raw": body}
+            if body_parse_failed:
+                logger.warning("Failed to parse request body as JSON")
 
             span.set_attribute("request.body_size", len(json.dumps(body)))
 
-            # Extract per-invocation env (from body, ClientContext, SNS, or HTTP header)
-            # and stamp on root span so gateway collector can route by env.
-            env_raw = extract_env(body if isinstance(body, dict) else {}, context)
-            if env_raw == "unknown":
-                # Fall back to the full event for non-body sources (ClientContext, SNS).
-                env_raw = extract_env(event, context)
-            # Stash on the ContextVar so the OTLP log handler stamps each
-            # log record with this env for gateway routing.
-            set_current_env(env_raw)
             env_tagged = stamp_env(span, env_raw)
 
             # Log request info

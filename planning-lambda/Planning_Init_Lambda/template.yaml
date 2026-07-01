@@ -18,6 +18,9 @@ Globals:
       Variables:
         LOG_LEVEL: INFO
         OTEL_SERVICE_NAME: Planning_Init_Lambda
+        # Default Resource attr for pre-handler / unknown-env records; per-record
+        # deployment.environment set by the handler wins after set_current_env().
+        OTEL_RESOURCE_ATTRIBUTES: "deployment.environment=unknown-lambda"
         # Set OTEL_EXPORTER_OTLP_ENDPOINT to send traces to your collector
         # OTEL_EXPORTER_OTLP_ENDPOINT: http://your-collector:4317
 
