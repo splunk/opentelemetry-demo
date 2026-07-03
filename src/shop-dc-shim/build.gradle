@@ -12,6 +12,11 @@ version = '2.1.3'
 // (auth-bypass in digest auth). Override BOM-managed tomcat to 10.1.55.
 ext['tomcat.version'] = '10.1.55'
 
+// CVE-2024-31573: Spring Boot 3.3.4 BOM ships xmlunit-core 2.9.1, whose
+// default config enables XSLT extension functions and allows code
+// execution via an untrusted stylesheet. Fixed in 2.10.0.
+ext['xmlunit.version'] = '2.10.0'
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
