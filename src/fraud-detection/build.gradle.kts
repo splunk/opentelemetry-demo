@@ -19,6 +19,17 @@ version = "1.0"
 val grpcVersion = "1.76.0"
 val protobufVersion = "4.33.1"
 
+// CVE-2026-42577: grpc-netty 1.76.0 pulls transitive Netty modules in the
+// 4.2.x line where the epoll transport fails to close half-closed TCP
+// connections (100% CPU busy-loop). Force all io.netty artifacts to
+// 4.2.14.Final, the first release that contains the fix.
+configurations.all {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "io.netty") {
+            useVersion("4.2.14.Final")
+        }
+    }
+}
 
 repositories {
     mavenCentral()
