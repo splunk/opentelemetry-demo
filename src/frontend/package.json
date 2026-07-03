@@ -64,5 +64,13 @@
     "eslint-plugin-react-hooks": "7.0.1",
     "ts-proto": "2.11.6",
     "typescript": "6.0.2"
+  },
+  "overrides": {
+    "@opentelemetry/otlp-transformer": {
+      "protobufjs": "^8.6.0"
+    },
+    "@grpc/proto-loader": {
+      "protobufjs": "^7.5.5"
+    }
   }
 }
