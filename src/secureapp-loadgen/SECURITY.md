@@ -14,7 +14,7 @@ Scanners (Fossa, Dependabot, Snyk, Trivy, Grype, etc.) will report CVEs in the f
 |-------|-----------|---------|
 | RCE (Struts2 OGNL) | `org.apache.struts:struts2-core:2.3.12` | Simulates CVE-2017-5638 attack surface (`/api/v1/documents/convert`) |
 | Log4Shell | `org.apache.logging.log4j:log4j-core:2.12.1` | Simulates CVE-2021-44228 attack surface (`/api/v1/auth/login`) |
-| Deserialization | `commons-collections:commons-collections:3.2.1`, `org.keycloak:keycloak-common:10.0.2` | Simulates CVE-2020-1714-class attacks (`/api/v1/sessions/import`); the InvokerTransformer / KerberosSerializationUtils gadgets are the actual payload |
+| Deserialization | `commons-collections:commons-collections:3.2.1`, `org.keycloak:keycloak-common:11.0.0` | Simulates CVE-2020-1714-class attacks (`/api/v1/sessions/import`); the InvokerTransformer / KerberosSerializationUtils gadgets are the actual payload. keycloak-common bumped from 10.0.2 to 11.0.0 to clear CVE-2020-1714 while keeping the class present for the agent stack-trace hook. |
 | SQLi target surface | Jetty 9.4.53 (`/api/v1/users/search`) | Server host for SQLi payload delivery |
 | SSRF target surface | Jetty 9.4.53 (`/api/v1/links/preview`) | Server host for cloud-metadata SSRF payload delivery |
 

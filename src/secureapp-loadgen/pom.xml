@@ -153,11 +153,17 @@
             <version>1.62.0</version>
         </dependency>
 
-        <!-- Vulnerable: CVE-2020-1714 (deserialization in KerberosSerializationUtils) -->
+        <!-- keycloak-common still provides KerberosSerializationUtils +
+             org.keycloak.common.util.Base64 at 11.0.0, which the
+             SessionImportServlet needs to reproduce the CVE-2020-1714
+             stack trace hooked by the SecureApp agent
+             (ObjectInputStream.resolveClass -> KerberosSerializationUtils
+             .deserialize). Bump from 10.0.2 -> 11.0.0 to clear the FOSSA
+             finding while preserving the attack detection surface. -->
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-common</artifactId>
-            <version>10.0.2</version>
+            <version>11.0.0</version>
         </dependency>
     </dependencies>
 
