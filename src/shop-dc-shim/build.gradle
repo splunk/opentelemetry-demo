@@ -29,6 +29,19 @@ configurations {
     }
 }
 
+// CVE-2026-45292: opentelemetry-java <1.62.0 baggage propagation DoS.
+// Direct deps are pinned to 1.62.0 but Spring Boot's dependency
+// management and other transitives can still declare older
+// opentelemetry-api versions. Force every io.opentelemetry artifact
+// to 1.62.0.
+configurations.all {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == 'io.opentelemetry') {
+            details.useVersion '1.62.0'
+        }
+    }
+}
+
 repositories {
     mavenCentral()
 }
