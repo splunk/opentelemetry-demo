@@ -17,6 +17,12 @@ ext['tomcat.version'] = '10.1.55'
 // execution via an untrusted stylesheet. Fixed in 2.10.0.
 ext['xmlunit.version'] = '2.10.0'
 
+// CVE-2025-25193 (netty-common DoS via unsafe env file read),
+// CVE-2026-44249 (netty-handler IPv6 subnet bypass): Spring Boot 3.3.4
+// BOM manages Netty at 4.1.113.Final via reactor-netty (webflux).
+// Bump BOM-managed netty.version to 4.1.135.Final to cover both CVEs.
+ext['netty.version'] = '4.1.135.Final'
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
