@@ -23,10 +23,18 @@ val protobufVersion = "4.33.1"
 // 4.2.x line where the epoll transport fails to close half-closed TCP
 // connections (100% CPU busy-loop). Force all io.netty artifacts to
 // 4.2.14.Final, the first release that contains the fix.
+//
+// CVE-2026-45292: opentelemetry-java <1.62.0 baggage propagation DoS.
+// Transitive deps (openfeature-flagd provider, grpc bundles) still declare
+// older opentelemetry-api versions (e.g. 1.41.0). Force every io.opentelemetry
+// artifact to 1.62.0 so FOSSA no longer sees the vulnerable declared version.
 configurations.all {
     resolutionStrategy.eachDependency {
         if (requested.group == "io.netty") {
             useVersion("4.2.14.Final")
+        }
+        if (requested.group == "io.opentelemetry") {
+            useVersion("1.62.0")
         }
     }
 }
@@ -53,7 +61,6 @@ dependencies {
     // vulnerable to unbounded CPU/memory when parsing oversized baggage.
     implementation("io.opentelemetry:opentelemetry-api:1.62.0")
     implementation("io.opentelemetry:opentelemetry-sdk:1.62.0")
-    implementation("io.opentelemetry:opentelemetry-extension-annotations:1.18.0")
     implementation("org.apache.logging.log4j:log4j-core:2.25.2")
     implementation("org.slf4j:slf4j-api:2.0.17")
     implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.25.2")
