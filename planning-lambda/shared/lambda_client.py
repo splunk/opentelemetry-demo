@@ -16,7 +16,7 @@ from .tracing import create_span, inject_context
 from .logging import get_logger
 from .env import for_invoke, STAMPED_ATTR, tag as tag_env
 
-logger = get_logger(__name__)
+logger = get_logger()
 
 # Lambda client with retry configuration
 _lambda_client = None

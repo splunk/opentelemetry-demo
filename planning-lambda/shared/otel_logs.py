@@ -93,6 +93,11 @@ def init_log_exporter(service_name: str) -> Optional[LoggingHandler]:
     if not endpoint:
         return None
 
+    # OTEL_SERVICE_NAME env var is the spec-governed source of service identity;
+    # the caller-provided arg is a fallback only. Prevents accidental hijack
+    # when a caller passes __name__ (e.g. a shared utility module).
+    service_name = os.getenv("OTEL_SERVICE_NAME", service_name)
+
     resource = Resource.create({
         "service.name": service_name,
         "service.namespace": "opentelemetry-demo",
