@@ -64,9 +64,13 @@ dependencies {
     implementation 'io.opentelemetry:opentelemetry-exporter-otlp:1.62.0'
     
     // gRPC dependencies
-    implementation 'io.grpc:grpc-netty-shaded:1.68.1'
-    implementation 'io.grpc:grpc-protobuf:1.68.1'
-    implementation 'io.grpc:grpc-stub:1.68.1'
+    // CVE-2026-44249: netty-handler <4.1.135.Final has an IPv6 subnet
+    // bypass. grpc-netty-shaded bundles Netty into io.grpc.netty.shaded.*
+    // so the io.netty resolutionStrategy cannot override it. Bump the
+    // grpc-java stack to 1.82.1 (latest) to pick up newer bundled Netty.
+    implementation 'io.grpc:grpc-netty-shaded:1.82.1'
+    implementation 'io.grpc:grpc-protobuf:1.82.1'
+    implementation 'io.grpc:grpc-stub:1.82.1'
     compileOnly 'org.apache.tomcat:annotations-api:6.0.53'
     
     // JSON processing
@@ -87,7 +91,7 @@ protobuf {
     }
     plugins {
         grpc {
-            artifact = 'io.grpc:protoc-gen-grpc-java:1.68.1'
+            artifact = 'io.grpc:protoc-gen-grpc-java:1.82.1'
         }
     }
     generateProtoTasks {
