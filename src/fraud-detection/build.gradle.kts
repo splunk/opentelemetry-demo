@@ -49,8 +49,10 @@ dependencies {
     implementation("io.grpc:grpc-stub:${grpcVersion}")
     implementation("io.grpc:grpc-netty:${grpcVersion}")
     implementation("io.grpc:grpc-services:${grpcVersion}")
-    implementation("io.opentelemetry:opentelemetry-api:1.56.0")
-    implementation("io.opentelemetry:opentelemetry-sdk:1.56.0")
+    // CVE-2026-45292: opentelemetry-java <1.62.0 baggage propagation is
+    // vulnerable to unbounded CPU/memory when parsing oversized baggage.
+    implementation("io.opentelemetry:opentelemetry-api:1.62.0")
+    implementation("io.opentelemetry:opentelemetry-sdk:1.62.0")
     implementation("io.opentelemetry:opentelemetry-extension-annotations:1.18.0")
     implementation("org.apache.logging.log4j:log4j-core:2.25.2")
     implementation("org.slf4j:slf4j-api:2.0.17")

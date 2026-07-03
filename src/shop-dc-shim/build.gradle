@@ -45,8 +45,10 @@ dependencies {
     runtimeOnly 'com.microsoft.sqlserver:mssql-jdbc'
     
     // OpenTelemetry (for Splunk Observability)
-    implementation 'io.opentelemetry:opentelemetry-api:1.44.1'
-    implementation 'io.opentelemetry:opentelemetry-exporter-otlp:1.44.1'
+    // CVE-2026-45292: opentelemetry-java <1.62.0 baggage propagation is
+    // vulnerable to unbounded CPU/memory when parsing oversized baggage.
+    implementation 'io.opentelemetry:opentelemetry-api:1.62.0'
+    implementation 'io.opentelemetry:opentelemetry-exporter-otlp:1.62.0'
     
     // gRPC dependencies
     implementation 'io.grpc:grpc-netty-shaded:1.68.1'
