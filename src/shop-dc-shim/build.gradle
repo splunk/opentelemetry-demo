@@ -27,6 +27,11 @@ ext['netty.version'] = '4.1.135.Final'
 // an unauthenticated attacker to perform network spoofing.
 ext['mssql-jdbc.version'] = '12.8.2.jre11'
 
+// CVE-2024-57699: json-smart 2.5.0-2.5.1 stack exhaustion via crafted
+// input containing many '{' characters (incomplete fix for CVE-2023-1370).
+// Fixed in 2.5.2.
+ext['json-smart.version'] = '2.5.2'
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
