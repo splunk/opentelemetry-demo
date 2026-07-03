@@ -19,7 +19,10 @@ description = 'Ad Service'
 group = "ad"
 version = "0.1.0-SNAPSHOT"
 
-def opentelemetryVersion = "1.60.1"
+// CVE-2026-45292: opentelemetry-java <1.62.0 baggage propagation is
+// vulnerable to unbounded CPU/memory allocation when parsing oversized
+// baggage; effect fans out to downstream services via re-injection.
+def opentelemetryVersion = "1.62.0"
 def opentelemetryInstrumentationVersion = "2.25.0"
 def grpcVersion = "1.79.0"
 def jacksonVersion = "2.21.1"
