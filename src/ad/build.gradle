@@ -39,6 +39,20 @@ ext {
     offlineCompile = output.get().asFile
 }
 
+// CVE-2026-44249: netty-handler <4.1.135.Final / <4.2.15.Final mis-masks
+// IPv6 subnet rules in IpSubnetFilterRule.compareTo(), allowing valid
+// public IPs to bypass restrictions. grpc-netty 1.79.0 pulls Netty 4.1.x
+// transitively (4.1.130.Final). Force every io.netty artifact (except
+// the tcnative native-TLS shim which uses its own 2.x line) to
+// 4.1.135.Final.
+configurations.all {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == 'io.netty' && !details.requested.name.startsWith('netty-tcnative')) {
+            details.useVersion '4.1.135.Final'
+        }
+    }
+}
+
 dependencies {
     if (speed) {
         implementation fileTree(dir: offlineCompile, include: '*.jar')

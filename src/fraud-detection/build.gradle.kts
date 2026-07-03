@@ -21,8 +21,11 @@ val protobufVersion = "4.33.1"
 
 // CVE-2026-42577: grpc-netty 1.76.0 pulls transitive Netty modules in the
 // 4.2.x line where the epoll transport fails to close half-closed TCP
-// connections (100% CPU busy-loop). Force all io.netty artifacts to
-// 4.2.14.Final, the first release that contains the fix.
+// connections (100% CPU busy-loop). Fixed in 4.2.13.Final.
+// CVE-2026-44249: netty-handler <4.2.15.Final mis-masks IPv6 subnet rules
+// in IpSubnetFilterRule.compareTo(), allowing valid public IPs to bypass
+// restrictions. Fixed in 4.2.15.Final.
+// Force all io.netty artifacts to 4.2.15.Final to cover both.
 //
 // CVE-2026-45292: opentelemetry-java <1.62.0 baggage propagation DoS.
 // Transitive deps (openfeature-flagd provider, grpc bundles) still declare
@@ -31,7 +34,7 @@ val protobufVersion = "4.33.1"
 configurations.all {
     resolutionStrategy.eachDependency {
         if (requested.group == "io.netty") {
-            useVersion("4.2.14.Final")
+            useVersion("4.2.15.Final")
         }
         if (requested.group == "io.opentelemetry") {
             useVersion("1.62.0")
