@@ -62,11 +62,16 @@
             <version>2.3.12</version>
         </dependency>
 
-        <!-- Vulnerable: older version with known issues -->
+        <!-- Guava is loaded via Class.forName for scanner-detection dressing
+             only; the deserialization attack path uses commons-collections
+             / keycloak-common, not guava. Bumped from 11.0 -> 33.4.8-jre to
+             clear CVE-2018-10237 (AtomicDoubleArray/CompoundOrdering unbounded
+             allocation on Java-serialized input). No behavioural impact on
+             the SecureApp demo. -->
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>11.0</version>
+            <version>33.4.8-jre</version>
         </dependency>
 
         <!-- H2 in-memory DB for SQL injection simulation -->
