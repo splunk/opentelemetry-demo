@@ -70,7 +70,9 @@ dependencies {
     implementation("com.google.protobuf:protobuf-kotlin:${protobufVersion}")
     implementation("dev.openfeature:sdk:1.18.2")
     implementation("dev.openfeature.contrib.providers:flagd:0.11.17")
-    implementation("com.microsoft.sqlserver:mssql-jdbc:12.8.1.jre11")
+    // CVE-2025-59250: mssql-jdbc <12.8.2 improper input validation
+    // allows an unauthenticated attacker to perform network spoofing.
+    implementation("com.microsoft.sqlserver:mssql-jdbc:12.8.2.jre11")
     implementation("com.zaxxer:HikariCP:5.1.0")
 
     if (JavaVersion.current().isJava9Compatible) {

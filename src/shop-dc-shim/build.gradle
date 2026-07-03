@@ -23,6 +23,10 @@ ext['xmlunit.version'] = '2.10.0'
 // Bump BOM-managed netty.version to 4.1.135.Final to cover both CVEs.
 ext['netty.version'] = '4.1.135.Final'
 
+// CVE-2025-59250: mssql-jdbc <12.8.2 improper input validation allows
+// an unauthenticated attacker to perform network spoofing.
+ext['mssql-jdbc.version'] = '12.8.2.jre11'
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
