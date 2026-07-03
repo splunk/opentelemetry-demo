@@ -140,11 +140,12 @@
         </dependency>
 
         <!-- OpenTelemetry API — for manual span instrumentation.
-             The Java agent provides the implementation at runtime. -->
+             The Java agent provides the implementation at runtime.
+             CVE-2026-45292: <1.62.0 baggage propagation DoS. -->
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-api</artifactId>
-            <version>1.44.1</version>
+            <version>1.62.0</version>
         </dependency>
 
         <!-- Vulnerable: CVE-2020-1714 (deserialization in KerberosSerializationUtils) -->
