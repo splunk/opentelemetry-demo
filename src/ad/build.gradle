@@ -19,7 +19,10 @@ description = 'Ad Service'
 group = "ad"
 version = "0.1.0-SNAPSHOT"
 
-def opentelemetryVersion = "1.60.1"
+// CVE-2026-45292: opentelemetry-java <1.62.0 baggage propagation is
+// vulnerable to unbounded CPU/memory allocation when parsing oversized
+// baggage; effect fans out to downstream services via re-injection.
+def opentelemetryVersion = "1.62.0"
 def opentelemetryInstrumentationVersion = "2.25.0"
 def grpcVersion = "1.79.0"
 def jacksonVersion = "2.21.1"
@@ -34,6 +37,20 @@ ext {
     speed = project.hasProperty('speed') ? project.getProperty('speed') : false
     Provider<Directory> output = layout.buildDirectory.dir("outputLocation")
     offlineCompile = output.get().asFile
+}
+
+// CVE-2026-44249: netty-handler <4.1.135.Final / <4.2.15.Final mis-masks
+// IPv6 subnet rules in IpSubnetFilterRule.compareTo(), allowing valid
+// public IPs to bypass restrictions. grpc-netty 1.79.0 pulls Netty 4.1.x
+// transitively (4.1.130.Final). Force every io.netty artifact (except
+// the tcnative native-TLS shim which uses its own 2.x line) to
+// 4.1.135.Final.
+configurations.all {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == 'io.netty' && !details.requested.name.startsWith('netty-tcnative')) {
+            details.useVersion '4.1.135.Final'
+        }
+    }
 }
 
 dependencies {

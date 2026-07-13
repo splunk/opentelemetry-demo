@@ -72,5 +72,22 @@
     "ts-proto": "1.181.1",
     "typescript": "~5.3.3"
   },
-  "private": true
+  "private": true,
+  "overrides": {
+    "@opentelemetry/otlp-transformer": {
+      "protobufjs": "^8.6.0"
+    },
+    "@grpc/proto-loader": {
+      "protobufjs": "^7.5.5"
+    },
+    "ts-proto": {
+      "protobufjs": "^7.5.5"
+    },
+    "ts-proto-descriptors": {
+      "protobufjs": "^7.5.5"
+    },
+    "postcss": "^8.5.10",
+    "lodash": "^4.18.0",
+    "fast-xml-parser": "^5.7.0"
+  }
 }

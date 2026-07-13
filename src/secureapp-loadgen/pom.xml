@@ -62,11 +62,16 @@
             <version>2.3.12</version>
         </dependency>
 
-        <!-- Vulnerable: older version with known issues -->
+        <!-- Guava is loaded via Class.forName for scanner-detection dressing
+             only; the deserialization attack path uses commons-collections
+             / keycloak-common, not guava. Bumped from 11.0 -> 33.4.8-jre to
+             clear CVE-2018-10237 (AtomicDoubleArray/CompoundOrdering unbounded
+             allocation on Java-serialized input). No behavioural impact on
+             the SecureApp demo. -->
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>11.0</version>
+            <version>33.4.8-jre</version>
         </dependency>
 
         <!-- H2 in-memory DB for SQL injection simulation -->
@@ -140,18 +145,25 @@
         </dependency>
 
         <!-- OpenTelemetry API — for manual span instrumentation.
-             The Java agent provides the implementation at runtime. -->
+             The Java agent provides the implementation at runtime.
+             CVE-2026-45292: <1.62.0 baggage propagation DoS. -->
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-api</artifactId>
-            <version>1.44.1</version>
+            <version>1.62.0</version>
         </dependency>
 
-        <!-- Vulnerable: CVE-2020-1714 (deserialization in KerberosSerializationUtils) -->
+        <!-- keycloak-common still provides KerberosSerializationUtils +
+             org.keycloak.common.util.Base64 at 11.0.0, which the
+             SessionImportServlet needs to reproduce the CVE-2020-1714
+             stack trace hooked by the SecureApp agent
+             (ObjectInputStream.resolveClass -> KerberosSerializationUtils
+             .deserialize). Bump from 10.0.2 -> 11.0.0 to clear the FOSSA
+             finding while preserving the attack detection surface. -->
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-common</artifactId>
-            <version>10.0.2</version>
+            <version>11.0.0</version>
         </dependency>
     </dependencies>
 

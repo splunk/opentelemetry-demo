@@ -8,6 +8,30 @@ plugins {
 group = 'com.opentelemetry.demo'
 version = '2.1.3'
 
+// CVE-2026-43512: Spring Boot 3.3.4 BOM ships tomcat-embed-core 10.1.30
+// (auth-bypass in digest auth). Override BOM-managed tomcat to 10.1.55.
+ext['tomcat.version'] = '10.1.55'
+
+// CVE-2024-31573: Spring Boot 3.3.4 BOM ships xmlunit-core 2.9.1, whose
+// default config enables XSLT extension functions and allows code
+// execution via an untrusted stylesheet. Fixed in 2.10.0.
+ext['xmlunit.version'] = '2.10.0'
+
+// CVE-2025-25193 (netty-common DoS via unsafe env file read),
+// CVE-2026-44249 (netty-handler IPv6 subnet bypass): Spring Boot 3.3.4
+// BOM manages Netty at 4.1.113.Final via reactor-netty (webflux).
+// Bump BOM-managed netty.version to 4.1.135.Final to cover both CVEs.
+ext['netty.version'] = '4.1.135.Final'
+
+// CVE-2025-59250: mssql-jdbc <12.8.2 improper input validation allows
+// an unauthenticated attacker to perform network spoofing.
+ext['mssql-jdbc.version'] = '12.8.2.jre11'
+
+// CVE-2024-57699: json-smart 2.5.0-2.5.1 stack exhaustion via crafted
+// input containing many '{' characters (incomplete fix for CVE-2023-1370).
+// Fixed in 2.5.2.
+ext['json-smart.version'] = '2.5.2'
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
@@ -17,6 +41,19 @@ java {
 configurations {
     compileOnly {
         extendsFrom annotationProcessor
+    }
+}
+
+// CVE-2026-45292: opentelemetry-java <1.62.0 baggage propagation DoS.
+// Direct deps are pinned to 1.62.0 but Spring Boot's dependency
+// management and other transitives can still declare older
+// opentelemetry-api versions. Force every io.opentelemetry artifact
+// to 1.62.0.
+configurations.all {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == 'io.opentelemetry') {
+            details.useVersion '1.62.0'
+        }
     }
 }
 
@@ -36,13 +73,19 @@ dependencies {
     runtimeOnly 'com.microsoft.sqlserver:mssql-jdbc'
     
     // OpenTelemetry (for Splunk Observability)
-    implementation 'io.opentelemetry:opentelemetry-api:1.44.1'
-    implementation 'io.opentelemetry:opentelemetry-exporter-otlp:1.44.1'
+    // CVE-2026-45292: opentelemetry-java <1.62.0 baggage propagation is
+    // vulnerable to unbounded CPU/memory when parsing oversized baggage.
+    implementation 'io.opentelemetry:opentelemetry-api:1.62.0'
+    implementation 'io.opentelemetry:opentelemetry-exporter-otlp:1.62.0'
     
     // gRPC dependencies
-    implementation 'io.grpc:grpc-netty-shaded:1.68.1'
-    implementation 'io.grpc:grpc-protobuf:1.68.1'
-    implementation 'io.grpc:grpc-stub:1.68.1'
+    // CVE-2026-44249: netty-handler <4.1.135.Final has an IPv6 subnet
+    // bypass. grpc-netty-shaded bundles Netty into io.grpc.netty.shaded.*
+    // so the io.netty resolutionStrategy cannot override it. Bump the
+    // grpc-java stack to 1.82.1 (latest) to pick up newer bundled Netty.
+    implementation 'io.grpc:grpc-netty-shaded:1.82.1'
+    implementation 'io.grpc:grpc-protobuf:1.82.1'
+    implementation 'io.grpc:grpc-stub:1.82.1'
     compileOnly 'org.apache.tomcat:annotations-api:6.0.53'
     
     // JSON processing
@@ -63,7 +106,7 @@ protobuf {
     }
     plugins {
         grpc {
-            artifact = 'io.grpc:protoc-gen-grpc-java:1.68.1'
+            artifact = 'io.grpc:protoc-gen-grpc-java:1.82.1'
         }
     }
     generateProtoTasks {

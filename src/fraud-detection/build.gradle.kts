@@ -19,6 +19,28 @@ version = "1.0"
 val grpcVersion = "1.76.0"
 val protobufVersion = "4.33.1"
 
+// CVE-2026-42577: grpc-netty 1.76.0 pulls transitive Netty modules in the
+// 4.2.x line where the epoll transport fails to close half-closed TCP
+// connections (100% CPU busy-loop). Fixed in 4.2.13.Final.
+// CVE-2026-44249: netty-handler <4.2.15.Final mis-masks IPv6 subnet rules
+// in IpSubnetFilterRule.compareTo(), allowing valid public IPs to bypass
+// restrictions. Fixed in 4.2.15.Final.
+// Force all io.netty artifacts to 4.2.15.Final to cover both.
+//
+// CVE-2026-45292: opentelemetry-java <1.62.0 baggage propagation DoS.
+// Transitive deps (openfeature-flagd provider, grpc bundles) still declare
+// older opentelemetry-api versions (e.g. 1.41.0). Force every io.opentelemetry
+// artifact to 1.62.0 so FOSSA no longer sees the vulnerable declared version.
+configurations.all {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "io.netty") {
+            useVersion("4.2.15.Final")
+        }
+        if (requested.group == "io.opentelemetry") {
+            useVersion("1.62.0")
+        }
+    }
+}
 
 repositories {
     mavenCentral()
@@ -38,16 +60,19 @@ dependencies {
     implementation("io.grpc:grpc-stub:${grpcVersion}")
     implementation("io.grpc:grpc-netty:${grpcVersion}")
     implementation("io.grpc:grpc-services:${grpcVersion}")
-    implementation("io.opentelemetry:opentelemetry-api:1.56.0")
-    implementation("io.opentelemetry:opentelemetry-sdk:1.56.0")
-    implementation("io.opentelemetry:opentelemetry-extension-annotations:1.18.0")
+    // CVE-2026-45292: opentelemetry-java <1.62.0 baggage propagation is
+    // vulnerable to unbounded CPU/memory when parsing oversized baggage.
+    implementation("io.opentelemetry:opentelemetry-api:1.62.0")
+    implementation("io.opentelemetry:opentelemetry-sdk:1.62.0")
     implementation("org.apache.logging.log4j:log4j-core:2.25.2")
     implementation("org.slf4j:slf4j-api:2.0.17")
     implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.25.2")
     implementation("com.google.protobuf:protobuf-kotlin:${protobufVersion}")
     implementation("dev.openfeature:sdk:1.18.2")
     implementation("dev.openfeature.contrib.providers:flagd:0.11.17")
-    implementation("com.microsoft.sqlserver:mssql-jdbc:12.8.1.jre11")
+    // CVE-2025-59250: mssql-jdbc <12.8.2 improper input validation
+    // allows an unauthenticated attacker to perform network spoofing.
+    implementation("com.microsoft.sqlserver:mssql-jdbc:12.8.2.jre11")
     implementation("com.zaxxer:HikariCP:5.1.0")
 
     if (JavaVersion.current().isJava9Compatible) {
