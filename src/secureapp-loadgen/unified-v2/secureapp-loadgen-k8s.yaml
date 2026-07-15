@@ -188,6 +188,14 @@ spec:
             # Impersonates the frontend service in APM dependency map.
             - name: OTEL_SERVICE_NAME
               value: "frontend"
+            # Node app startup asserts DEPLOY_ENV or
+            # deployment.environment(.name) in OTEL_RESOURCE_ATTRIBUTES.
+            - name: DEPLOY_ENV
+              valueFrom:
+                secretKeyRef:
+                  name: workshop-secret
+                  key: env
+                  optional: true
             - name: NODE_IP
               valueFrom:
                 fieldRef:
@@ -206,6 +214,8 @@ spec:
               value: otlp
             - name: OTEL_LOGS_EXPORTER
               value: otlp
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version=2.1.3,deployment.environment.name=$(DEPLOY_ENV)"
             - name: SPLUNK_SECUREAPP_AGENT_ENABLED
               value: "true"
             - name: SPLUNK_SECUREAPP_DEPENDENCY_INITIAL_DELAY
@@ -297,6 +307,14 @@ spec:
             # (recommendation is Python — same runtime as this variant).
             - name: OTEL_SERVICE_NAME
               value: "recommendation"
+            # Python app startup asserts DEPLOY_ENV or
+            # deployment.environment.name in OTEL_RESOURCE_ATTRIBUTES.
+            - name: DEPLOY_ENV
+              valueFrom:
+                secretKeyRef:
+                  name: workshop-secret
+                  key: env
+                  optional: true
             - name: NODE_IP
               valueFrom:
                 fieldRef:
@@ -315,6 +333,8 @@ spec:
               value: otlp
             - name: OTEL_LOGS_EXPORTER
               value: otlp
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version=2.1.3,deployment.environment.name=$(DEPLOY_ENV)"
             - name: OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED
               value: "false"
             - name: SPLUNK_SECUREAPP_AGENT_ENABLED
