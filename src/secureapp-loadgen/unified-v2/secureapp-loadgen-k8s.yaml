@@ -293,9 +293,10 @@ spec:
             - name: http
               containerPort: 8080
           env:
-            # Impersonates the payment service in APM dependency map.
+            # Impersonates the recommendation service in APM dependency map
+            # (recommendation is Python — same runtime as this variant).
             - name: OTEL_SERVICE_NAME
-              value: "payment"
+              value: "recommendation"
             - name: NODE_IP
               valueFrom:
                 fieldRef:
