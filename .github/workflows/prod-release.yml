@@ -207,14 +207,16 @@ jobs:
               if include:
                   platform = svc.get('platform', 'linux/amd64,linux/arm64')
                   dockerfile = svc.get('dockerfile', f'src/{name}/Dockerfile')
+                  build_target = svc.get('build_target', '')
 
                   services_to_build.append({
                       'name': name, 'variant': '', 'platform': platform,
-                      'dockerfile': dockerfile, 'build_args': ''
+                      'dockerfile': dockerfile, 'build_args': '',
+                      'target': build_target
                   })
 
           if not services_to_build:
-              matrix = {'include': [{'name': '_skip', 'variant': '', 'platform': 'linux/amd64', 'dockerfile': 'none', 'build_args': ''}]}
+              matrix = {'include': [{'name': '_skip', 'variant': '', 'platform': 'linux/amd64', 'dockerfile': 'none', 'build_args': '', 'target': ''}]}
           else:
               matrix = {'include': services_to_build}
 
@@ -300,12 +302,13 @@ jobs:
         with:
           context: .
           file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
           platforms: ${{ matrix.platform }}
           push: true
           tags: ${{ steps.image.outputs.full_image }}
           build-args: ${{ matrix.build_args }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
           no-cache: ${{ inputs.no_cache }}
 
       - name: Image info

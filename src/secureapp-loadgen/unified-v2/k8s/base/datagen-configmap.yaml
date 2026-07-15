@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: datagen-scripts
+  labels:
+    app.kubernetes.io/name: datagen
+    app.kubernetes.io/part-of: unified-secureapp
+data:
+  # Populated at deploy time from k8s/loadgen/ via deploy.sh configMapGenerator.
+  .keep: "replaced-by-generated-overlay"

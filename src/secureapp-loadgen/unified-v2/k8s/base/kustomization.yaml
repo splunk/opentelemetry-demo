@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - collector-rbac.yaml
+  - collector-configmap.yaml
+  - collector-deployment.yaml
+  - collector-service.yaml
+  - app-java-deployment.yaml
+  - app-java-service.yaml
+  - app-python-deployment.yaml
+  - app-python-service.yaml
+  - app-node-deployment.yaml
+  - app-node-service.yaml
+  - datagen-configmap.yaml
+  - datagen-java-job.yaml
+  - datagen-python-job.yaml
+  - datagen-node-job.yaml
+  - datagen-python-loop-deployment.yaml
+  - datagen-node-loop-deployment.yaml

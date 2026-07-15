@@ -94,18 +94,51 @@ for svc in config.get('services', []):
 }
 
 # ============================================================
-# Function: stitch_service
-# Append a single service manifest to an output file
+# Function: get_manifest_file
+# Read services.yaml for optional manifest_file override
 # ============================================================
+get_manifest_file() {
+    local SERVICE="$1"
+    if command -v python3 &> /dev/null; then
+        python3 -c "
+import yaml
+config = yaml.safe_load(open('services.yaml'))
+for svc in config.get('services', []):
+    if svc.get('name') == '$SERVICE':
+        print(svc.get('manifest_file', 'src/${SERVICE}/${SERVICE}-k8s.yaml'))
+        break
+" 2>/dev/null || echo "src/${SERVICE}/${SERVICE}-k8s.yaml"
+    else
+        echo "src/${SERVICE}/${SERVICE}-k8s.yaml"
+    fi
+}
+
+# ============================================================
+# Function: stitch_service
+# Append a single service manifest to an output file.
+# Dedupes: if multiple svcs share the same manifest_file, only the first
+# call emits it (tracked via STITCHED_MANIFESTS assoc array).
+# ============================================================
+declare -A STITCHED_MANIFESTS
 stitch_service() {
     local SERVICE="$1"
     local OUT_FILE="$2"
-    local MANIFEST_FILE="src/${SERVICE}/${SERVICE}-k8s.yaml"
+    local MANIFEST_FILE
+    MANIFEST_FILE=$(get_manifest_file "$SERVICE")
 
     if [ ! -f "$MANIFEST_FILE" ]; then
         echo "Warning: Manifest not found for $SERVICE at $MANIFEST_FILE"
         return 1
     fi
+
+    # Dedupe by manifest path + output file so shared manifests
+    # (e.g. secureapp-loadgen-{java,node,python}) emit only once.
+    local DEDUPE_KEY="${OUT_FILE}::${MANIFEST_FILE}"
+    if [ "${STITCHED_MANIFESTS[$DEDUPE_KEY]:-}" = "1" ]; then
+        echo "Skipping $SERVICE — manifest $MANIFEST_FILE already stitched into $OUT_FILE"
+        return 0
+    fi
+    STITCHED_MANIFESTS[$DEDUPE_KEY]=1
 
     local SERVICE_VERSION
     SERVICE_VERSION=$(get_service_version "$SERVICE")
