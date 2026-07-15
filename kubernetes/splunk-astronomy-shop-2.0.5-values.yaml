@@ -234,6 +234,19 @@ agent:
           - key: deployment.environment
             value: ${WORKSHOP_ENVIRONMENT}
             action: insert
+      # Strip verbose/duplicative resource attrs on metrics pipeline so
+      # SignalFx exporter stays under its 36-dimension cap. Recommendation
+      # (Python OTel SDK) emits otel.sdk.* metrics with 37 dims → drops.
+      # Keep container.id (queried). service.kafka is demo-only tag; low value.
+      resource/strip_verbose:
+        attributes:
+          - {action: delete, key: process.runtime.description}
+          - {action: delete, key: process.executable.path}
+          - {action: delete, key: process.command_line}
+          - {action: delete, key: process.command_args}
+          - {action: delete, key: process.parent_pid}
+          - {action: delete, key: process.owner}
+          - {action: delete, key: service.kafka}
       filter/drop_flagd:
         traces:
           span:
@@ -324,7 +337,7 @@ agent:
       pipelines:
         metrics:
           exporters: [signalfx]
-          processors: [memory_limiter, k8s_attributes, batch, resourcedetection, resource, resource/add_environment, transform/dbmon]
+          processors: [memory_limiter, k8s_attributes, batch, resourcedetection, resource, resource/add_environment, resource/strip_verbose, transform/dbmon]
           receivers: [host_metrics, kubeletstats, otlp, receiver_creator, receiver_creator/kafka]
         traces:
           # signalfx exporter removed from traces — chart 0.153.1 align.
