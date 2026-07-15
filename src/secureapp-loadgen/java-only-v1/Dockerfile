@@ -10,10 +10,10 @@ FROM maven:3.9-eclipse-temurin-17 AS builder
 ARG SKIP_BUILD=false
 WORKDIR /build
 
-COPY ./src/secureapp-loadgen/pom.xml .
+COPY ./src/secureapp-loadgen/java-only-v1/pom.xml .
 RUN if [ "$SKIP_BUILD" = "false" ]; then mvn dependency:go-offline -B; fi
 
-COPY ./src/secureapp-loadgen/src src
+COPY ./src/secureapp-loadgen/java-only-v1/src src
 RUN if [ "$SKIP_BUILD" = "false" ]; then \
       mvn clean package -B -DskipTests; \
     else \
@@ -32,8 +32,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /build/target/java-secureapp-test-app.jar .
-COPY ./src/secureapp-loadgen/entrypoint.sh .
-COPY ./src/secureapp-loadgen/loadgen.sh .
+COPY ./src/secureapp-loadgen/java-only-v1/entrypoint.sh .
+COPY ./src/secureapp-loadgen/java-only-v1/loadgen.sh .
 RUN chmod +x entrypoint.sh loadgen.sh
 
 ENV OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
