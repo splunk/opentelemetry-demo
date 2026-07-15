@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: collector
+  labels:
+    app.kubernetes.io/name: collector
+    app.kubernetes.io/part-of: unified-secureapp
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: unified-secureapp-collector
+  labels:
+    app.kubernetes.io/part-of: unified-secureapp
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "nodes/stats", "nodes/proxy", "pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: unified-secureapp-collector
+  labels:
+    app.kubernetes.io/part-of: unified-secureapp
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: unified-secureapp-collector
+subjects:
+  - kind: ServiceAccount
+    name: collector
+    namespace: unified-secureapp

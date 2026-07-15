@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: collector
+  labels:
+    app.kubernetes.io/name: collector
+    app.kubernetes.io/part-of: unified-secureapp
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: collector
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+    - name: health
+      port: 13133
+      targetPort: health

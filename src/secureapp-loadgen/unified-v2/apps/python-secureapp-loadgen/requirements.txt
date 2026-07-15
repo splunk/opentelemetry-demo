@@ -1,0 +1,18 @@
+# Application runtime (Python 3.11)
+Flask>=3.0.3,<4
+gunicorn>=22.0.0,<24
+
+# Splunk OpenTelemetry + SecureApp extension
+splunk-opentelemetry[secureapp]>=2.11.0,<3
+
+# HTTP APM instrumentation (gunicorn + Flask)
+opentelemetry-instrumentation-flask>=0.48b0,<1
+opentelemetry-instrumentation-wsgi>=0.48b0,<1
+
+# Intentionally pinned vulnerable libraries for VA + attack mapping (low/medium CVEs)
+Jinja2==3.1.2          # CVE-2024-22195 — RCE/SSTI (rce)
+urllib3==1.26.5          # CVE-2021-33503 — SSRF client (ssrf)
+requests==2.25.1         # SSRF HTTP client (uses pinned urllib3)
+SQLAlchemy==1.4.46       # CVE-2022-21698 — SQLi path (sqli)
+PyYAML==5.3.1            # CVE-2020-14343 — unsafe yaml.load (log4j)
+Pillow==9.2.0            # CVE-2022-45199 — ImageMath.eval (deserial)

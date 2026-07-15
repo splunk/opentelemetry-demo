@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-python
+  labels:
+    app.kubernetes.io/name: app-python
+    app.kubernetes.io/language: python
+    app.kubernetes.io/part-of: unified-secureapp
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: app-python
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

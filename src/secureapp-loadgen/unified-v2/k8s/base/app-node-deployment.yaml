@@ -1,0 +1,128 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-node
+  labels:
+    app.kubernetes.io/name: app-node
+    app.kubernetes.io/language: node
+    app.kubernetes.io/part-of: unified-secureapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: app-node
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: app-node
+        app.kubernetes.io/language: node
+        app.kubernetes.io/part-of: unified-secureapp
+    spec:
+      initContainers:
+        - name: wait-for-collector
+          image: curlimages/curl:8.11.1
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for collector (http://collector:13133)..."
+              until curl -sf --max-time 3 http://collector:13133/ >/dev/null 2>&1; do
+                sleep 2
+              done
+              echo "Collector ready."
+      containers:
+        - name: app
+          image: secureapp-node-app:local
+          imagePullPolicy: IfNotPresent
+          command:
+            - node
+            - -r
+            - "@splunk/otel/instrument.js"
+            - src/server.js
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://collector:4318
+            - name: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
+              value: http://collector:4318/v1/logs
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: http/protobuf
+            - name: OTEL_TRACES_EXPORTER
+              value: otlp
+            - name: OTEL_METRICS_EXPORTER
+              value: otlp
+            - name: OTEL_LOGS_EXPORTER
+              value: otlp
+            - name: SPLUNK_SECUREAPP_AGENT_ENABLED
+              value: "true"
+            - name: SPLUNK_SECUREAPP_DEPENDENCY_INITIAL_DELAY
+              valueFrom:
+                configMapKeyRef:
+                  name: secureapp-config-node
+                  key: SPLUNK_SECUREAPP_DEPENDENCY_INITIAL_DELAY
+            - name: SPLUNK_SECUREAPP_DEPENDENCY_SCAN_INTERVAL
+              valueFrom:
+                configMapKeyRef:
+                  name: secureapp-config-node
+                  key: SPLUNK_SECUREAPP_DEPENDENCY_SCAN_INTERVAL
+            - name: SPLUNK_SECUREAPP_RUNTIME_PACKAGES_ONLY
+              value: "true"
+            - name: SPLUNK_SECUREAPP_NO_SELF_REPORT
+              value: "false"
+            - name: OTEL_SERVICE_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: secureapp-config-node
+                  key: SERVICE_NAME
+            - name: SERVICE_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: secureapp-config-node
+                  key: SERVICE_NAME
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              valueFrom:
+                configMapKeyRef:
+                  name: secureapp-config-node
+                  key: OTEL_RESOURCE_ATTRIBUTES
+            - name: DEPLOY_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: secureapp-config-node
+                  key: DEPLOY_ENV
+            - name: REALM
+              valueFrom:
+                configMapKeyRef:
+                  name: secureapp-config-shared
+                  key: REALM
+            - name: ATTACK_ENABLED_SCENARIOS
+              valueFrom:
+                configMapKeyRef:
+                  name: secureapp-config-shared
+                  key: ATTACK_ENABLED_SCENARIOS
+            - name: WORKSPACE_SYNC_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: secureapp-config-shared
+                  key: WORKSPACE_SYNC_ENABLED
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 45
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi

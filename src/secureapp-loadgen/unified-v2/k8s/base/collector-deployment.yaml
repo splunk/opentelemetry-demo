@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collector
+  labels:
+    app.kubernetes.io/name: collector
+    app.kubernetes.io/part-of: unified-secureapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: collector
+        app.kubernetes.io/part-of: unified-secureapp
+    spec:
+      serviceAccountName: collector
+      containers:
+        - name: collector
+          image: quay.io/signalfx/splunk-otel-collector:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+            - name: otlp-http
+              containerPort: 4318
+            - name: health
+              containerPort: 13133
+          env:
+            - name: SPLUNK_CONFIG
+              value: /etc/otel/collector/splunk-config.yaml
+            - name: SPLUNK_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: secureapp-secrets
+                  key: INGEST_TOKEN
+            - name: SPLUNK_REALM
+              valueFrom:
+                configMapKeyRef:
+                  name: secureapp-config-shared
+                  key: REALM
+            - name: K8S_NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+          volumeMounts:
+            - name: collector-config
+              mountPath: /etc/otel/collector/splunk-config.yaml
+              subPath: otelcol-config.yaml
+              readOnly: true
+            - name: hostfs
+              mountPath: /hostfs
+              readOnly: true
+              mountPropagation: HostToContainer
+          readinessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 18
+          livenessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+      volumes:
+        - name: collector-config
+          configMap:
+            name: collector-config
+        - name: hostfs
+          hostPath:
+            path: /
+            type: Directory
