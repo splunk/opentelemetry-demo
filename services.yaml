@@ -15,6 +15,15 @@
 #   dockerfile: Custom Dockerfile path (optional, default: src/{name}/Dockerfile)
 #               Use this when the Dockerfile is in a subdirectory
 #               Example: "src/cart/src/Dockerfile"
+#   build_target: Docker multi-stage build target (optional, default: none)
+#                 Pass `--target <name>` to select one stage. Use when multiple
+#                 svcs share one Dockerfile with per-language targets.
+#                 Example: build_target: java
+#   manifest_file: Custom k8s manifest path (optional, default: src/{name}/{name}-k8s.yaml)
+#                  Use when multiple svc entries share a single combined manifest.
+#                  Stitcher dedupes so the manifest is emitted once even if
+#                  multiple svcs reference it.
+#                  Example: "src/secureapp-loadgen/unified-v2/secureapp-loadgen-k8s.yaml"
 #   platform: Docker build platforms (optional, default: linux/amd64,linux/arm64)
 #             Examples: "linux/amd64" or "linux/amd64,linux/arm64"
 
@@ -194,11 +203,36 @@ services:
     manifest: false # false till we sorted out thousand eyes instance and secret issue
     replace_registry: false  # Uses thousandeyes/enterprise-agent
 
-  - name: secureapp-loadgen
+  # Unified SecureApp loadgen — one multi-target Dockerfile + one k8s
+  # manifest cover all 3 language variants. Add a 4th language:
+  #   1. Drop new dir under src/secureapp-loadgen/unified-v2/apps/<lang>-secureapp-loadgen/
+  #   2. Add a `FROM <base> AS <lang>` target to unified-v2/Dockerfile
+  #   3. Add matching Deployment+Service to unified-v2/secureapp-loadgen-k8s.yaml
+  #   4. Add a services.yaml entry with build_target: <lang>
+  - name: secureapp-loadgen-java
     build: true
     manifest: true
     group: secureapp
     platform: "linux/amd64"
+    dockerfile: src/secureapp-loadgen/unified-v2/Dockerfile
+    build_target: java
+    manifest_file: src/secureapp-loadgen/unified-v2/secureapp-loadgen-k8s.yaml
+  - name: secureapp-loadgen-node
+    build: true
+    manifest: false  # shares manifest_file with secureapp-loadgen-java
+    group: secureapp
+    platform: "linux/amd64"
+    dockerfile: src/secureapp-loadgen/unified-v2/Dockerfile
+    build_target: node
+    manifest_file: src/secureapp-loadgen/unified-v2/secureapp-loadgen-k8s.yaml
+  - name: secureapp-loadgen-python
+    build: true
+    manifest: false  # shares manifest_file with secureapp-loadgen-java
+    group: secureapp
+    platform: "linux/amd64"
+    dockerfile: src/secureapp-loadgen/unified-v2/Dockerfile
+    build_target: python
+    manifest_file: src/secureapp-loadgen/unified-v2/secureapp-loadgen-k8s.yaml
 
   - name: valkey-cart
     build: false

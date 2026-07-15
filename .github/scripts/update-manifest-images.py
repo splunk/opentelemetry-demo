@@ -11,8 +11,20 @@ import sys
 import re
 import os
 
-def _patch_file(manifest_path, new_image):
-    """Rewrite the image line in a single manifest file."""
+try:
+    import yaml
+except ImportError:
+    yaml = None
+
+
+def _patch_file(manifest_path, new_image, image_name=None):
+    """Rewrite image line(s) in a single manifest file.
+
+    If image_name is given, only replace lines whose image path ends with
+    that exact name (before the tag). Prevents clobbering sibling deployments
+    when multiple services share a single manifest file
+    (e.g. secureapp-loadgen-{java,node,python}).
+    """
     if not os.path.exists(manifest_path):
         print(f"Warning: Manifest not found: {manifest_path}")
         return False
@@ -20,19 +32,39 @@ def _patch_file(manifest_path, new_image):
     with open(manifest_path, 'r') as f:
         content = f.read()
 
-    # Matches: image: ghcr.io/*/anything:any-tag
-    pattern = r'(\s+image:\s+)ghcr\.io/[^\s]+:\S+'
+    if image_name:
+        # Match image path ending in /<image_name>:<tag>; keep the leading
+        # `  image: ghcr.io/<org>/` prefix, replace whole line with new_image.
+        pattern = rf'(\s+image:\s+)ghcr\.io/[^\s:]+/{re.escape(image_name)}:\S+'
+    else:
+        # Legacy behavior: match any ghcr.io image (per-svc dedicated manifest).
+        pattern = r'(\s+image:\s+)ghcr\.io/[^\s]+:\S+'
     updated_content, count = re.subn(pattern, rf'\1{new_image}', content)
 
     if count > 0:
         with open(manifest_path, 'w') as f:
             f.write(updated_content)
-        print(f"✅ Updated {manifest_path}")
+        print(f"✅ Updated {manifest_path} ({count} image line{'s' if count != 1 else ''})")
         print(f"   New image: {new_image}")
         return True
 
-    print(f"⚠️  No image line found in {manifest_path}")
+    print(f"⚠️  No image line found in {manifest_path} matching {image_name or 'ghcr.io/*'}")
     return False
+
+
+def _lookup_manifest_file(service):
+    """Read services.yaml for optional manifest_file override."""
+    if yaml is None:
+        return None
+    try:
+        with open('services.yaml') as f:
+            config = yaml.safe_load(f)
+    except FileNotFoundError:
+        return None
+    for svc in config.get('services', []):
+        if svc.get('name') == service:
+            return svc.get('manifest_file')
+    return None
 
 
 def update_manifest_image(service, registry, image_name, version):
@@ -49,6 +81,13 @@ def update_manifest_image(service, registry, image_name, version):
         ]
         results = [_patch_file(p, new_image) for p in targets]
         return any(results)
+
+    # Shared manifest_file case: multiple svcs point at one file (e.g.
+    # secureapp-loadgen-*). Scope the sed to the specific image_name so
+    # sibling deployments aren't clobbered.
+    override = _lookup_manifest_file(service)
+    if override:
+        return _patch_file(override, new_image, image_name=image_name)
 
     return _patch_file(f"src/{service}/{service}-k8s.yaml", new_image)
 
