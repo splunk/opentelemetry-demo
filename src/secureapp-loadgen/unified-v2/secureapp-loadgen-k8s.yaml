@@ -67,8 +67,9 @@ spec:
             - name: http
               containerPort: 8080
           env:
+            # Impersonates the ad service in APM dependency map.
             - name: OTEL_SERVICE_NAME
-              value: "secureapp-java"
+              value: "ad"
             - name: DEPLOYMENT_ENVIRONMENT
               valueFrom:
                 secretKeyRef:
@@ -184,8 +185,9 @@ spec:
             - name: http
               containerPort: 8080
           env:
+            # Impersonates the frontend service in APM dependency map.
             - name: OTEL_SERVICE_NAME
-              value: "secureapp-node"
+              value: "frontend"
             - name: NODE_IP
               valueFrom:
                 fieldRef:
@@ -291,8 +293,9 @@ spec:
             - name: http
               containerPort: 8080
           env:
+            # Impersonates the payment service in APM dependency map.
             - name: OTEL_SERVICE_NAME
-              value: "secureapp-python"
+              value: "payment"
             - name: NODE_IP
               valueFrom:
                 fieldRef:
