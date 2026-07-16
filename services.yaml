@@ -219,7 +219,7 @@ services:
     manifest_file: src/secureapp-loadgen/unified-v2/secureapp-loadgen-k8s.yaml
   - name: secureapp-loadgen-node
     build: true
-    manifest: false  # shares manifest_file with secureapp-loadgen-java
+    manifest: true  # shares manifest_file with secureapp-loadgen-java; stitcher dedupes
     group: secureapp
     platform: "linux/amd64"
     dockerfile: src/secureapp-loadgen/unified-v2/Dockerfile
@@ -227,7 +227,7 @@ services:
     manifest_file: src/secureapp-loadgen/unified-v2/secureapp-loadgen-k8s.yaml
   - name: secureapp-loadgen-python
     build: true
-    manifest: false  # shares manifest_file with secureapp-loadgen-java
+    manifest: true  # shares manifest_file with secureapp-loadgen-java; stitcher dedupes
     group: secureapp
     platform: "linux/amd64"
     dockerfile: src/secureapp-loadgen/unified-v2/Dockerfile
