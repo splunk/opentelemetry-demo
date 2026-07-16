@@ -203,36 +203,42 @@ services:
     manifest: false # false till we sorted out thousand eyes instance and secret issue
     replace_registry: false  # Uses thousandeyes/enterprise-agent
 
-  # Unified SecureApp loadgen — one multi-target Dockerfile + one k8s
-  # manifest cover all 3 language variants. Add a 4th language:
-  #   1. Drop new dir under src/secureapp-loadgen/unified-v2/apps/<lang>-secureapp-loadgen/
-  #   2. Add a `FROM <base> AS <lang>` target to unified-v2/Dockerfile
-  #   3. Add matching Deployment+Service to unified-v2/secureapp-loadgen-k8s.yaml
-  #   4. Add a services.yaml entry with build_target: <lang>
+  # SecureApp loadgen — 3 language variants deployed as NATIVE SIDECARS
+  # (k8s >= 1.29 initContainer with restartPolicy: Always) inside the
+  # target pods:
+  #   secureapp-loadgen-java   -> sidecar in src/ad/ad-k8s.yaml
+  #   secureapp-loadgen-node   -> sidecar in src/frontend/frontend-k8s.yaml
+  #   secureapp-loadgen-python -> sidecar in src/recommendation/recommendation-k8s.yaml
+  # Attacks + vuln endpoints run inside the target pod, share its
+  # network namespace, and report the target's service.name in APM.
+  # Sidecars listen on port 8180 (target apps use 8080).
+  #
+  # Only the images are built here; no standalone Deployment/Service is
+  # emitted for them (manifest: false). To wire a 4th language variant:
+  #   1. Drop apps/<lang>-secureapp-loadgen/ + a Dockerfile target
+  #   2. Add its services.yaml entry with build_target: <lang>
+  #   3. Add the sidecar block to the target pod's manifest
   - name: secureapp-loadgen-java
     build: true
-    manifest: true
+    manifest: false
     group: secureapp
     platform: "linux/amd64"
     dockerfile: src/secureapp-loadgen/unified-v2/Dockerfile
     build_target: java
-    manifest_file: src/secureapp-loadgen/unified-v2/secureapp-loadgen-k8s.yaml
   - name: secureapp-loadgen-node
     build: true
-    manifest: true  # shares manifest_file with secureapp-loadgen-java; stitcher dedupes
+    manifest: false
     group: secureapp
     platform: "linux/amd64"
     dockerfile: src/secureapp-loadgen/unified-v2/Dockerfile
     build_target: node
-    manifest_file: src/secureapp-loadgen/unified-v2/secureapp-loadgen-k8s.yaml
   - name: secureapp-loadgen-python
     build: true
-    manifest: true  # shares manifest_file with secureapp-loadgen-java; stitcher dedupes
+    manifest: false
     group: secureapp
     platform: "linux/amd64"
     dockerfile: src/secureapp-loadgen/unified-v2/Dockerfile
     build_target: python
-    manifest_file: src/secureapp-loadgen/unified-v2/secureapp-loadgen-k8s.yaml
 
   - name: valkey-cart
     build: false
