@@ -56,6 +56,12 @@ spec:
           value: 'false'
         - name: OTEL_INSTRUMENTATION_SPLUNK_JDBC_ENABLED
           value: 'true'
+        # Emit both legacy `db.system=mssql` and new
+        # `db.system.name=microsoft.sql_server` (stable semconv v1.30+).
+        # Drop `/dup` -> `database` once DBMon dashboards fully consume the
+        # new attribute.
+        - name: OTEL_SEMCONV_STABILITY_OPT_IN
+          value: database/dup
         - name: OTEL_RESOURCE_ATTRIBUTES
           value: service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version=2.1.3,service.kafka=propagation
         - name: SQL_SERVER_HOST
