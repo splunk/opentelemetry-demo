@@ -55,7 +55,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
         - name: app
-          image: ghcr.io/splunk/opentelemetry-demo/otel-secureapp-loadgen-java:2.0.5
+          image: ghcr.io/splunk/opentelemetry-demo/otel-secureapp-loadgen-java:2.0.6
           imagePullPolicy: Always
           command:
             - /bin/sh
@@ -174,7 +174,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
         - name: app
-          image: ghcr.io/splunk/opentelemetry-demo/otel-secureapp-loadgen-node:2.0.5
+          image: ghcr.io/splunk/opentelemetry-demo/otel-secureapp-loadgen-node:2.0.6
           imagePullPolicy: Always
           command:
             - node
@@ -291,7 +291,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
         - name: app
-          image: ghcr.io/splunk/opentelemetry-demo/otel-secureapp-loadgen-python:2.0.5
+          image: ghcr.io/splunk/opentelemetry-demo/otel-secureapp-loadgen-python:2.0.6
           imagePullPolicy: Always
           command:
             - opentelemetry-instrument
