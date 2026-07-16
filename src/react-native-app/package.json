@@ -88,6 +88,7 @@
     },
     "postcss": "^8.5.10",
     "lodash": "^4.18.0",
-    "fast-xml-parser": "^5.7.0"
+    "fast-xml-parser": "^5.7.0",
+    "@xmldom/xmldom": "^0.8.13"
   }
 }
