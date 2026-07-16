@@ -221,7 +221,6 @@ services:
   - name: secureapp-loadgen-java
     build: true
     manifest: false  # sidecar lives in ad-k8s.yaml, not standalone
-    group: secureapp
     platform: "linux/amd64"
     dockerfile: src/secureapp-loadgen/unified-v2/Dockerfile
     build_target: java
@@ -232,7 +231,6 @@ services:
   - name: secureapp-loadgen-node
     build: true
     manifest: false  # sidecar lives in frontend-k8s.yaml
-    group: secureapp
     platform: "linux/amd64"
     dockerfile: src/secureapp-loadgen/unified-v2/Dockerfile
     build_target: node
@@ -240,7 +238,6 @@ services:
   - name: secureapp-loadgen-python
     build: true
     manifest: false  # sidecar lives in recommendation-k8s.yaml
-    group: secureapp
     platform: "linux/amd64"
     dockerfile: src/secureapp-loadgen/unified-v2/Dockerfile
     build_target: python
