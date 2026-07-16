@@ -79,17 +79,16 @@ def update_manifest_image(service, registry, image_name, version):
             f"src/{service}/payment-vB-k8s.yaml",
             f"src/{service}/{service}-k8s.yaml",
         ]
-        results = [_patch_file(p, new_image) for p in targets]
+        results = [_patch_file(p, new_image, image_name=image_name) for p in targets]
         return any(results)
 
-    # Shared manifest_file case: multiple svcs point at one file (e.g.
-    # secureapp-loadgen-*). Scope the sed to the specific image_name so
-    # sibling deployments aren't clobbered.
+    # Scope every sedge by image_name so sibling images in the same
+    # manifest (main container + sidecar containers) are not clobbered.
+    # Applies to both the manifest_file override case (shared file, e.g.
+    # sidecar in target's own manifest) AND the default per-svc path.
     override = _lookup_manifest_file(service)
-    if override:
-        return _patch_file(override, new_image, image_name=image_name)
-
-    return _patch_file(f"src/{service}/{service}-k8s.yaml", new_image)
+    target = override or f"src/{service}/{service}-k8s.yaml"
+    return _patch_file(target, new_image, image_name=image_name)
 
 def main():
     if len(sys.argv) != 5:
