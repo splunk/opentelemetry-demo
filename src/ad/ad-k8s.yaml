@@ -105,4 +105,67 @@ spec:
           limits:
             memory: 600Mi
         volumeMounts: null
+      # SecureApp Java sidecar — runs vulnerability endpoints + attack
+      # loadgen inside the ad pod so attack telemetry blends into the
+      # ad service.name view in APM. Native k8s sidecar (initContainer
+      # with restartPolicy: Always, k8s >= 1.29). Uses port 8180 to
+      # avoid collision with the ad container's 8080.
+      initContainers:
+      - name: secureapp
+        image: ghcr.io/splunk/opentelemetry-demo/otel-secureapp-loadgen-java:2.0.6
+        imagePullPolicy: Always
+        restartPolicy: Always
+        command: ["/bin/sh"]
+        args:
+        - -c
+        - |
+          export OTEL_RESOURCE_ATTRIBUTES="service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version=2.1.3,deployment.environment=${DEPLOYMENT_ENVIRONMENT}"
+          exec ./entrypoint.sh
+        env:
+        - name: OTEL_SERVICE_NAME
+          value: "ad"
+        - name: DEPLOYMENT_ENVIRONMENT
+          valueFrom:
+            secretKeyRef:
+              name: workshop-secret
+              key: env
+              optional: true
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: OTEL_COLLECTOR_NAME
+          value: $(NODE_IP)
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: http://$(OTEL_COLLECTOR_NAME):4318
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: http/protobuf
+        - name: SERVER_PORT
+          value: "8180"
+        - name: SPLUNK_PROFILER_ENABLED
+          value: "true"
+        - name: SPLUNK_PROFILER_MEMORY_ENABLED
+          value: "true"
+        - name: SPLUNK_PROFILER_LOGS_ENDPOINT
+          value: http://$(OTEL_COLLECTOR_NAME):4318/v1/logs
+        - name: JAVA_TOOL_OPTIONS
+          value: >-
+            -javaagent:/app/splunk-otel-javaagent.jar
+            -Dargento.allow.security.events=true
+            -Dargento.wait.events.for.first.transaction=false
+        - name: LOADGEN_ENABLED
+          value: "true"
+        - name: LOADGEN_LANGUAGE
+          value: java
+        - name: ATTACK_HOST
+          value: localhost:8180
+        - name: FLAGD_HOST
+          value: flagd
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: "1"
+            memory: 512Mi
       volumes: null
