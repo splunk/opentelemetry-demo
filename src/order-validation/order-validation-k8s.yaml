@@ -53,7 +53,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: order-validation
-        image: ghcr.io/splunk/opentelemetry-demo/otel-order-validation:2.0.4
+        image: ghcr.io/splunk/opentelemetry-demo/otel-order-validation:2.0.6
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
