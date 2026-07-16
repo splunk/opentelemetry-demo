@@ -220,25 +220,31 @@ services:
   #   3. Add the sidecar block to the target pod's manifest
   - name: secureapp-loadgen-java
     build: true
-    manifest: false
+    manifest: false  # sidecar lives in ad-k8s.yaml, not standalone
     group: secureapp
     platform: "linux/amd64"
     dockerfile: src/secureapp-loadgen/unified-v2/Dockerfile
     build_target: java
+    # manifest_file tells update-manifest-images.py where to sedge the
+    # sidecar image tag on release (scoped by image_name so it only
+    # touches the secureapp line, not the target's own image line).
+    manifest_file: src/ad/ad-k8s.yaml
   - name: secureapp-loadgen-node
     build: true
-    manifest: false
+    manifest: false  # sidecar lives in frontend-k8s.yaml
     group: secureapp
     platform: "linux/amd64"
     dockerfile: src/secureapp-loadgen/unified-v2/Dockerfile
     build_target: node
+    manifest_file: src/frontend/frontend-k8s.yaml
   - name: secureapp-loadgen-python
     build: true
-    manifest: false
+    manifest: false  # sidecar lives in recommendation-k8s.yaml
     group: secureapp
     platform: "linux/amd64"
     dockerfile: src/secureapp-loadgen/unified-v2/Dockerfile
     build_target: python
+    manifest_file: src/recommendation/recommendation-k8s.yaml
 
   - name: valkey-cart
     build: false
