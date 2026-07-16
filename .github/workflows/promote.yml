@@ -20,6 +20,11 @@ on:
         required: false
         type: boolean
         default: false
+      update_workshop:
+        description: "Update workshop instance (splunk/observability-workshop under workshop/k3s/)"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -54,6 +59,14 @@ jobs:
           repository: splunk/o11y-field-demos
           token: ${{ secrets.GHCR_TOKEN }}
           path: target
+
+      - name: Checkout workshop repo
+        if: ${{ github.event.inputs.dry_run != 'true' && github.event.inputs.update_workshop == 'true' }}
+        uses: actions/checkout@v5
+        with:
+          repository: splunk/observability-workshop
+          token: ${{ secrets.GHCR_TOKEN }}
+          path: target-workshop
 
       - name: Set variables
         id: vars
@@ -342,6 +355,62 @@ jobs:
             echo "### ✅ Promotion Complete" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "Version **${VERSION}** promoted to splunk/o11y-field-demos" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # -----------------------------
+      # WORKSHOP FLOW
+      # (splunk/observability-workshop under workshop/k3s/)
+      # Copies manifests renamed with -latest, excludes DIAB variant.
+      # Values file lands at workshop/k3s/splunk-astronomy-shop-latest-values.yaml.
+      # -----------------------------
+      - name: Copy files to workshop repo
+        if: ${{ github.event.inputs.dry_run != 'true' && github.event.inputs.update_workshop == 'true' }}
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Workshop Deployment" >> $GITHUB_STEP_SUMMARY
+
+          WORKSHOP_DIR="target-workshop/workshop/k3s/splunk-astronomy-shop"
+          WORKSHOP_ROOT="target-workshop/workshop/k3s"
+
+          mkdir -p "$WORKSHOP_DIR"
+
+          # Manifests renamed VER -> latest. DIAB excluded (workshop uses
+          # PROD manifest with in-cluster collector setup, not the DIAB
+          # variant which bundles Traefik ingress).
+          cp "$MANIFEST" "$WORKSHOP_DIR/splunk-astronomy-shop-latest.yaml"
+          [ -f "$MANIFEST_LAMBDA" ] && cp "$MANIFEST_LAMBDA" "$WORKSHOP_DIR/splunk-astronomy-shop-latest-lambda.yaml"
+          [ -f "$MANIFEST_DC_SHIM" ] && cp "$MANIFEST_DC_SHIM" "$WORKSHOP_DIR/splunk-astronomy-shop-latest-dc-shim.yaml"
+          [ -f "$MANIFEST_SECUREAPP" ] && cp "$MANIFEST_SECUREAPP" "$WORKSHOP_DIR/splunk-astronomy-shop-latest-secureapp.yaml"
+          [ -f "$MANIFEST_THROTTLE_DEMO" ] && cp "$MANIFEST_THROTTLE_DEMO" "$WORKSHOP_DIR/splunk-astronomy-shop-latest-throttle-demo.yaml"
+
+          # Values file lands at k3s root (mirrors demo-in-a-box v4 collector layout).
+          cp "$VALUES" "$WORKSHOP_ROOT/splunk-astronomy-shop-latest-values.yaml"
+
+          echo "✅ Copied to \`$WORKSHOP_DIR/\`" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Values at \`$WORKSHOP_ROOT/splunk-astronomy-shop-latest-values.yaml\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Commit & push to workshop repo
+        if: ${{ github.event.inputs.dry_run != 'true' && github.event.inputs.update_workshop == 'true' }}
+        run: |
+          cd target-workshop
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+
+          if git diff --staged --quiet; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Workshop: No Changes" >> $GITHUB_STEP_SUMMARY
+            echo "No changes to commit - files may already be up to date." >> $GITHUB_STEP_SUMMARY
+          else
+            git commit -m "Update Astronomy Shop workshop manifests to ${VERSION}" \
+              -m "" \
+              -m "Promoted from: splunk/opentelemetry-demo" \
+              -m "Version: ${VERSION}"
+            git push
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### ✅ Workshop Update Complete" >> $GITHUB_STEP_SUMMARY
+            echo "Version **${VERSION}** manifests copied to splunk/observability-workshop" >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Dry run summary
