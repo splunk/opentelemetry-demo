@@ -151,6 +151,7 @@ spec:
         - name: JAVA_TOOL_OPTIONS
           value: >-
             -javaagent:/app/splunk-otel-javaagent.jar
+            -Dserver.port=8180
             -Dargento.allow.security.events=true
             -Dargento.wait.events.for.first.transaction=false
         - name: LOADGEN_ENABLED

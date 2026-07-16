@@ -1,7 +1,10 @@
 """Gunicorn configuration for SecureApp Python datagen.
 """
+import os
 
-bind = "0.0.0.0:8080"
+# Read SERVER_PORT env so the container can bind to a non-default port
+# when deployed as a sidecar alongside a service that already uses 8080.
+bind = f"0.0.0.0:{os.environ.get('SERVER_PORT', '8080')}"
 workers = 1
 threads = 4
 timeout = 120
