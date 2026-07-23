@@ -73,13 +73,10 @@ spec:
         - name: DB_CONNECTION_STRING
           value: Host=postgresql;Username=otelu;Password=otelp;Database=otel
         # Optional fire-and-forget call to order-validation (throttle-demo).
-        # Safe to leave set even when throttle-demo manifest is not applied:
-        # DNS NXDOMAIN / connection refused / timeout all swallowed by
-        # TriggerValidation, which also enforces a 120s HttpClient timeout
-        # (covers the slowest validation tier).
-        # To disable entirely, unset.
-        - name: ORDER_VALIDATION_ADDR
-          value: http://order-validation:8080
+        # Disabled by default (unset). To enable, set to the service URL
+        # e.g. http://order-validation:8080 — throttle-demo manifest deploys
+        # that service. When set but service absent, TriggerValidation
+        # swallows DNS NXDOMAIN / connection refused / timeout (120s cap).
         - name: OTEL_DOTNET_AUTO_TRACES_ENTITYFRAMEWORKCORE_INSTRUMENTATION_ENABLED
           value: 'false'
         - name: OTEL_RESOURCE_ATTRIBUTES
