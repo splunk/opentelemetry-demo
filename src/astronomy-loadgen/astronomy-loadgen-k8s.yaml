@@ -407,11 +407,21 @@ spec:
       initContainers:
       - name: wait-for-frontend
         image: curlimages/curl:8.1.2
+        env:
+        # Same source-of-truth as the main container: prefer public URL
+        # from workshop-secret; fall back to in-cluster ingress when absent.
+        - name: RUM_FRONTEND_IP
+          valueFrom:
+            secretKeyRef:
+              name: workshop-secret
+              key: url
+              optional: true
         command: ['sh', '-c']
         args:
         - |
-          echo "Waiting for frontend-proxy to be ready..."
-          until curl -f --connect-timeout 5 --max-time 10 http://frontend-proxy:8080; do
+          TARGET="${RUM_FRONTEND_IP:-http://frontend-proxy:8080}"
+          echo "Waiting for ${TARGET} to be ready..."
+          until curl -f -k --connect-timeout 5 --max-time 10 "${TARGET}"; do
             echo "Frontend not ready, waiting 10 seconds..."
             sleep 10
           done
