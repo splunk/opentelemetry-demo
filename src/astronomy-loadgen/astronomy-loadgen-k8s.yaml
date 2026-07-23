@@ -61,8 +61,8 @@ data:
     function buildBaseUrl() {
       const raw = (process.env.RUM_FRONTEND_IP || '').trim();
 
-      // If it's empty, default to localhost
-      if (!raw) return 'https://localhost/';
+      // If unset (secret absent), fall back to the in-cluster ingress.
+      if (!raw) return 'http://frontend-proxy:8080/';
 
       // If it already starts with http:// or https://, keep it exactly as-is
       if (/^https?:\/\//i.test(raw)) {
@@ -425,13 +425,17 @@ spec:
         image: ghcr.io/splunk/online-boutique/rumloadgen:5.6
         imagePullPolicy: Always
         env:
-        # NOTE: For RUM funnels that filter on the public ingress URL (e.g.
-        # `https://astronomy-shop.example.com`), override this value per
-        # deployment so the loadgen browser navigates to the same origin as
-        # real users. The in-cluster default below works for traffic-only
-        # generation but produces RUM events tagged with the internal URL.
+        # RUM funnels typically filter on the public ingress URL. Sourced
+        # from workshop-secret.url when present so the loadgen browser
+        # navigates to the same origin as real users; when the secret is
+        # absent the container falls back to http://frontend-proxy:8080/
+        # (see buildBaseUrl in the scriptfile above).
         - name: RUM_FRONTEND_IP
-          value: "http://frontend-proxy:8080"
+          valueFrom:
+            secretKeyRef:
+              name: workshop-secret
+              key: url
+              optional: true
         - name: CYCLE_DELAY_MS
           value: "1000"
         - name: DEBUG_LOGGING
