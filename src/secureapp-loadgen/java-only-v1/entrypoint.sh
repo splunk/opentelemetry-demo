@@ -12,7 +12,8 @@ JAVA_PID=$!
 # Wait for the app to become healthy
 echo "Waiting for health check..."
 retries=0
-until curl -sf http://localhost:8080/health > /dev/null 2>&1; do
+HEALTH_PORT="${SERVER_PORT:-8080}"
+until curl -sf "http://localhost:${HEALTH_PORT}/health" > /dev/null 2>&1; do
   retries=$((retries + 1))
   if [ $retries -ge 60 ]; then
     echo "ERROR: App failed to start after 120s"
