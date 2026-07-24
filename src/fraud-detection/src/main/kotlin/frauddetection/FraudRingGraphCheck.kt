@@ -272,7 +272,7 @@ class FraudRingGraphCheck {
             FROM RingHops rh
             LEFT JOIN FraudAlerts fa ON rh.order_id = fa.order_id
             CROSS JOIN Amplifier
-            OPTION (MAXRECURSION 5, MAXDOP 1, RECOMPILE, HASH JOIN);
+            OPTION (MAXRECURSION 5, MAXDOP 1, RECOMPILE);
         """.trimIndent()
     }
 }
