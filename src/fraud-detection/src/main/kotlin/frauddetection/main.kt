@@ -86,6 +86,7 @@ fun main() {
     val databaseCleanup = DatabaseCleanup()
     val orderMutator = OrderMutator()
     val badQueryPatterns = BadQueryPatterns()
+    val ringGraphCheck = FraudRingGraphCheck()
 
     // Read configuration from environment variables
     val cleanupRetentionDays = System.getenv("CLEANUP_RETENTION_DAYS")?.toIntOrNull() ?: 4
@@ -189,6 +190,22 @@ fun main() {
                                 span.recordException(e)
                             }
 
+                            // Ring graph check — DBMon guardian demo.
+                            // Flag `fraudDetectionRingGraph`: "disabled" | "fast" | "slow".
+                            val ringMode = getFeatureFlagString("fraudDetectionRingGraph", "disabled")
+                            if (ringMode != "disabled") {
+                                try {
+                                    val ringAlert = ringGraphCheck.analyze(orders.orderId, ringMode)
+                                    if (ringAlert != null) {
+                                        fraudAlertCount++
+                                        span.setAttribute("fraud.ring_graph.detected", true)
+                                    }
+                                } catch (e: Exception) {
+                                    logger.error("Error during ring graph check for order ${orders.orderId}", e)
+                                    span.recordException(e)
+                                }
+                            }
+
                             // Execute bad query patterns for monitoring demo (optional)
                             if (badQueryPercentage > 0) {
                                 try {
@@ -234,4 +251,18 @@ fun getFeatureFlagValue(ff: String): Int {
     client.evaluationContext = ImmutableContext(clientAttrs)
     val intValue = client.getIntegerValue(ff, 0)
     return intValue
+}
+
+/**
+ * Retrieves a string-valued feature flag from flagd.
+ * Used for multi-variant switches (e.g. ring-graph disabled/fast/slow).
+ */
+fun getFeatureFlagString(ff: String, default: String): String {
+    val client = OpenFeatureAPI.getInstance().client
+    val uuid = UUID.randomUUID()
+
+    val clientAttrs = mutableMapOf<String, Value>()
+    clientAttrs["session"] = Value(uuid.toString())
+    client.evaluationContext = ImmutableContext(clientAttrs)
+    return client.getStringValue(ff, default)
 }

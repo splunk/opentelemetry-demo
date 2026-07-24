@@ -82,6 +82,16 @@
       },
       "defaultVariant": "off"
     },
+    "fraudDetectionRingGraph": {
+      "description": "Fraud-detection guardian demo. `fast` runs an indexed ring-graph check (~ms). `slow` runs the same intent as a 5-hop recursive CTE with fuzzy LIKE, cross-joined with an adaptive amplifier that self-calibrates to ~8s wall time. `disabled` skips.",
+      "state": "ENABLED",
+      "variants": {
+        "disabled": "disabled",
+        "fast": "fast",
+        "slow": "slow"
+      },
+      "defaultVariant": "disabled"
+    },
     "cartFailure": {
       "description": "Fail cart service",
       "state": "ENABLED",

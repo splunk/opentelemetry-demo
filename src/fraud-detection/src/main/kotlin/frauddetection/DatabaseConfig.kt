@@ -144,6 +144,17 @@ object DatabaseConfig {
 
             statement.execute(createFraudAlertsSQL)
             logger.info("FraudAlerts table verified/created successfully")
+
+            // Additional indexes for the fast ring-graph check
+            // (guardian demo — see FraudRingGraphCheck.kt). Idempotent.
+            val ringGraphIndexes = """
+                IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_shipping_street' AND object_id = OBJECT_ID('OrderLogs'))
+                    CREATE INDEX idx_shipping_street ON OrderLogs(shipping_street) INCLUDE (order_id, consumed_at);
+                IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_shipping_city' AND object_id = OBJECT_ID('OrderLogs'))
+                    CREATE INDEX idx_shipping_city ON OrderLogs(shipping_city) INCLUDE (order_id, consumed_at);
+            """.trimIndent()
+            statement.execute(ringGraphIndexes)
+            logger.info("Ring-graph indexes verified/created")
         }
     }
 }
