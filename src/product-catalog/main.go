@@ -106,6 +106,33 @@ func init() {
 	logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
 }
 
+// withSQLCommenter appends a sqlcommenter comment carrying the W3C
+// traceparent (plus application/service tags) to a SQL statement so
+// Splunk DBMon (and other DB-side observers) can correlate captured
+// queries back to trace spans.
+//
+// Splunk's Java agent auto-injects sqlcommenter into JDBC statements;
+// XSAM/otelsql (used here) does not. This helper closes that gap for
+// the Go product-catalog service.
+//
+// If no valid span is in ctx (e.g., internal init path), the SQL is
+// returned unchanged.
+func withSQLCommenter(ctx context.Context, sqlStmt string) string {
+	sc := trace.SpanContextFromContext(ctx)
+	if !sc.IsValid() {
+		return sqlStmt
+	}
+	traceparent := fmt.Sprintf("00-%s-%s-%02x",
+		sc.TraceID(), sc.SpanID(), byte(sc.TraceFlags()))
+	// sqlcommenter format: /*key='value',key='value'*/ — trailing.
+	// Values are URL-encoded per spec; our values contain no reserved chars.
+	comment := fmt.Sprintf(
+		"/*traceparent='%s',application='product-catalog',db_driver='postgres'*/",
+		traceparent,
+	)
+	return sqlStmt + " " + comment
+}
+
 func initDatabase() error {
 	connStr := os.Getenv("DB_CONNECTION_STRING")
 	if connStr == "" {
@@ -271,12 +298,12 @@ func loadProductsFromDB(ctx context.Context) ([]*pb.Product, error) {
 	}
 
 	// Query all products with categories
-	rows, err := db.QueryContext(ctx, `
-		SELECT p.id, p.name, p.description, p.picture, 
+	rows, err := db.QueryContext(ctx, withSQLCommenter(ctx, `
+		SELECT p.id, p.name, p.description, p.picture,
 		       p.price_currency_code, p.price_units, p.price_nanos, p.categories
 		FROM catalog.products p
 		ORDER BY p.id
-	`)
+	`))
 	if err != nil {
 		return nil, fmt.Errorf("failed to query products: %w", err)
 	}
@@ -297,13 +324,13 @@ func searchProductsFromDB(ctx context.Context, query string) ([]*pb.Product, err
 
 	// Query products matching search query in name or description
 	searchPattern := "%" + strings.ToLower(query) + "%"
-	rows, err := db.QueryContext(ctx, `
-		SELECT p.id, p.name, p.description, p.picture, 
+	rows, err := db.QueryContext(ctx, withSQLCommenter(ctx, `
+		SELECT p.id, p.name, p.description, p.picture,
 		       p.price_currency_code, p.price_units, p.price_nanos, p.categories
 		FROM catalog.products p
 		WHERE LOWER(p.name) LIKE $1 OR LOWER(p.description) LIKE $1
 		ORDER BY p.id
-	`, searchPattern)
+	`), searchPattern)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query products: %w", err)
 	}
@@ -323,12 +350,12 @@ func getProductFromDB(ctx context.Context, productID string) (*pb.Product, error
 	}
 
 	// Query single product by ID
-	row := db.QueryRowContext(ctx, `
-		SELECT p.id, p.name, p.description, p.picture, 
+	row := db.QueryRowContext(ctx, withSQLCommenter(ctx, `
+		SELECT p.id, p.name, p.description, p.picture,
 		       p.price_currency_code, p.price_units, p.price_nanos, p.categories
 		FROM catalog.products p
 		WHERE p.id = $1
-	`, productID)
+	`), productID)
 
 	var id, name, description, picture, currencyCode, categoriesStr string
 	var units int64
