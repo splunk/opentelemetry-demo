@@ -48,11 +48,59 @@ class DatabaseCleanup {
     fun cleanupOldRecords(retentionDays: Int): CleanupResult {
         val orderLogsDeleted = deleteOlderThan("OrderLogs", "consumed_at", retentionDays)
         val fraudAlertsDeleted = deleteOlderThan("FraudAlerts", "created_at", retentionDays)
+        // Cap OrderLogs at MAX_ORDER_LOGS_ROWS. Time-based cleanup only
+        // keeps rows within retentionDays, but if Kafka bursts push the
+        // count above the cap within that window, the ring-graph slow
+        // query duration grows unbounded (O(N) full scan on ol2). The
+        // cap keeps demo timings stable.
+        val excessDeleted = deleteExcessRows("OrderLogs", "consumed_at", MAX_ORDER_LOGS_ROWS)
         logger.info(
-            "Cleanup run complete: OrderLogs deleted=$orderLogsDeleted, " +
+            "Cleanup run complete: OrderLogs deleted=${orderLogsDeleted + excessDeleted} " +
+                "(old=$orderLogsDeleted, excess=$excessDeleted, cap=$MAX_ORDER_LOGS_ROWS), " +
                 "FraudAlerts deleted=$fraudAlertsDeleted, retentionDays=$retentionDays"
         )
-        return CleanupResult(orderLogsDeleted, fraudAlertsDeleted)
+        return CleanupResult(orderLogsDeleted + excessDeleted, fraudAlertsDeleted)
+    }
+
+    /**
+     * Cap-based pruner: if the table has more than maxRows, delete the
+     * oldest rows in batches until back at (or below) the cap. Safe to
+     * call on tables that are already under the cap (returns 0).
+     */
+    private fun deleteExcessRows(table: String, timestampCol: String, maxRows: Long): Int {
+        var total = 0
+        try {
+            DatabaseConfig.getConnection().use { conn ->
+                val current = countRows(conn, table).toLong()
+                if (current <= maxRows) return 0
+                val toDelete = current - maxRows
+                logger.info("$table over cap: current=$current cap=$maxRows deleting=$toDelete")
+                conn.createStatement().use { it.execute("SET LOCK_TIMEOUT $LOCK_TIMEOUT_MS") }
+
+                // Delete the oldest BATCH_SIZE rows per iteration until
+                // total deleted hits toDelete.
+                val sql = "DELETE FROM $table WHERE id IN " +
+                    "(SELECT TOP ($BATCH_SIZE) id FROM $table ORDER BY $timestampCol ASC)"
+
+                while (total < toDelete) {
+                    val rows = try {
+                        conn.createStatement().use { it.executeUpdate(sql) }
+                    } catch (e: SQLException) {
+                        logger.warn(
+                            "$table excess-cleanup hit lock timeout (deleted=$total so far) — " +
+                                "will retry next interval. ${e.message}"
+                        )
+                        return total
+                    }
+                    total += rows
+                    if (rows == 0) break
+                    Thread.sleep(SLEEP_BETWEEN_BATCHES_MS)
+                }
+            }
+        } catch (e: Exception) {
+            logger.error("Failed excess-cleanup on $table (deleted $total before error)", e)
+        }
+        return total
     }
 
     private fun deleteOlderThan(table: String, timestampCol: String, retentionDays: Int): Int {
@@ -134,5 +182,9 @@ class DatabaseCleanup {
         private const val BATCH_SIZE = 500
         private const val SLEEP_BETWEEN_BATCHES_MS = 200L
         private const val LOCK_TIMEOUT_MS = 5000
+        // Hard ceiling on OrderLogs row count. Sized ~30 % above the
+        // ring-graph seed target (300k) so Kafka growth has headroom
+        // but the slow query never blows past its target 4-10 s band.
+        private const val MAX_ORDER_LOGS_ROWS = 400_000L
     }
 }

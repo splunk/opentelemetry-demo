@@ -115,7 +115,10 @@ class FraudRingGraphCheck {
                         for (i in inserted until batchEnd) {
                             val streetIdx = i % SEED_STREETS.size
                             val cityIdx = i % SEED_CITIES.size
-                            val daysBack = i % 30
+                            // Spread across last 3 days so all seed rows
+                            // survive the 4-day retention cleanup and the
+                            // seed count stays stable pod-lifetime.
+                            val daysBack = i % 3
                             stmt.setString(1, "seed-${System.currentTimeMillis()}-$i")
                             stmt.setString(2, SEED_STREETS[streetIdx])
                             stmt.setString(3, SEED_CITIES[cityIdx])
@@ -155,9 +158,14 @@ class FraudRingGraphCheck {
 
     companion object {
         private const val ALERT_THRESHOLD = 20
-        private const val SEED_TARGET_ROWS = 100_000L
+        // Sized so the slow-path anti-pattern query reliably lands in
+        // the ~4-10s band. Combined with LOOP JOIN + compound
+        // string-function predicate, ~300k rows × per-row work
+        // approximates 5-8s on a modest SQL Server pod.
+        private const val SEED_TARGET_ROWS = 300_000L
 
-        // Fast — indexed equality join. Uses idx_shipping_street → Index Seek.
+        // Fast — indexed equality join. Uses idx_shipping_street →
+        // Index Seek on ol2. Same intent, same result.
         private val FAST_SQL = """
             SELECT COUNT(DISTINCT ol2.order_id) AS related_orders
             FROM OrderLogs ol1
@@ -167,17 +175,25 @@ class FraudRingGraphCheck {
               AND ol2.consumed_at >= DATEADD(DAY, -30, GETDATE());
         """.trimIndent()
 
-        // Slow — the "developer mistake". UPPER() on both sides of the
-        // join predicate makes it non-sargable: optimizer cannot use
-        // idx_shipping_street, falls back to full scan + nested loop.
+        // Slow — the "developer mistake" version. Three anti-patterns
+        // compounded, exactly what DBMon top-query plans surface:
+        //  1) UPPER(REPLACE(..., ' ', '')) on both sides — non-sargable
+        //     function chain, optimizer cannot use idx_shipping_street
+        //  2) LIKE '%needle%' with leading wildcard OR predicate —
+        //     forces per-row substring scan
+        //  3) OPTION (LOOP JOIN) hint forces true nested-loop join
+        //     instead of the hash-join the optimizer would otherwise
+        //     pick, so cost scales with per-row work × row count
         // Same result set as FAST_SQL.
         private val SLOW_SQL = """
             SELECT COUNT(DISTINCT ol2.order_id) AS related_orders
             FROM OrderLogs ol1
             INNER JOIN OrderLogs ol2
-                ON UPPER(ol2.shipping_street) = UPPER(ol1.shipping_street)
+                ON UPPER(REPLACE(ol2.shipping_street, ' ', '')) = UPPER(REPLACE(ol1.shipping_street, ' ', ''))
+                OR ol2.shipping_city LIKE '%' + ol1.shipping_city + '%'
             WHERE ol1.order_id = ?
-              AND ol2.consumed_at >= DATEADD(DAY, -30, GETDATE());
+              AND ol2.consumed_at >= DATEADD(DAY, -30, GETDATE())
+            OPTION (LOOP JOIN, MAXDOP 1);
         """.trimIndent()
 
         // Synthetic row insert. Uses a small street/city pool so many
