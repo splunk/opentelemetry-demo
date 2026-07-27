@@ -92,6 +92,13 @@ class FraudRingGraphCheck {
                         }
                         consecutiveFailures.set(0)
                     } catch (e: SQLTimeoutException) {
+                        // Self-heal: feed the timeout duration back to the
+                        // calibrator so amp scales down for next run. Without
+                        // this, amp stays over-provisioned and we walk the
+                        // circuit breaker toward OPEN instead of recovering.
+                        if (normalizedMode == "slow") {
+                            calibrator.observe(QUERY_TIMEOUT_S * 1000L)
+                        }
                         onFailure(orderId, "SQL_TIMEOUT", e)
                     } catch (e: Exception) {
                         onFailure(orderId, "ERROR", e)
