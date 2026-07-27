@@ -192,18 +192,12 @@ fun main() {
 
                             // Ring graph check — DBMon guardian demo.
                             // Flag `fraudDetectionRingGraph`: "disabled" | "fast" | "slow".
+                            // Fire-and-forget: analyze() submits to an internal
+                            // executor and returns immediately, so the Kafka
+                            // poll loop can never be blocked by DB work.
                             val ringMode = getFeatureFlagString("fraudDetectionRingGraph", "disabled")
                             if (ringMode != "disabled") {
-                                try {
-                                    val ringAlert = ringGraphCheck.analyze(orders.orderId, ringMode)
-                                    if (ringAlert != null) {
-                                        fraudAlertCount++
-                                        span.setAttribute("fraud.ring_graph.detected", true)
-                                    }
-                                } catch (e: Exception) {
-                                    logger.error("Error during ring graph check for order ${orders.orderId}", e)
-                                    span.recordException(e)
-                                }
+                                ringGraphCheck.analyze(orders.orderId, ringMode)
                             }
 
                             // Execute bad query patterns for monitoring demo (optional)

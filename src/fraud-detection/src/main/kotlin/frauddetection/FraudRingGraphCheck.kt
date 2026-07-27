@@ -6,8 +6,15 @@
 package frauddetection
 
 import io.opentelemetry.api.trace.Span
+import io.opentelemetry.context.Context
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
+import java.sql.SQLTimeoutException
+import java.util.concurrent.Executors
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.system.measureTimeMillis
 
@@ -24,32 +31,98 @@ import kotlin.system.measureTimeMillis
  *   ~8s wall time. Real work — the amplifier drives real logical reads
  *   and CPU, not fake sleeps.
  *
- * The slow path self-calibrates on first use and re-adjusts mid-flight
- * whenever a run falls outside the [3s, 12s] deadband.
+ * Safety guarantees so this check can NEVER freeze the Kafka poll loop:
+ *  A) JDBC queryTimeout = QUERY_TIMEOUT_S on the slow statement. Driver
+ *     aborts the query if it exceeds this; caller sees SQLTimeoutException
+ *     and continues.
+ *  B) Amplifier hard-capped at 200_000 so calibrator over-scaling can't
+ *     produce hour-long queries.
+ *  C) analyze() is fire-and-forget: submits the actual DB work to a
+ *     dedicated single-thread pool with a bounded queue and returns
+ *     immediately. Consumer poll loop is never blocked, regardless of
+ *     what the DB is doing. Overflow → rejected (dropped, no exception).
+ *  D) Circuit breaker: after CIRCUIT_FAILURE_THRESHOLD consecutive
+ *     timeouts/errors, ring graph disables itself in-process until the
+ *     next pod restart. Any subsequent analyze() call is a no-op even
+ *     if flagd still says "slow" or "fast".
  */
 class FraudRingGraphCheck {
     private val logger: Logger = LogManager.getLogger(FraudRingGraphCheck::class.java)
     private val calibrator = RingGraphCalibrator()
 
+    // (C) fire-and-forget executor: single worker, small queue.
+    // Overflow → discard (poll loop cannot back-pressure this path).
+    private val executor: ThreadPoolExecutor = ThreadPoolExecutor(
+        1, 1, 0L, TimeUnit.MILLISECONDS,
+        LinkedBlockingQueue(EXECUTOR_QUEUE_CAPACITY),
+        Executors.defaultThreadFactory(),
+        ThreadPoolExecutor.DiscardOldestPolicy(),
+    ).apply {
+        allowCoreThreadTimeOut(false)
+    }
+
+    // (D) circuit breaker state.
+    private val consecutiveFailures = AtomicInteger(0)
+    private val circuitOpen = AtomicLong(0L)
+
     /**
      * @param mode "fast" | "slow" — anything else is a no-op.
+     *
+     * Returns immediately in all cases. The actual DB work runs on a
+     * dedicated background thread; the alert (if any) is written to the
+     * FraudAlerts table via [saveFraudAlert] rather than returned inline,
+     * so the caller never blocks.
      */
     fun analyze(orderId: String, mode: String): FraudAlert? {
-        val span = Span.current()
-        return when (mode.lowercase()) {
-            "fast" -> runFast(orderId, span)
-            "slow" -> runSlow(orderId, span)
-            else -> null
+        if (circuitOpen.get() == 1L) return null
+        val normalizedMode = mode.lowercase()
+        if (normalizedMode != "fast" && normalizedMode != "slow") return null
+
+        // Capture trace context so the async span links back to the
+        // originating consume span for readability in APM.
+        val parentContext = Context.current()
+
+        try {
+            executor.execute {
+                parentContext.makeCurrent().use {
+                    try {
+                        when (normalizedMode) {
+                            "fast" -> runFast(orderId)
+                            "slow" -> runSlow(orderId)
+                        }
+                        consecutiveFailures.set(0)
+                    } catch (e: SQLTimeoutException) {
+                        onFailure(orderId, "SQL_TIMEOUT", e)
+                    } catch (e: Exception) {
+                        onFailure(orderId, "ERROR", e)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Ring graph task submission failed for order $orderId: ${e.message}")
+        }
+        return null
+    }
+
+    private fun onFailure(orderId: String, kind: String, e: Exception) {
+        val n = consecutiveFailures.incrementAndGet()
+        logger.warn("Ring graph $kind for order $orderId (consecutive=$n/${CIRCUIT_FAILURE_THRESHOLD}): ${e.message}")
+        if (n >= CIRCUIT_FAILURE_THRESHOLD && circuitOpen.compareAndSet(0L, 1L)) {
+            logger.error(
+                "🛑 Ring graph circuit breaker OPEN after $n consecutive failures. " +
+                    "Disabled for the lifetime of this process. Restart pod to re-enable."
+            )
         }
     }
 
     // ----- Fast path -------------------------------------------------------
 
-    private fun runFast(orderId: String, span: Span): FraudAlert? {
-        var alert: FraudAlert? = null
+    private fun runFast(orderId: String) {
+        val span = Span.current()
         val wall = measureTimeMillis {
             DatabaseConfig.getConnection().use { conn ->
                 conn.prepareStatement(FAST_SQL).use { stmt ->
+                    stmt.queryTimeout = QUERY_TIMEOUT_S
                     stmt.setString(1, orderId)
                     stmt.executeQuery().use { rs ->
                         if (rs.next()) {
@@ -59,13 +132,7 @@ class FraudRingGraphCheck {
                             span.setAttribute("app.fraud.ring_graph.weighted_risk", weighted)
                             if (weighted >= FAST_ALERT_THRESHOLD) {
                                 val risk = (weighted / 20.0).coerceAtMost(0.95)
-                                alert = FraudAlert(
-                                    orderId = orderId,
-                                    alertType = "RING_GRAPH_FAST",
-                                    severity = FraudAnalytics.SEVERITY_HIGH,
-                                    reason = "Fast ring graph: size=$ringSize weight=$weighted",
-                                    riskScore = risk,
-                                )
+                                saveFraudAlert(orderId, "RING_GRAPH_FAST", risk, ringSize, weighted)
                             }
                         }
                     }
@@ -74,19 +141,20 @@ class FraudRingGraphCheck {
         }
         span.setAttribute("app.fraud.ring_graph.mode", "fast")
         span.setAttribute("app.fraud.ring_graph.wall_ms", wall)
-        logger.info("🕸️ Ring graph FAST: orderId=$orderId wall=${wall}ms alert=${alert != null}")
-        return alert
+        logger.info("🕸️ Ring graph FAST: orderId=$orderId wall=${wall}ms")
     }
 
     // ----- Slow path (guardian) -------------------------------------------
 
-    private fun runSlow(orderId: String, span: Span): FraudAlert? {
+    private fun runSlow(orderId: String) {
         calibrator.ensureBootstrapped()
         val amp = calibrator.current()
-        var alert: FraudAlert? = null
+        val span = Span.current()
         val wall = measureTimeMillis {
             DatabaseConfig.getConnection().use { conn ->
                 conn.prepareStatement(SLOW_SQL).use { stmt ->
+                    // (A) hard bound on DB-side query duration.
+                    stmt.queryTimeout = QUERY_TIMEOUT_S
                     stmt.setLong(1, amp)
                     stmt.setString(2, orderId)
                     stmt.executeQuery().use { rs ->
@@ -97,13 +165,7 @@ class FraudRingGraphCheck {
                             span.setAttribute("app.fraud.ring_graph.weighted_risk", weighted)
                             if (weighted >= SLOW_ALERT_THRESHOLD) {
                                 val risk = (weighted / 20.0).coerceAtMost(0.95)
-                                alert = FraudAlert(
-                                    orderId = orderId,
-                                    alertType = "RING_GRAPH_SLOW",
-                                    severity = FraudAnalytics.SEVERITY_HIGH,
-                                    reason = "Slow ring graph: size=$ringSize weight=$weighted",
-                                    riskScore = risk,
-                                )
+                                saveFraudAlert(orderId, "RING_GRAPH_SLOW", risk, ringSize, weighted)
                             }
                         }
                     }
@@ -113,9 +175,29 @@ class FraudRingGraphCheck {
         span.setAttribute("app.fraud.ring_graph.mode", "slow")
         span.setAttribute("app.fraud.ring_graph.wall_ms", wall)
         span.setAttribute("app.fraud.ring_graph.amplifier", amp)
-        logger.info("🕸️ Ring graph SLOW: orderId=$orderId amp=$amp wall=${wall}ms alert=${alert != null}")
+        logger.info("🕸️ Ring graph SLOW: orderId=$orderId amp=$amp wall=${wall}ms")
         calibrator.observe(wall)
-        return alert
+    }
+
+    /** Persist a ring-graph fraud alert. Delegates to FraudAnalytics.saveFraudAlert style path. */
+    private fun saveFraudAlert(orderId: String, alertType: String, riskScore: Double, ringSize: Int, weighted: Double) {
+        try {
+            DatabaseConfig.getConnection().use { conn ->
+                conn.prepareStatement(
+                    "INSERT INTO FraudAlerts (order_id, alert_type, severity, reason, risk_score) VALUES (?, ?, ?, ?, ?)"
+                ).use { stmt ->
+                    stmt.queryTimeout = QUERY_TIMEOUT_S
+                    stmt.setString(1, orderId)
+                    stmt.setString(2, alertType)
+                    stmt.setString(3, FraudAnalytics.SEVERITY_HIGH)
+                    stmt.setString(4, "$alertType: size=$ringSize weight=$weighted")
+                    stmt.setDouble(5, riskScore)
+                    stmt.executeUpdate()
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to persist $alertType alert for order $orderId: ${e.message}")
+        }
     }
 
     /**
@@ -128,6 +210,10 @@ class FraudRingGraphCheck {
      * [LOW_BAND, HIGH_BAND] the amplifier is scaled proportionally toward
      * TARGET_MS. Values inside the deadband leave the amplifier untouched
      * so single-run jitter doesn't oscillate the knob.
+     *
+     * (B) MAX_AMP is capped at 200_000 to prevent calibrator over-scaling
+     * from producing runaway queries (the guardrail-of-last-resort in
+     * combination with the query timeout).
      *
      * Env override: FRAUD_RING_SLOW_AMPLIFIER pins a fixed value and
      * disables calibration entirely — useful for A/B testing.
@@ -177,6 +263,7 @@ class FraudRingGraphCheck {
                 DatabaseConfig.getConnection().use { conn ->
                     val t = measureTimeMillis {
                         conn.prepareStatement(SLOW_SQL).use { stmt ->
+                            stmt.queryTimeout = QUERY_TIMEOUT_S
                             stmt.setLong(1, probeAmp)
                             stmt.setString(2, "__calibration_probe__")
                             stmt.executeQuery().use { it.next() }
@@ -199,13 +286,21 @@ class FraudRingGraphCheck {
             private const val LOW_BAND  = 3_000L
             private const val HIGH_BAND = 12_000L
             private const val MIN_AMP   = 1_000L
-            private const val MAX_AMP   = 10_000_000L
+            // (B) hard cap — even under runaway calibration, per-query
+            // wall time stays bounded (in combination with queryTimeout).
+            private const val MAX_AMP   = 200_000L
         }
     }
 
     companion object {
         private const val FAST_ALERT_THRESHOLD = 5.0
         private const val SLOW_ALERT_THRESHOLD = 5.0
+        // (A) JDBC query timeout: hard wall-time bound per statement.
+        private const val QUERY_TIMEOUT_S = 30
+        // (C) bounded async queue depth.
+        private const val EXECUTOR_QUEUE_CAPACITY = 16
+        // (D) consecutive-failure threshold before self-disable.
+        private const val CIRCUIT_FAILURE_THRESHOLD = 5
 
         // Fast path — indexed 1-hop, TOP-capped, RECOMPILE.
         private val FAST_SQL = """
