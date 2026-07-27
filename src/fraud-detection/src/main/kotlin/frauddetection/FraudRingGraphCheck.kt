@@ -6,375 +6,196 @@
 package frauddetection
 
 import io.opentelemetry.api.trace.Span
-import io.opentelemetry.context.Context
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
-import java.sql.SQLTimeoutException
-import java.util.concurrent.Executors
-import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.ThreadPoolExecutor
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicLong
 import kotlin.system.measureTimeMillis
 
 /**
  * Fraud Ring Graph — DBMon guardian demo.
  *
- * Two implementations of the *same business intent*: from a seed order,
- * find related orders via shipping-address matches and compute a
- * hop-weighted risk score from any FraudAlerts on those orders.
+ * Same business intent, two implementations. Both count distinct
+ * OrderLogs whose shipping_street matches the seed order's, within
+ * the last 30 days.
  *
- * fast(): indexed 1-hop join, TOP-capped, RECOMPILE. Milliseconds.
- * slow(): recursive CTE (5 hops) with fuzzy LIKE predicates, cross-joined
- *   with a tunable sys.all_columns amplifier that adaptively targets
- *   ~8s wall time. Real work — the amplifier drives real logical reads
- *   and CPU, not fake sleeps.
+ * fast(): indexed equality join on shipping_street. Uses idx_shipping_street
+ *   → index seek → milliseconds.
  *
- * Safety guarantees so this check can NEVER freeze the Kafka poll loop:
- *  A) JDBC queryTimeout = QUERY_TIMEOUT_S on the slow statement. Driver
- *     aborts the query if it exceeds this; caller sees SQLTimeoutException
- *     and continues.
- *  B) Amplifier hard-capped at 200_000 so calibrator over-scaling can't
- *     produce hour-long queries.
- *  C) analyze() is fire-and-forget: submits the actual DB work to a
- *     dedicated single-thread pool with a bounded queue and returns
- *     immediately. Consumer poll loop is never blocked, regardless of
- *     what the DB is doing. Overflow → rejected (dropped, no exception).
- *  D) Circuit breaker: after CIRCUIT_FAILURE_THRESHOLD consecutive
- *     timeouts/errors, ring graph disables itself in-process until the
- *     next pod restart. Any subsequent analyze() call is a no-op even
- *     if flagd still says "slow" or "fast".
+ * slow(): the "developer mistake" version. Wraps both sides of the
+ *   join predicate in UPPER() to be case-insensitive. UPPER() on both
+ *   sides is non-sargable — the optimizer cannot use idx_shipping_street
+ *   and falls back to a full-scan nested-loop join. Same result, but
+ *   O(N²) work.
+ *
+ * DBMon story: both queries appear in top-query lists. Comparing plans
+ * shows Index Seek vs Table Scan; comparing wall time / logical reads
+ * shows the cost of function-on-column. The fix (drop the UPPER, or
+ * store a normalized column with a function-based index) is the
+ * teaching moment.
+ *
+ * No amplifier, no timeout, no circuit breaker — the query is naturally
+ * bounded by the row count in OrderLogs. To make the slow path visible
+ * on any deployment we seed OrderLogs to SEED_TARGET_ROWS on startup
+ * (see [seedIfEmpty]) so the slow path lands in the ~4–10 s range.
  */
 class FraudRingGraphCheck {
     private val logger: Logger = LogManager.getLogger(FraudRingGraphCheck::class.java)
-    private val calibrator = RingGraphCalibrator()
-
-    // (C) fire-and-forget executor: single worker, small queue.
-    // Overflow → discard (poll loop cannot back-pressure this path).
-    private val executor: ThreadPoolExecutor = ThreadPoolExecutor(
-        1, 1, 0L, TimeUnit.MILLISECONDS,
-        LinkedBlockingQueue(EXECUTOR_QUEUE_CAPACITY),
-        Executors.defaultThreadFactory(),
-        ThreadPoolExecutor.DiscardOldestPolicy(),
-    ).apply {
-        allowCoreThreadTimeOut(false)
-    }
-
-    // (D) circuit breaker state.
-    private val consecutiveFailures = AtomicInteger(0)
-    private val circuitOpen = AtomicLong(0L)
 
     /**
      * @param mode "fast" | "slow" — anything else is a no-op.
-     *
-     * Returns immediately in all cases. The actual DB work runs on a
-     * dedicated background thread; the alert (if any) is written to the
-     * FraudAlerts table via [saveFraudAlert] rather than returned inline,
-     * so the caller never blocks.
      */
     fun analyze(orderId: String, mode: String): FraudAlert? {
-        if (circuitOpen.get() == 1L) return null
-        val normalizedMode = mode.lowercase()
-        if (normalizedMode != "fast" && normalizedMode != "slow") return null
-
-        // Capture trace context so the async span links back to the
-        // originating consume span for readability in APM.
-        val parentContext = Context.current()
-
-        try {
-            executor.execute {
-                parentContext.makeCurrent().use {
-                    try {
-                        when (normalizedMode) {
-                            "fast" -> runFast(orderId)
-                            "slow" -> runSlow(orderId)
-                        }
-                        consecutiveFailures.set(0)
-                    } catch (e: SQLTimeoutException) {
-                        // Self-heal: feed the timeout duration back to the
-                        // calibrator so amp scales down for next run. Without
-                        // this, amp stays over-provisioned and we walk the
-                        // circuit breaker toward OPEN instead of recovering.
-                        if (normalizedMode == "slow") {
-                            calibrator.observe(QUERY_TIMEOUT_S * 1000L)
-                        }
-                        onFailure(orderId, "SQL_TIMEOUT", e)
-                    } catch (e: Exception) {
-                        onFailure(orderId, "ERROR", e)
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            logger.warn("Ring graph task submission failed for order $orderId: ${e.message}")
-        }
-        return null
-    }
-
-    private fun onFailure(orderId: String, kind: String, e: Exception) {
-        val n = consecutiveFailures.incrementAndGet()
-        logger.warn("Ring graph $kind for order $orderId (consecutive=$n/${CIRCUIT_FAILURE_THRESHOLD}): ${e.message}")
-        if (n >= CIRCUIT_FAILURE_THRESHOLD && circuitOpen.compareAndSet(0L, 1L)) {
-            logger.error(
-                "🛑 Ring graph circuit breaker OPEN after $n consecutive failures. " +
-                    "Disabled for the lifetime of this process. Restart pod to re-enable."
-            )
+        return when (mode.lowercase()) {
+            "fast" -> runQuery(orderId, "fast", FAST_SQL)
+            "slow" -> runQuery(orderId, "slow", SLOW_SQL)
+            else -> null
         }
     }
 
-    // ----- Fast path -------------------------------------------------------
-
-    private fun runFast(orderId: String) {
+    private fun runQuery(orderId: String, mode: String, sql: String): FraudAlert? {
         val span = Span.current()
-        val wall = measureTimeMillis {
-            DatabaseConfig.getConnection().use { conn ->
-                conn.prepareStatement(FAST_SQL).use { stmt ->
-                    stmt.queryTimeout = QUERY_TIMEOUT_S
-                    stmt.setString(1, orderId)
-                    stmt.executeQuery().use { rs ->
-                        if (rs.next()) {
-                            val ringSize = rs.getInt("ring_size")
-                            val weighted = rs.getDouble("weighted_risk")
-                            span.setAttribute("app.fraud.ring_graph.ring_size", ringSize.toLong())
-                            span.setAttribute("app.fraud.ring_graph.weighted_risk", weighted)
-                            if (weighted >= FAST_ALERT_THRESHOLD) {
-                                val risk = (weighted / 20.0).coerceAtMost(0.95)
-                                saveFraudAlert(orderId, "RING_GRAPH_FAST", risk, ringSize, weighted)
+        var alert: FraudAlert? = null
+        try {
+            val wall = measureTimeMillis {
+                DatabaseConfig.getConnection().use { conn ->
+                    conn.prepareStatement(sql).use { stmt ->
+                        stmt.setString(1, orderId)
+                        stmt.executeQuery().use { rs ->
+                            if (rs.next()) {
+                                val related = rs.getInt("related_orders")
+                                span.setAttribute("app.fraud.ring_graph.related_orders", related.toLong())
+                                if (related >= ALERT_THRESHOLD) {
+                                    val risk = (related / 200.0).coerceAtMost(0.90)
+                                    alert = FraudAlert(
+                                        orderId = orderId,
+                                        alertType = "RING_GRAPH_${mode.uppercase()}",
+                                        severity = FraudAnalytics.SEVERITY_HIGH,
+                                        reason = "$mode ring graph: related=$related",
+                                        riskScore = risk,
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
-        }
-        span.setAttribute("app.fraud.ring_graph.mode", "fast")
-        span.setAttribute("app.fraud.ring_graph.wall_ms", wall)
-        logger.info("🕸️ Ring graph FAST: orderId=$orderId wall=${wall}ms")
-    }
-
-    // ----- Slow path (guardian) -------------------------------------------
-
-    private fun runSlow(orderId: String) {
-        calibrator.ensureBootstrapped()
-        val amp = calibrator.current()
-        val span = Span.current()
-        val wall = measureTimeMillis {
-            DatabaseConfig.getConnection().use { conn ->
-                conn.prepareStatement(SLOW_SQL).use { stmt ->
-                    // (A) hard bound on DB-side query duration.
-                    stmt.queryTimeout = QUERY_TIMEOUT_S
-                    stmt.setLong(1, amp)
-                    stmt.setString(2, orderId)
-                    stmt.executeQuery().use { rs ->
-                        if (rs.next()) {
-                            val ringSize = rs.getInt("ring_size")
-                            val weighted = rs.getDouble("weighted_risk")
-                            span.setAttribute("app.fraud.ring_graph.ring_size", ringSize.toLong())
-                            span.setAttribute("app.fraud.ring_graph.weighted_risk", weighted)
-                            if (weighted >= SLOW_ALERT_THRESHOLD) {
-                                val risk = (weighted / 20.0).coerceAtMost(0.95)
-                                saveFraudAlert(orderId, "RING_GRAPH_SLOW", risk, ringSize, weighted)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        span.setAttribute("app.fraud.ring_graph.mode", "slow")
-        span.setAttribute("app.fraud.ring_graph.wall_ms", wall)
-        span.setAttribute("app.fraud.ring_graph.amplifier", amp)
-        logger.info("🕸️ Ring graph SLOW: orderId=$orderId amp=$amp wall=${wall}ms")
-        calibrator.observe(wall)
-    }
-
-    /** Persist a ring-graph fraud alert. Delegates to FraudAnalytics.saveFraudAlert style path. */
-    private fun saveFraudAlert(orderId: String, alertType: String, riskScore: Double, ringSize: Int, weighted: Double) {
-        try {
-            DatabaseConfig.getConnection().use { conn ->
-                conn.prepareStatement(
-                    "INSERT INTO FraudAlerts (order_id, alert_type, severity, reason, risk_score) VALUES (?, ?, ?, ?, ?)"
-                ).use { stmt ->
-                    stmt.queryTimeout = QUERY_TIMEOUT_S
-                    stmt.setString(1, orderId)
-                    stmt.setString(2, alertType)
-                    stmt.setString(3, FraudAnalytics.SEVERITY_HIGH)
-                    stmt.setString(4, "$alertType: size=$ringSize weight=$weighted")
-                    stmt.setDouble(5, riskScore)
-                    stmt.executeUpdate()
-                }
-            }
+            span.setAttribute("app.fraud.ring_graph.mode", mode)
+            span.setAttribute("app.fraud.ring_graph.wall_ms", wall)
+            logger.info("🕸️ Ring graph ${mode.uppercase()}: orderId=$orderId wall=${wall}ms alert=${alert != null}")
         } catch (e: Exception) {
-            logger.warn("Failed to persist $alertType alert for order $orderId: ${e.message}")
+            logger.warn("Ring graph $mode failed for order $orderId: ${e.message}")
         }
+        return alert
     }
 
     /**
-     * Adaptive amplifier for the slow path.
+     * Ensure OrderLogs has at least SEED_TARGET_ROWS synthetic rows so
+     * the slow path lands in a reasonable wall-time band. Idempotent:
+     * if the table already has enough rows, returns immediately.
      *
-     * Initial calibration: probes with amplifier=1000, sets amplifier so
-     * one execution should land near TARGET_MS.
-     *
-     * Feedback loop: after every execution, if wall time falls outside
-     * [LOW_BAND, HIGH_BAND] the amplifier is scaled proportionally toward
-     * TARGET_MS. Values inside the deadband leave the amplifier untouched
-     * so single-run jitter doesn't oscillate the knob.
-     *
-     * (B) MAX_AMP is capped at 200_000 to prevent calibrator over-scaling
-     * from producing runaway queries (the guardrail-of-last-resort in
-     * combination with the query timeout).
-     *
-     * Env override: FRAUD_RING_SLOW_AMPLIFIER pins a fixed value and
-     * disables calibration entirely — useful for A/B testing.
+     * Synthetic rows draw from a small pool of shipping streets and
+     * cities so many rows share the same street — the join in the
+     * ring-graph queries then has real matches to count.
      */
-    class RingGraphCalibrator {
-        private val logger: Logger = LogManager.getLogger(RingGraphCalibrator::class.java)
-        private val amplifier = AtomicLong(1000L)
-        private val bootstrapped = AtomicLong(0L)
-        private val fixedOverride: Long? =
-            System.getenv("FRAUD_RING_SLOW_AMPLIFIER")?.toLongOrNull()
-
-        fun current(): Long = amplifier.get()
-
-        fun ensureBootstrapped() {
-            if (bootstrapped.get() == 1L) return
-            synchronized(this) {
-                if (bootstrapped.get() == 1L) return
-                if (fixedOverride != null) {
-                    val pinned = fixedOverride.coerceIn(MIN_AMP, MAX_AMP)
-                    amplifier.set(pinned)
-                    logger.info("🎯 Ring graph amplifier pinned via FRAUD_RING_SLOW_AMPLIFIER=$pinned")
-                } else {
-                    calibrate()
-                }
-                bootstrapped.set(1L)
-            }
+    fun seedIfEmpty() {
+        val current = countOrderLogs()
+        if (current >= SEED_TARGET_ROWS) {
+            logger.info("Ring graph seed: OrderLogs has $current rows (≥ $SEED_TARGET_ROWS target) — skipping seed")
+            return
         }
-
-        fun observe(wallMs: Long) {
-            if (fixedOverride != null) return
-            if (wallMs in LOW_BAND..HIGH_BAND) return
-            val safeWall = wallMs.coerceAtLeast(1)
-            val cur = amplifier.get()
-            val next = (cur * TARGET_MS / safeWall).coerceIn(MIN_AMP, MAX_AMP)
-            if (next != cur) {
-                amplifier.set(next)
-                logger.warn(
-                    "🎯 Ring graph amplifier recalibrated: wall=${wallMs}ms cur_amp=$cur → new_amp=$next " +
-                        "(target=${TARGET_MS}ms, deadband=${LOW_BAND}..${HIGH_BAND}ms)"
-                )
-            }
-        }
-
-        private fun calibrate() {
-            val probeAmp = 1000L
-            try {
-                DatabaseConfig.getConnection().use { conn ->
-                    val t = measureTimeMillis {
-                        conn.prepareStatement(SLOW_SQL).use { stmt ->
-                            stmt.queryTimeout = QUERY_TIMEOUT_S
-                            stmt.setLong(1, probeAmp)
-                            stmt.setString(2, "__calibration_probe__")
-                            stmt.executeQuery().use { it.next() }
+        val toInsert = SEED_TARGET_ROWS - current
+        logger.info("Ring graph seed: OrderLogs has $current rows, inserting $toInsert synthetic rows to reach $SEED_TARGET_ROWS")
+        try {
+            DatabaseConfig.getConnection().use { conn ->
+                conn.autoCommit = false
+                conn.prepareStatement(SEED_INSERT_SQL).use { stmt ->
+                    val batchSize = 1000
+                    var inserted = 0
+                    while (inserted < toInsert) {
+                        val batchEnd = minOf(inserted + batchSize, toInsert.toInt())
+                        for (i in inserted until batchEnd) {
+                            val streetIdx = i % SEED_STREETS.size
+                            val cityIdx = i % SEED_CITIES.size
+                            val daysBack = i % 30
+                            stmt.setString(1, "seed-${System.currentTimeMillis()}-$i")
+                            stmt.setString(2, SEED_STREETS[streetIdx])
+                            stmt.setString(3, SEED_CITIES[cityIdx])
+                            stmt.setInt(4, -daysBack)
+                            stmt.addBatch()
                         }
-                    }.coerceAtLeast(1)
-                    val calibrated = (probeAmp * TARGET_MS / t).coerceIn(MIN_AMP, MAX_AMP)
-                    amplifier.set(calibrated)
-                    logger.info(
-                        "🎯 Ring graph amplifier calibrated: probe(amp=$probeAmp)=${t}ms → " +
-                            "amp=$calibrated (target=${TARGET_MS}ms)"
-                    )
+                        stmt.executeBatch()
+                        conn.commit()
+                        inserted = batchEnd
+                        if (inserted % 10_000 == 0) {
+                            logger.info("Ring graph seed: inserted $inserted / $toInsert")
+                        }
+                    }
                 }
-            } catch (e: Exception) {
-                logger.warn("Ring graph calibration probe failed — using default amp=${amplifier.get()}", e)
+                conn.autoCommit = true
             }
+            logger.info("Ring graph seed: complete, inserted $toInsert synthetic rows")
+        } catch (e: Exception) {
+            logger.warn("Ring graph seed failed: ${e.message}", e)
         }
+    }
 
-        companion object {
-            private const val TARGET_MS = 8_000L
-            private const val LOW_BAND  = 3_000L
-            private const val HIGH_BAND = 12_000L
-            private const val MIN_AMP   = 1_000L
-            // (B) hard cap — even under runaway calibration, per-query
-            // wall time stays bounded (in combination with queryTimeout).
-            private const val MAX_AMP   = 200_000L
+    private fun countOrderLogs(): Long {
+        return try {
+            DatabaseConfig.getConnection().use { conn ->
+                conn.createStatement().use { stmt ->
+                    stmt.executeQuery("SELECT COUNT_BIG(*) AS n FROM OrderLogs").use { rs ->
+                        if (rs.next()) rs.getLong("n") else 0L
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Ring graph seed: count failed, assuming empty: ${e.message}")
+            0L
         }
     }
 
     companion object {
-        private const val FAST_ALERT_THRESHOLD = 5.0
-        private const val SLOW_ALERT_THRESHOLD = 5.0
-        // (A) JDBC query timeout: hard wall-time bound per statement.
-        private const val QUERY_TIMEOUT_S = 30
-        // (C) bounded async queue depth.
-        private const val EXECUTOR_QUEUE_CAPACITY = 16
-        // (D) consecutive-failure threshold before self-disable.
-        private const val CIRCUIT_FAILURE_THRESHOLD = 5
+        private const val ALERT_THRESHOLD = 20
+        private const val SEED_TARGET_ROWS = 100_000L
 
-        // Fast path — indexed 1-hop, TOP-capped, RECOMPILE.
+        // Fast — indexed equality join. Uses idx_shipping_street → Index Seek.
         private val FAST_SQL = """
-            WITH Seed AS (
-                SELECT TOP 1 shipping_street, shipping_city
-                FROM OrderLogs
-                WHERE order_id = ?
-            ),
-            Neighbors AS (
-                SELECT TOP 50 ol.order_id
-                FROM OrderLogs ol
-                INNER JOIN Seed s
-                    ON ol.shipping_street = s.shipping_street
-                    OR ol.shipping_city   = s.shipping_city
-                WHERE ol.consumed_at >= DATEADD(DAY, -30, GETDATE())
-            )
-            SELECT COUNT(DISTINCT n.order_id) AS ring_size,
-                   COALESCE(SUM(CASE fa.severity
-                       WHEN 'CRITICAL' THEN 10.0
-                       WHEN 'HIGH'     THEN  5.0
-                       WHEN 'MEDIUM'   THEN  2.0
-                       ELSE 0 END), 0) AS weighted_risk
-            FROM Neighbors n
-            LEFT JOIN FraudAlerts fa ON n.order_id = fa.order_id
-            OPTION (RECOMPILE);
+            SELECT COUNT(DISTINCT ol2.order_id) AS related_orders
+            FROM OrderLogs ol1
+            INNER JOIN OrderLogs ol2
+                ON ol2.shipping_street = ol1.shipping_street
+            WHERE ol1.order_id = ?
+              AND ol2.consumed_at >= DATEADD(DAY, -30, GETDATE());
         """.trimIndent()
 
-        // Slow path — 5-hop recursive CTE with fuzzy LIKE, cross-joined
-        // with a tunable sys.all_columns amplifier. Serial + RECOMPILE
-        // force real work every call; the amplifier is the primary
-        // duration knob (see RingGraphCalibrator).
+        // Slow — the "developer mistake". UPPER() on both sides of the
+        // join predicate makes it non-sargable: optimizer cannot use
+        // idx_shipping_street, falls back to full scan + nested loop.
+        // Same result set as FAST_SQL.
         private val SLOW_SQL = """
-            WITH Amplifier AS (
-                SELECT TOP (?) 1 AS n
-                FROM sys.all_columns a CROSS JOIN sys.all_columns b
-            ),
-            Seed AS (
-                SELECT shipping_street, shipping_city
-                FROM OrderLogs
-                WHERE order_id = ?
-            ),
-            RingHops (order_id, shipping_street, shipping_city, hop) AS (
-                SELECT ol.order_id, ol.shipping_street, ol.shipping_city, 0
-                FROM OrderLogs ol
-                INNER JOIN Seed s
-                    ON ol.shipping_street LIKE '%' + LEFT(s.shipping_street, 5) + '%'
-                    OR ol.shipping_city   LIKE '%' + s.shipping_city + '%'
-                WHERE ol.consumed_at >= DATEADD(DAY, -90, GETDATE())
-                UNION ALL
-                SELECT ol.order_id, ol.shipping_street, ol.shipping_city, rh.hop + 1
-                FROM OrderLogs ol
-                INNER JOIN RingHops rh
-                    ON ol.shipping_street LIKE '%' + LEFT(rh.shipping_street, 5) + '%'
-                    OR ol.shipping_city   LIKE '%' + rh.shipping_city + '%'
-                WHERE rh.hop < 5
-                    AND ol.consumed_at >= DATEADD(DAY, -90, GETDATE())
-            )
-            SELECT COUNT(DISTINCT rh.order_id) AS ring_size,
-                   COALESCE(SUM(CASE fa.severity
-                       WHEN 'CRITICAL' THEN 10.0 / (rh.hop + 1)
-                       WHEN 'HIGH'     THEN  5.0 / (rh.hop + 1)
-                       WHEN 'MEDIUM'   THEN  2.0 / (rh.hop + 1)
-                       ELSE 0 END), 0) AS weighted_risk
-            FROM RingHops rh
-            LEFT JOIN FraudAlerts fa ON rh.order_id = fa.order_id
-            CROSS JOIN Amplifier
-            OPTION (MAXRECURSION 5, MAXDOP 1, RECOMPILE);
+            SELECT COUNT(DISTINCT ol2.order_id) AS related_orders
+            FROM OrderLogs ol1
+            INNER JOIN OrderLogs ol2
+                ON UPPER(ol2.shipping_street) = UPPER(ol1.shipping_street)
+            WHERE ol1.order_id = ?
+              AND ol2.consumed_at >= DATEADD(DAY, -30, GETDATE());
         """.trimIndent()
+
+        // Synthetic row insert. Uses a small street/city pool so many
+        // rows share addresses → the join has real matches to count.
+        private val SEED_INSERT_SQL = """
+            INSERT INTO OrderLogs (order_id, shipping_street, shipping_city, items_count, consumed_at)
+            VALUES (?, ?, ?, 1, DATEADD(DAY, ?, GETDATE()))
+        """.trimIndent()
+
+        private val SEED_STREETS = listOf(
+            "123 Main St", "456 Oak Ave", "789 Pine Rd", "12 Elm Way", "34 Maple Dr",
+            "56 Cedar Ln", "78 Birch Ct", "90 Willow Blvd", "111 Spruce St", "222 Ash Ave",
+            "333 Poplar Rd", "444 Cherry Way", "555 Walnut Dr", "666 Chestnut Ln", "777 Hickory Ct",
+            "888 Sycamore Blvd", "999 Dogwood St", "101 Redwood Ave", "202 Sequoia Rd", "303 Fir Way",
+        )
+        private val SEED_CITIES = listOf(
+            "Springfield", "Riverside", "Franklin", "Greenville", "Bristol",
+            "Clinton", "Fairview", "Salem", "Georgetown", "Madison",
+        )
     }
 }

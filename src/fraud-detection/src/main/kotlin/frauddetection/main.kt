@@ -102,6 +102,18 @@ fun main() {
     // Start cleanup scheduler (logs first-fire timestamp + batch config)
     databaseCleanup.startCleanupScheduler(cleanupRetentionDays, cleanupIntervalHours)
 
+    // Seed OrderLogs so the ring-graph slow path has enough rows to
+    // produce a demo-friendly wall time. Idempotent; skipped if the
+    // table already meets the target size. Runs on a daemon thread so
+    // the Kafka consumer can start immediately.
+    Thread({
+        try {
+            ringGraphCheck.seedIfEmpty()
+        } catch (e: Exception) {
+            logger.warn("Ring graph seed thread failed", e)
+        }
+    }, "ring-graph-seed").apply { isDaemon = true }.start()
+
     var totalCount = 0L
     var fraudAlertCount = 0L
 
@@ -192,12 +204,22 @@ fun main() {
 
                             // Ring graph check — DBMon guardian demo.
                             // Flag `fraudDetectionRingGraph`: "disabled" | "fast" | "slow".
-                            // Fire-and-forget: analyze() submits to an internal
-                            // executor and returns immediately, so the Kafka
-                            // poll loop can never be blocked by DB work.
+                            // Runs synchronously so the DB span appears cleanly
+                            // under the consume span in APM. Query is naturally
+                            // bounded by the OrderLogs row count (seeded on
+                            // startup) — no artificial amplifier, no timeout.
                             val ringMode = getFeatureFlagString("fraudDetectionRingGraph", "disabled")
                             if (ringMode != "disabled") {
-                                ringGraphCheck.analyze(orders.orderId, ringMode)
+                                try {
+                                    val ringAlert = ringGraphCheck.analyze(orders.orderId, ringMode)
+                                    if (ringAlert != null) {
+                                        fraudAlertCount++
+                                        span.setAttribute("fraud.ring_graph.detected", true)
+                                    }
+                                } catch (e: Exception) {
+                                    logger.error("Ring graph check failed for order ${orders.orderId}", e)
+                                    span.recordException(e)
+                                }
                             }
 
                             // Execute bad query patterns for monitoring demo (optional)
