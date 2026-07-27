@@ -182,9 +182,9 @@ class DatabaseCleanup {
         private const val BATCH_SIZE = 500
         private const val SLEEP_BETWEEN_BATCHES_MS = 200L
         private const val LOCK_TIMEOUT_MS = 5000
-        // Hard ceiling on OrderLogs row count. Sized ~30 % above the
-        // ring-graph seed target (300k) so Kafka growth has headroom
+        // Hard ceiling on OrderLogs row count. Sized ~20 % above the
+        // ring-graph seed target (1M) so Kafka growth has headroom
         // but the slow query never blows past its target 4-10 s band.
-        private const val MAX_ORDER_LOGS_ROWS = 400_000L
+        private const val MAX_ORDER_LOGS_ROWS = 1_200_000L
     }
 }

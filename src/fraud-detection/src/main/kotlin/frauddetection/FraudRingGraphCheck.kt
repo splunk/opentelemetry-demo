@@ -159,10 +159,10 @@ class FraudRingGraphCheck {
     companion object {
         private const val ALERT_THRESHOLD = 20
         // Sized so the slow-path anti-pattern query reliably lands in
-        // the ~4-10s band. Combined with LOOP JOIN + compound
-        // string-function predicate, ~300k rows × per-row work
-        // approximates 5-8s on a modest SQL Server pod.
-        private const val SEED_TARGET_ROWS = 300_000L
+        // the ~4-10s band. Empirically: 300k rows → 1.3-2s, 1M rows
+        // → 4-8s on a modest SQL Server pod. Adjust in tandem with
+        // DatabaseCleanup.MAX_ORDER_LOGS_ROWS.
+        private const val SEED_TARGET_ROWS = 1_000_000L
 
         // Fast — indexed equality join. Uses idx_shipping_street →
         // Index Seek on ol2. Same intent, same result.
