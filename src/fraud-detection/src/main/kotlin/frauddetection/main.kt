@@ -87,6 +87,7 @@ fun main() {
     val orderMutator = OrderMutator()
     val badQueryPatterns = BadQueryPatterns()
     val ringGraphCheck = FraudRingGraphCheck()
+    val ringGraphThrottle = RingGraphThrottle()
 
     // Read configuration from environment variables
     val cleanupRetentionDays = System.getenv("CLEANUP_RETENTION_DAYS")?.toIntOrNull() ?: 4
@@ -208,17 +209,42 @@ fun main() {
                             // under the consume span in APM. Query is naturally
                             // bounded by the OrderLogs row count (seeded on
                             // startup) — no artificial amplifier, no timeout.
+                            //
+                            // Adaptive backpressure: when Kafka consumer lag exceeds
+                            // RING_GRAPH_LAG_HI_MS we run the check on a decreasing
+                            // fraction of messages; when lag drops below _LO_MS we
+                            // relax the throttle. Prevents runaway lag under `slow`
+                            // mode while still surfacing the query in DBMon at a
+                            // sustainable rate. Hysteresis (HI vs LO) avoids
+                            // oscillation.
+                            //
+                            // Lag definition: System.currentTimeMillis() minus the
+                            // Kafka record's producer-set timestamp. Same signal
+                            // Splunk APM shows on the kafka → fraud-detection edge
+                            // (producer span end → consumer span start), within
+                            // clock-skew tolerance between checkout and
+                            // fraud-detection pods.
                             val ringMode = getFeatureFlagString("fraudDetectionRingGraph", "disabled")
                             if (ringMode != "disabled") {
-                                try {
-                                    val ringAlert = ringGraphCheck.analyze(orders.orderId, ringMode)
-                                    if (ringAlert != null) {
-                                        fraudAlertCount++
-                                        span.setAttribute("fraud.ring_graph.detected", true)
+                                val msgAgeMs = System.currentTimeMillis() - record.timestamp()
+                                val throttled = ringGraphThrottle.shouldSkip(msgAgeMs)
+                                // Enable when the throttle behaviour is being demoed
+                                // in APM. Left commented to avoid unintended cost /
+                                // clutter on production consume spans.
+                                // span.setAttribute("app.fraud.ring_graph.msg_age_ms", msgAgeMs)
+                                // span.setAttribute("app.fraud.ring_graph.skip_count", ringGraphThrottle.skipCount().toLong())
+                                // span.setAttribute("app.fraud.ring_graph.throttled", throttled)
+                                if (!throttled) {
+                                    try {
+                                        val ringAlert = ringGraphCheck.analyze(orders.orderId, ringMode)
+                                        if (ringAlert != null) {
+                                            fraudAlertCount++
+                                            // span.setAttribute("fraud.ring_graph.detected", true)
+                                        }
+                                    } catch (e: Exception) {
+                                        logger.error("Ring graph check failed for order ${orders.orderId}", e)
+                                        span.recordException(e)
                                     }
-                                } catch (e: Exception) {
-                                    logger.error("Ring graph check failed for order ${orders.orderId}", e)
-                                    span.recordException(e)
                                 }
                             }
 
