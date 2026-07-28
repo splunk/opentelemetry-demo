@@ -726,6 +726,15 @@ func (cs *checkout) sendToPostProcessor(ctx context.Context, result *pb.OrderRes
 		Value: sarama.ByteEncoder(message),
 	}
 
+	// x-produce-time header carries the wall-clock produce time (epoch
+	// ms) so downstream consumers can measure true queue latency
+	// independent of broker timestamp policy (LogAppendTime vs
+	// CreateTime). Used by fraud-detection's ring-graph throttle.
+	msg.Headers = append(msg.Headers, sarama.RecordHeader{
+		Key:   []byte("x-produce-time"),
+		Value: []byte(strconv.FormatInt(time.Now().UnixMilli(), 10)),
+	})
+
 	// Inject tracing info into message
 	span := createProducerSpan(ctx, &msg)
 	defer span.End()

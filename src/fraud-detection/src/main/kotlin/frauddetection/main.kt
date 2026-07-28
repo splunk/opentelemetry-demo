@@ -226,12 +226,15 @@ fun main() {
                             // fraud-detection pods.
                             val ringMode = getFeatureFlagString("fraudDetectionRingGraph", "disabled")
                             if (ringMode != "disabled") {
-                                val msgAgeMs = System.currentTimeMillis() - record.timestamp()
-                                val throttled = ringGraphThrottle.shouldSkip(msgAgeMs)
+                                // Best-available lag: x-produce-time header →
+                                // records-lag-max metric → record.timestamp
+                                // (see RingGraphThrottle.estimateLagMs).
+                                val lagMs = ringGraphThrottle.estimateLagMs(record, consumer)
+                                val throttled = ringGraphThrottle.shouldSkip(lagMs)
                                 // Enable when the throttle behaviour is being demoed
                                 // in APM. Left commented to avoid unintended cost /
                                 // clutter on production consume spans.
-                                // span.setAttribute("app.fraud.ring_graph.msg_age_ms", msgAgeMs)
+                                // span.setAttribute("app.fraud.ring_graph.lag_ms", lagMs)
                                 // span.setAttribute("app.fraud.ring_graph.skip_count", ringGraphThrottle.skipCount().toLong())
                                 // span.setAttribute("app.fraud.ring_graph.throttled", throttled)
                                 if (!throttled) {
