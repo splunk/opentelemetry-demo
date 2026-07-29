@@ -571,6 +571,14 @@ jobs:
             [ -f "$MFILE" ] && ASSETS="$ASSETS $MFILE"
           done
 
+          # Also attach the helm values.yaml for this version so
+          # `helm upgrade --install ... -f splunk-astronomy-shop-${VERSION}-values.yaml`
+          # can be scripted straight from the release assets. The
+          # earlier "Ensure values.yaml exists" step guarantees the
+          # file is present (cloned from previous version if new).
+          VALUES_FILE="kubernetes/splunk-astronomy-shop-${VERSION}-values.yaml"
+          [ -f "$VALUES_FILE" ] && ASSETS="$ASSETS $VALUES_FILE"
+
           # Delete existing pre-release if regenerating
           if gh release view "v${VERSION}" &>/dev/null; then
             echo "Replacing existing pre-release v${VERSION}..."
