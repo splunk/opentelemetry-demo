@@ -47,7 +47,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: ad
-        image: ghcr.io/splunk/opentelemetry-demo/otel-ad:2.0.6
+        image: ghcr.io/splunk/opentelemetry-demo/otel-ad:2.0.7
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -112,7 +112,7 @@ spec:
       # avoid collision with the ad container's 8080.
       initContainers:
       - name: secureapp
-        image: ghcr.io/splunk/opentelemetry-demo/otel-secureapp-loadgen-java:2.0.6
+        image: ghcr.io/splunk/opentelemetry-demo/otel-secureapp-loadgen-java:2.0.7
         imagePullPolicy: Always
         restartPolicy: Always
         command: ["/bin/sh"]
