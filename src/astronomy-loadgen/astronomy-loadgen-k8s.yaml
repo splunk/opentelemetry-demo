@@ -41,7 +41,9 @@ data:
           '--disable-renderer-backgrounding',
           '--memory-pressure-off',
           '--aggressive-cache-discard',
-          '--ignore-certificate-errors',
+          // Do NOT add '--ignore-certificate-errors' or `acceptInsecureCerts: true`.
+          // On plain-HTTP deploys they break Chromium fetch/hydration and every
+          // cycle fails at waitForSelector. See CERT_FLAG_NOTE.md.
           '--allow-insecure-localhost',
           `--user-agent=${customUserAgent}`
         ]
