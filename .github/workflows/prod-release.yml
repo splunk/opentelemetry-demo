@@ -344,6 +344,7 @@ jobs:
           chmod +x .github/scripts/show-image-versions.py
           chmod +x .github/scripts/stitch-manifests.sh
           chmod +x .github/scripts/get-services.py
+          chmod +x .github/scripts/stage-values-with-header.sh
 
       - name: Save current version before bump
         id: old-version
@@ -575,9 +576,11 @@ jobs:
           # `helm upgrade --install ... -f splunk-astronomy-shop-${VERSION}-values.yaml`
           # can be scripted straight from the release assets. The
           # earlier "Ensure values.yaml exists" step guarantees the
-          # file is present (cloned from previous version if new).
-          VALUES_FILE="kubernetes/splunk-astronomy-shop-${VERSION}-values.yaml"
-          [ -f "$VALUES_FILE" ] && ASSETS="$ASSETS $VALUES_FILE"
+          # source file is present (cloned from previous version if new).
+          # Version header is prepended to the release-asset copy (source
+          # in kubernetes/ stays untouched).
+          STAGED_VALUES=$(.github/scripts/stage-values-with-header.sh "$VERSION")
+          [ -n "$STAGED_VALUES" ] && [ -f "$STAGED_VALUES" ] && ASSETS="$ASSETS $STAGED_VALUES"
 
           # Delete existing pre-release if regenerating
           if gh release view "v${VERSION}" &>/dev/null; then

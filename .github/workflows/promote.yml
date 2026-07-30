@@ -77,13 +77,14 @@ jobs:
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
           echo "SCOPE=${SCOPE}" >> $GITHUB_ENV
 
-          # Values file lives in the repo
-          VALUES="kubernetes/splunk-astronomy-shop-${VERSION}-values.yaml"
-          echo "VALUES=${VALUES}" >> $GITHUB_ENV
-
-          # Manifest filenames (downloaded from release assets)
+          # Manifest + values filenames (downloaded from release assets)
           DOWNLOAD_DIR="release-assets"
           echo "DOWNLOAD_DIR=${DOWNLOAD_DIR}" >> $GITHUB_ENV
+
+          # Values file also comes from release assets (attached by
+          # prod-build-manifest / create-release-tag / prod-release).
+          VALUES="${DOWNLOAD_DIR}/splunk-astronomy-shop-${VERSION}-values.yaml"
+          echo "VALUES=${VALUES}" >> $GITHUB_ENV
 
           echo "MANIFEST=${DOWNLOAD_DIR}/splunk-astronomy-shop-${VERSION}.yaml" >> $GITHUB_ENV
           echo "MANIFEST_DIAB=${DOWNLOAD_DIR}/splunk-astronomy-shop-${VERSION}-diab.yaml" >> $GITHUB_ENV
@@ -125,7 +126,10 @@ jobs:
           echo "✅ Release \`v${VERSION}\` found" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Download all manifest assets from the release
+          # Download all manifest + values assets from the release.
+          # Pattern matches both `splunk-astronomy-shop-<ver>.yaml`,
+          # `splunk-astronomy-shop-<ver>-{diab,lambda,dc-shim,...}.yaml`,
+          # and `splunk-astronomy-shop-<ver>-values.yaml`.
           echo "Downloading assets from release v${VERSION}..."
           gh release download "v${VERSION}" \
             --pattern "splunk-astronomy-shop-*.yaml" \
@@ -140,7 +144,8 @@ jobs:
             "splunk-astronomy-shop-${VERSION}-lambda.yaml" \
             "splunk-astronomy-shop-${VERSION}-dc-shim.yaml" \
             "splunk-astronomy-shop-${VERSION}-secureapp.yaml" \
-            "splunk-astronomy-shop-${VERSION}-throttle-demo.yaml"; do
+            "splunk-astronomy-shop-${VERSION}-throttle-demo.yaml" \
+            "splunk-astronomy-shop-${VERSION}-values.yaml"; do
             if [ -f "${DOWNLOAD_DIR}/${FILE}" ]; then
               echo "| \`${FILE}\` | ✅ Downloaded |" >> $GITHUB_STEP_SUMMARY
             else
@@ -149,24 +154,24 @@ jobs:
           done
           echo "" >> $GITHUB_STEP_SUMMARY
 
-      - name: Verify values.yaml exists (required)
+      - name: Verify values.yaml downloaded (required)
         run: |
           echo "### Values File Check" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           if [ -f "$VALUES" ]; then
-            echo "✅ **Values file found:** \`$VALUES\`" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Values file downloaded:** \`$VALUES\`" >> $GITHUB_STEP_SUMMARY
           else
-            echo "::error::Values file not found: $VALUES"
-            echo "❌ **Values file NOT found:** \`$VALUES\`" >> $GITHUB_STEP_SUMMARY
+            echo "::error::Values file not found in release: $VALUES"
+            echo "❌ **Values file NOT found in release v${VERSION}:** \`$(basename "$VALUES")\`" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**The values.yaml file is required for promotion.**" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Please ensure the file exists in \`kubernetes/\` before running this workflow." >> $GITHUB_STEP_SUMMARY
+            echo "Ensure the release has the values file attached (prod-build-manifest / create-release-tag / prod-release all attach it)." >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Available files in kubernetes/:" >> $GITHUB_STEP_SUMMARY
+            echo "Assets currently in \`$DOWNLOAD_DIR\`:" >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            ls -la kubernetes/ 2>/dev/null || echo "Directory not found" >> $GITHUB_STEP_SUMMARY
+            ls -la "$DOWNLOAD_DIR" 2>/dev/null || echo "Directory not found" >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi

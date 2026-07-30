@@ -81,6 +81,7 @@ jobs:
           OUTPUT_DIR="kubernetes"
 
           chmod +x .github/scripts/stitch-manifests.sh
+          chmod +x .github/scripts/stage-values-with-header.sh
 
           echo "Stitching regular manifest..."
           .github/scripts/stitch-manifests.sh prod "" "$OUTPUT_DIR" ""
@@ -128,8 +129,10 @@ jobs:
           # Also attach the helm values.yaml for this version so
           # `helm upgrade --install ... -f splunk-astronomy-shop-${VERSION}-values.yaml`
           # can be scripted straight from the release assets.
-          VALUES_FILE="kubernetes/splunk-astronomy-shop-${VERSION}-values.yaml"
-          [ -f "$VALUES_FILE" ] && ASSETS="$ASSETS $VALUES_FILE"
+          # Version header is prepended to the release-asset copy (source
+          # in kubernetes/ stays untouched).
+          STAGED_VALUES=$(.github/scripts/stage-values-with-header.sh "$VERSION")
+          [ -n "$STAGED_VALUES" ] && [ -f "$STAGED_VALUES" ] && ASSETS="$ASSETS $STAGED_VALUES"
 
           # Delete existing beta pre-release for this version if it exists
           if gh release view "${TAG}-beta" &>/dev/null; then
