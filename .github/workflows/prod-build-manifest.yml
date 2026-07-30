@@ -82,6 +82,7 @@ jobs:
           chmod +x .github/scripts/manage-hotfix.py
           chmod +x .github/scripts/bump-version.py
           chmod +x .github/scripts/show-image-versions.py
+          chmod +x .github/scripts/stage-values-with-header.sh
 
       - name: Ensure single-version mode (remove per-service test versions)
         run: |
@@ -307,8 +308,10 @@ jobs:
           # `helm upgrade --install ... -f splunk-astronomy-shop-${VERSION}-values.yaml`
           # can be scripted from the release assets. Mirrors the
           # equivalent step in prod-release.yml / create-release-tag.yml.
-          VALUES_FILE="kubernetes/splunk-astronomy-shop-${VERSION}-values.yaml"
-          [ -f "$VALUES_FILE" ] && ASSETS="$ASSETS $VALUES_FILE"
+          # Version header is prepended to the release-asset copy (source
+          # in kubernetes/ stays untouched).
+          STAGED_VALUES=$(.github/scripts/stage-values-with-header.sh "$VERSION")
+          [ -n "$STAGED_VALUES" ] && [ -f "$STAGED_VALUES" ] && ASSETS="$ASSETS $STAGED_VALUES"
 
           # Delete existing release if regenerating
           if gh release view "$TAG" &>/dev/null; then
