@@ -116,7 +116,20 @@ export default class MyDocument extends Document<{ envString: string }> {
                     SplunkSessionRecorder.init({
                         realm: window.ENV.SPLUNK_RUM_REALM,
                         rumAccessToken: window.ENV.SPLUNK_RUM_TOKEN,
-                        maskAllText: false
+                        maskAllText: false,
+                        // HTTP workshop instances serve images over HTTP; the HTTPS
+                        // replay player blocks them as mixed content. Pack assets
+                        // into the recording so replay renders without live fetch.
+                        // Skip localhost — dev doesn't need the extra payload.
+                        features: (function () {
+                            var loc = window.location;
+                            var isHttp = loc.protocol === 'http:';
+                            var isLocal = loc.hostname === 'localhost' || loc.hostname === '127.0.0.1';
+                            var isHttpWorkshop = isHttp && !isLocal;
+                            return isHttpWorkshop
+                                ? { packAssets: { styles: true, images: true, fonts: false }, cacheAssets: true }
+                                : { packAssets: { styles: true } };
+                        })()
                     });
                 `,
               }}
