@@ -113,24 +113,32 @@ export default class MyDocument extends Document<{ envString: string }> {
               id="splunk-session-recorder-init"
               dangerouslySetInnerHTML={{
                 __html: `
-                    SplunkSessionRecorder.init({
-                        realm: window.ENV.SPLUNK_RUM_REALM,
-                        rumAccessToken: window.ENV.SPLUNK_RUM_TOKEN,
-                        maskAllText: false,
+                    (function () {
+                        var loc = window.location;
+                        var isHttp = loc.protocol === 'http:';
+                        var isLocal = loc.hostname === 'localhost' || loc.hostname === '127.0.0.1';
+                        var isHttpWorkshop = isHttp && !isLocal;
                         // HTTP workshop instances serve images over HTTP; the HTTPS
                         // replay player blocks them as mixed content. Pack assets
                         // into the recording so replay renders without live fetch.
                         // Skip localhost — dev doesn't need the extra payload.
-                        features: (function () {
-                            var loc = window.location;
-                            var isHttp = loc.protocol === 'http:';
-                            var isLocal = loc.hostname === 'localhost' || loc.hostname === '127.0.0.1';
-                            var isHttpWorkshop = isHttp && !isLocal;
-                            return isHttpWorkshop
-                                ? { packAssets: { styles: true, images: true, fonts: false }, cacheAssets: true }
-                                : { packAssets: { styles: true } };
-                        })()
-                    });
+                        var features = isHttpWorkshop
+                            ? { packAssets: { styles: true, images: true, fonts: false }, cacheAssets: true }
+                            : { packAssets: { styles: true } };
+                        console.log(
+                            '[splunk-rum] SplunkRum version:', (window.SplunkRum && window.SplunkRum.version) || 'unknown',
+                            '\\n[splunk-session-recorder] version:', (window.SplunkSessionRecorder && window.SplunkSessionRecorder.version) || 'unknown',
+                            '\\n[splunk-session-recorder] protocol:', loc.protocol, 'hostname:', loc.hostname,
+                            '\\n[splunk-session-recorder] isHttpWorkshop:', isHttpWorkshop,
+                            '\\n[splunk-session-recorder] features:', JSON.stringify(features)
+                        );
+                        SplunkSessionRecorder.init({
+                            realm: window.ENV.SPLUNK_RUM_REALM,
+                            rumAccessToken: window.ENV.SPLUNK_RUM_TOKEN,
+                            maskAllText: false,
+                            features: features
+                        });
+                    })();
                 `,
               }}
           />
