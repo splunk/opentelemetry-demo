@@ -67,7 +67,7 @@ export default class MyDocument extends Document<{ envString: string }> {
           {/* Load user attributes generator - must load before RUM initialization */}
           <script src="/global-attributes.js"></script>
           <script
-              src="https://cdn.signalfx.com/o11y-gdi-rum/next/splunk-otel-web.js"
+              src="https://cdn.signalfx.com/o11y-gdi-rum/v3.0.0/splunk-otel-web.js"
               crossOrigin="anonymous"
           />
           <script
@@ -106,7 +106,7 @@ export default class MyDocument extends Document<{ envString: string }> {
               }}
           />
           <script
-              src="https://cdn.signalfx.com/o11y-gdi-rum/next/splunk-otel-web-session-recorder.js"
+              src="https://cdn.signalfx.com/o11y-gdi-rum/v3.0.0/splunk-otel-web-session-recorder.js"
               crossOrigin="anonymous"
           />
           <script
@@ -123,7 +123,18 @@ export default class MyDocument extends Document<{ envString: string }> {
                         // into the recording so replay renders without live fetch.
                         // Skip localhost — dev doesn't need the extra payload.
                         var features = isHttpWorkshop
-                            ? { packAssets: { styles: true, images: true, fonts: false }, cacheAssets: true }
+                            ? {
+                                packAssets: {
+                                    styles: true,
+                                    fonts: false,
+                                    // Explicit object form: pack every image, not
+                                    // just the ones currently in the viewport, so
+                                    // above-the-fold hero images on the initial
+                                    // page load are also captured.
+                                    images: { pack: true, onlyViewportImages: false }
+                                },
+                                cacheAssets: true
+                              }
                             : { packAssets: { styles: true } };
                         var rumVersion = 'unknown';
                         try {
