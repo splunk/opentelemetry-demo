@@ -125,9 +125,21 @@ export default class MyDocument extends Document<{ envString: string }> {
                         var features = isHttpWorkshop
                             ? { packAssets: { styles: true, images: true, fonts: false }, cacheAssets: true }
                             : { packAssets: { styles: true } };
+                        var rumVersion = 'unknown';
+                        try {
+                            // Version lives on the tracer provider's resource attributes,
+                            // not as a top-level SplunkRum property.
+                            var attrs = window.SplunkRum && window.SplunkRum.provider &&
+                                        window.SplunkRum.provider.resource &&
+                                        window.SplunkRum.provider.resource.attributes;
+                            if (attrs) rumVersion = attrs['splunk.rumVersionFull'] || attrs['splunk.rumVersion'] || 'unknown';
+                        } catch (e) { /* noop */ }
+                        var recorderSrc = 'unknown';
+                        var recorderScript = document.querySelector('script[src*="splunk-otel-web-session-recorder"]');
+                        if (recorderScript) recorderSrc = recorderScript.getAttribute('src');
                         console.log(
-                            '[splunk-rum] SplunkRum version:', (window.SplunkRum && window.SplunkRum.version) || 'unknown',
-                            '\\n[splunk-session-recorder] version:', (window.SplunkSessionRecorder && window.SplunkSessionRecorder.version) || 'unknown',
+                            '[splunk-rum] version:', rumVersion,
+                            '\\n[splunk-session-recorder] script:', recorderSrc,
                             '\\n[splunk-session-recorder] protocol:', loc.protocol, 'hostname:', loc.hostname,
                             '\\n[splunk-session-recorder] isHttpWorkshop:', isHttpWorkshop,
                             '\\n[splunk-session-recorder] features:', JSON.stringify(features)
