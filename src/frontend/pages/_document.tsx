@@ -67,7 +67,7 @@ export default class MyDocument extends Document<{ envString: string }> {
           {/* Load user attributes generator - must load before RUM initialization */}
           <script src="/global-attributes.js"></script>
           <script
-              src="https://cdn.signalfx.com/o11y-gdi-rum/next/splunk-otel-web.js"
+              src="https://cdn.signalfx.com/o11y-gdi-rum/v3.0.0/splunk-otel-web.js"
               crossOrigin="anonymous"
           />
           <script
@@ -106,18 +106,62 @@ export default class MyDocument extends Document<{ envString: string }> {
               }}
           />
           <script
-              src="https://cdn.signalfx.com/o11y-gdi-rum/next/splunk-otel-web-session-recorder.js"
+              src="https://cdn.signalfx.com/o11y-gdi-rum/v3.0.0/splunk-otel-web-session-recorder.js"
               crossOrigin="anonymous"
           />
           <script
               id="splunk-session-recorder-init"
               dangerouslySetInnerHTML={{
                 __html: `
-                    SplunkSessionRecorder.init({
-                        realm: window.ENV.SPLUNK_RUM_REALM,
-                        rumAccessToken: window.ENV.SPLUNK_RUM_TOKEN,
-                        maskAllText: false
-                    });
+                    (function () {
+                        var loc = window.location;
+                        var isHttp = loc.protocol === 'http:';
+                        var isLocal = loc.hostname === 'localhost' || loc.hostname === '127.0.0.1';
+                        var isHttpWorkshop = isHttp && !isLocal;
+                        // HTTP workshop instances serve images over HTTP; the HTTPS
+                        // replay player blocks them as mixed content. Pack assets
+                        // into the recording so replay renders without live fetch.
+                        // Skip localhost — dev doesn't need the extra payload.
+                        var features = isHttpWorkshop
+                            ? {
+                                packAssets: {
+                                    styles: true,
+                                    fonts: false,
+                                    // Explicit object form: pack every image, not
+                                    // just the ones currently in the viewport, so
+                                    // above-the-fold hero images on the initial
+                                    // page load are also captured.
+                                    images: { pack: true, onlyViewportImages: false }
+                                },
+                                cacheAssets: true
+                              }
+                            : { packAssets: { styles: true } };
+                        var rumVersion = 'unknown';
+                        try {
+                            // Version lives on the tracer provider's resource attributes,
+                            // not as a top-level SplunkRum property.
+                            var attrs = window.SplunkRum && window.SplunkRum.provider &&
+                                        window.SplunkRum.provider.resource &&
+                                        window.SplunkRum.provider.resource.attributes;
+                            if (attrs) rumVersion = attrs['splunk.rumVersionFull'] || attrs['splunk.rumVersion'] || 'unknown';
+                        } catch (e) { /* noop */ }
+                        var recorderSrc = 'unknown';
+                        var recorderScript = document.querySelector('script[src*="splunk-otel-web-session-recorder"]');
+                        if (recorderScript) recorderSrc = recorderScript.getAttribute('src');
+                        console.log(
+                            '[splunk-rum] version:', rumVersion,
+                            '\\n[splunk-session-recorder] script:', recorderSrc,
+                            '\\n[splunk-session-recorder] protocol:', loc.protocol, 'hostname:', loc.hostname,
+                            '\\n[splunk-session-recorder] isHttpWorkshop:', isHttpWorkshop,
+                            '\\n[splunk-session-recorder] features:', JSON.stringify(features)
+                        );
+                        SplunkSessionRecorder.init({
+                            realm: window.ENV.SPLUNK_RUM_REALM,
+                            rumAccessToken: window.ENV.SPLUNK_RUM_TOKEN,
+                            maskAllText: false,
+                            features: features
+                        });
+                    })();
                 `,
               }}
           />
