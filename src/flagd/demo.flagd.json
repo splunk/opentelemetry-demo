@@ -1,6 +1,15 @@
 {
   "$schema": "https://flagd.dev/schema/v0/flags.json",
   "flags": {
+    "rumLoadGenPanicMode": {
+      "description": "RUM loadgen reacts to this flag each cycle. On = loadgen logs a panic-mode line (test hook for the flagd OFREP integration; real action TBD).",
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "off"
+    },
     "orderValidationThrottle": {
       "description": "order-validation runs full CPU-bound compliance/audit path, exposing k8s CPU throttle scenario. Off returns precomputed stub.",
       "state": "ENABLED",

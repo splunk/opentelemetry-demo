@@ -75,6 +75,42 @@ data:
       return `https://${raw.replace(/\/+$/, '')}/`;
     }
 
+    // --- flagd feature flags via OFREP --------------------------------------
+    // flagd serves the OpenFeature Remote Evaluation Protocol over HTTP on
+    // port 8016 (see src/flagd/flagd-k8s.yaml). Node 24 has global fetch, so
+    // no OpenFeature SDK / gRPC deps are needed — one POST per flag. flagd
+    // returns the live value, so flipping a flag in flagd-ui is reflected on
+    // the next cycle with no loadgen restart. Disable with
+    // FLAGD_OFREP_ENABLED=false; override endpoint with FLAGD_OFREP_URL.
+    const FLAGD_OFREP_ENABLED = (process.env.FLAGD_OFREP_ENABLED || 'true').toLowerCase() !== 'false';
+    const FLAGD_OFREP_URL = (process.env.FLAGD_OFREP_URL || 'http://flagd:8016').replace(/\/+$/, '');
+
+    /**
+     * Evaluate a single flag via OFREP. Returns `def` on any failure (flagd
+     * unreachable, non-2xx, timeout, missing flag) so flag lookups never block
+     * or crash a load cycle.
+     */
+    async function getFlag(key, def) {
+      if (!FLAGD_OFREP_ENABLED) return def;
+      try {
+        const resp = await fetch(`${FLAGD_OFREP_URL}/ofrep/v1/evaluate/flags/${key}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ context: { targetingKey: 'rumloadgen' } }),
+          signal: AbortSignal.timeout(2000)
+        });
+        if (!resp.ok) {
+          if (debugEnabled) console.log(`[DEBUG] OFREP ${key}: HTTP ${resp.status}`);
+          return def;
+        }
+        const body = await resp.json();
+        return body.value !== undefined ? body.value : def;
+      } catch (e) {
+        if (debugEnabled) console.log(`[DEBUG] OFREP ${key} lookup failed: ${e.message}`);
+        return def;
+      }
+    }
+
     function getProductIds() {
       const envProductIds = (process.env.PRODUCT_IDS || '').trim();
       if (envProductIds) {
@@ -214,6 +250,16 @@ data:
         }
 
         const base = buildBaseUrl();
+
+        // Feature-flag check, run every cycle before product selection so a
+        // flagd-ui toggle takes effect on the very next loop. rumLoadGenPanicMode
+        // is the first test hook for the OFREP integration — real behaviour
+        // change comes later; for now it just proves live flag reactivity.
+        const panicMode = await getFlag('rumLoadGenPanicMode', false);
+        if (panicMode) {
+          console.log('🚨 rum-loadgen Panic mode is on!');
+        }
+
         const productsToOrder = getRandomProducts();
         const cycleCurrency = pickCurrency();
         console.log(`🛒 Ordering ${productsToOrder.length} product(s) in ${cycleCurrency}: ${productsToOrder.join(', ')}`);
