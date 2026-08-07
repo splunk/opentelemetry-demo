@@ -40,7 +40,7 @@ spec:
     metadata:
       annotations:
         splunk.com/monitor: postgresql
-        splunk.com/postgresql.database: otel
+        splunk.com/postgresql.database: astroshop
       labels:
         opentelemetry.io/name: postgresql
         app.kubernetes.io/component: postgresql
