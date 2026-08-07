@@ -1,7 +1,7 @@
 #!/bin/bash
 # Create pg_stat_statements extension in the postgres database
 # This is required for PostgreSQL receiver top query monitoring
-# The extension is also created in the otel database via init.sql
+# The extension is also created in the astroshop database via init.sql
 
 set -e
 

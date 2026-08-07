@@ -122,49 +122,67 @@ TAGS = ['beginner', 'advanced', 'astrophotography', 'visual', 'planetary']
 # PostgreSQL connection pool (lazy initialized)
 pg_pool = None
 
-# Cartesian query rate limiter: spread N executions evenly across a window
-CARTESIAN_WINDOW_SECONDS = int(os.environ.get('CARTESIAN_WINDOW_SECONDS', '900'))  # 15 min
-CARTESIAN_MAX_PER_WINDOW = int(os.environ.get('CARTESIAN_MAX_PER_WINDOW', '3'))
+# Cartesian query rate: flag variant -> (base_interval_seconds, jitter_seconds).
+# The slow query fires at most once per (base +/- jitter). Jitter models a
+# cache that refreshes after ~N queries rather than on a fixed clock, adding
+# realistic variance on top of the steady loadgen cadence.
+CARTESIAN_RATE_TIERS = {
+    'normal':  (300, 20),  # 5 min +/- 20s
+    'fast':    (180, 15),  # 3 min +/- 15s
+    'faster':  (60, 10),   # 1 min +/- 10s
+    'fastest': (30, 5),    # 30s +/- 5s
+}
+# Legacy boolean 'on' maps to this tier for backward compatibility.
+CARTESIAN_LEGACY_ON_TIER = 'normal'
+
 cartesian_last_exec = 0.0
-cartesian_window_count = 0
-cartesian_window_start = 0.0
+cartesian_next_interval = 0.0  # base +/- jitter, recomputed after each fire
+cartesian_tier = None
 
 
-def cartesian_rate_limit_ok():
+def cartesian_variant():
+    """Read the flag as a string variant. Tolerates the legacy boolean 'on'/'off'."""
+    client = api.get_client()
+    variant = client.get_string_value("recommendationCartesianQuery", "off")
+    if variant in ("on", "true", "True"):
+        return CARTESIAN_LEGACY_ON_TIER
+    return variant
+
+
+def cartesian_rate_limit_ok(tier):
     """
-    Spread executions evenly across the window.
-    With defaults (3 per 900s), fires once every ~300s (5 min).
-    First call in a new window always fires immediately.
+    Fire at most once per (base_interval +/- jitter) for the given tier.
+    The first call for a tier (including right after a tier change) fires
+    immediately; spacing is recomputed with fresh jitter after each fire.
+    Unknown/off tier never fires.
     """
-    global cartesian_last_exec, cartesian_window_count, cartesian_window_start
+    global cartesian_last_exec, cartesian_next_interval, cartesian_tier
+    if tier not in CARTESIAN_RATE_TIERS:
+        cartesian_tier = tier
+        return False
+    base, jitter = CARTESIAN_RATE_TIERS[tier]
     now = time.time()
-    min_interval = CARTESIAN_WINDOW_SECONDS / CARTESIAN_MAX_PER_WINDOW
-
-    # New window -- reset counters
-    if now - cartesian_window_start >= CARTESIAN_WINDOW_SECONDS:
-        cartesian_window_start = now
-        cartesian_window_count = 0
-
-    # Already hit max for this window
-    if cartesian_window_count >= CARTESIAN_MAX_PER_WINDOW:
+    # Tier just changed -- fire on this call so flag flips take effect promptly.
+    if tier != cartesian_tier:
+        cartesian_tier = tier
+        cartesian_next_interval = 0.0
+    if now - cartesian_last_exec < cartesian_next_interval:
         return False
-
-    # Enforce minimum spacing between executions
-    if cartesian_window_count > 0 and (now - cartesian_last_exec) < min_interval:
-        return False
-
     cartesian_last_exec = now
-    cartesian_window_count += 1
+    cartesian_next_interval = base + random.uniform(-jitter, jitter)
     return True
 
 class RecommendationService(demo_pb2_grpc.RecommendationServiceServicer):
     def ListRecommendations(self, request, context):
         span = trace.get_current_span()
 
-        # DBMon Cartesian Demo - check feature flag
-        if check_feature_flag("recommendationCartesianQuery"):
+        # DBMon Cartesian Demo - variant controls fire cadence
+        # (off / normal / fast / faster / fastest).
+        tier = cartesian_variant()
+        if tier != "off":
             span.set_attribute("app.cartesian_demo.enabled", True)
-            if cartesian_rate_limit_ok():
+            span.set_attribute("app.cartesian_demo.tier", tier)
+            if cartesian_rate_limit_ok(tier):
                 span.set_attribute("app.cartesian_demo.rate_limited", False)
                 # Execute the slow Cartesian query (bad query = True)
                 cartesian_results = execute_cartesian_query(use_bad_query=True)
@@ -269,7 +287,7 @@ def get_pg_pool():
                 maxconn=5,
                 host=os.environ.get('POSTGRES_HOST', 'postgres'),
                 port=int(os.environ.get('POSTGRES_PORT', '5432')),
-                database=os.environ.get('POSTGRES_DB', 'otel'),
+                database=os.environ.get('POSTGRES_DB', 'astroshop'),
                 user=os.environ.get('POSTGRES_USER', 'demo_app_user'),
                 password=os.environ.get('POSTGRES_PASSWORD', 'demo_password')
             )
@@ -293,13 +311,16 @@ def execute_cartesian_query(use_bad_query: bool):
     category = random.choice(CATEGORIES)
     tag = random.choice(TAGS)
 
-    db_name = os.environ.get('POSTGRES_DB', 'otel')
+    db_name = os.environ.get('POSTGRES_DB', 'astroshop')
     db_user = os.environ.get('POSTGRES_USER', 'demo_app_user')
 
     tracer = trace.get_tracer_provider().get_tracer('recommendationservice')
     with tracer.start_as_current_span('db.get_product_recommendations') as span:
         span.set_attribute('db.system', 'postgresql')
+        # Emit both old (db.name) and new (db.namespace) semconv keys so the
+        # inferred DB service resolves consistently across all languages.
         span.set_attribute('db.name', db_name)
+        span.set_attribute('db.namespace', db_name)
         span.set_attribute('db.user', db_user)
         span.set_attribute('db.operation', 'SELECT')
         span.set_attribute('db.statement', query_normalized)

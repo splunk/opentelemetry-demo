@@ -166,11 +166,14 @@
       "defaultVariant": "off"
     },
     "recommendationCartesianQuery": {
-      "description": "DBMon Demo: Triggers a Cartesian join query (500M rows) in recommendation service PostgreSQL calls. Query returns correct results but processes 500M intermediate rows, taking 12+ seconds.",
+      "description": "DBMon Demo: Triggers a Cartesian join query in recommendation service PostgreSQL calls. Returns correct results but scans ~10M intermediate rows (~4s). Variant sets how often the slow query fires (base interval +/- jitter): off=disabled, normal=5min+/-20s, fast=3min+/-15s, faster=1min+/-10s, fastest=30s+/-5s. Jitter models a cache that refreshes after N queries rather than on a fixed clock.",
       "state": "ENABLED",
       "variants": {
-        "on": true,
-        "off": false
+        "off": "off",
+        "normal": "normal",
+        "fast": "fast",
+        "faster": "faster",
+        "fastest": "fastest"
       },
       "defaultVariant": "off"
     },
