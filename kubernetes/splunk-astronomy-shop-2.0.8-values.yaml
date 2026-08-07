@@ -361,7 +361,7 @@ agent:
         metrics:
           exporters: [signalfx]
           processors: [memory_limiter, k8s_attributes, batch, resourcedetection, resource, resource/add_environment, resource/strip_verbose, transform/dbmon]
-          receivers: [host_metrics, kubeletstats, otlp, receiver_creator, receiver_creator/kafka]
+          receivers: [host_metrics, kubelet_stats, otlp, receiver_creator, receiver_creator/kafka]
         traces:
           # signalfx exporter removed from traces — chart 0.153.1 align.
           # OTLP alone is sufficient for trace correlation; dropping signalfx
