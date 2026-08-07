@@ -1,3 +1,23 @@
+# =============================================================================
+# Splunk Astronomy Shop — Splunk OpenTelemetry Collector Helm values
+# =============================================================================
+# Purpose: values file for the splunk-otel-collector-chart Helm chart. Configures
+#          the OTel Collector (agent daemonset + cluster-receiver) that ingests
+#          the demo's telemetry and forwards it to Splunk Observability Cloud /
+#          Splunk Platform. This is NOT a demo app manifest.
+#
+# Version: 2.0.8
+#
+# Deploy:
+#   helm upgrade --install splunk-otel-collector \
+#     splunk-otel-collector-chart/splunk-otel-collector \
+#     --version <chart-version> -n <namespace> \
+#     -f splunk-astronomy-shop-2.0.8-values.yaml
+#
+# Note: the release pipeline prepends its own Version/Generated/Source header to
+#       the published release-asset copy (stage-values-with-header.sh); this
+#       in-repo header documents the source file itself.
+# =============================================================================
 clusterReceiver:
   extraEnvs:
   - name: WORKSHOP_REALM
