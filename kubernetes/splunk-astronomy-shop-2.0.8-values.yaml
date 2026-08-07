@@ -8,10 +8,15 @@
 #
 # Version: 2.0.8
 #
+# Requires: splunk-otel-collector-chart >= 0.157.0
+#   (0.157.0 renamed the kubeletstats receiver to kubelet_stats and ships the
+#    postgresql receiver query-sample fix this config relies on; older charts
+#    fail schema validation on kubelet_stats.)
+#
 # Deploy:
 #   helm upgrade --install splunk-otel-collector \
 #     splunk-otel-collector-chart/splunk-otel-collector \
-#     --version <chart-version> -n <namespace> \
+#     --version 0.157.0 -n <namespace> \
 #     -f splunk-astronomy-shop-2.0.8-values.yaml
 #
 # Note: at release time stage-values-with-header.sh stamps the release version
