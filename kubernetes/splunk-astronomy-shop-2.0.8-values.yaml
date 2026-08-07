@@ -315,18 +315,16 @@ agent:
             statements:
               - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["postgresql.database.name"]], ""))
           # PostgreSQL fallback: use injected db.name from pod annotation
+          # NOTE: conditions in a list are ORed, so they must be AND-joined into a
+          # single expression — otherwise the guards don't restrict and the
+          # pod-name last-resort rule (below) overwrites this with an unstable name.
           - conditions:
-              - resource.attributes["db.name"] != nil
-              - resource.attributes["postgresql.database.name"] == nil
-              - resource.attributes["sqlserver.instance.name"] == nil
+              - resource.attributes["db.name"] != nil and resource.attributes["postgresql.database.name"] == nil and resource.attributes["sqlserver.instance.name"] == nil
             statements:
               - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["db.name"]], ""))
           # PostgreSQL last resort: use k8s pod name
           - conditions:
-              - resource.attributes["k8s.pod.name"] != nil
-              - resource.attributes["postgresql.database.name"] == nil
-              - resource.attributes["db.name"] == nil
-              - resource.attributes["sqlserver.instance.name"] == nil
+              - resource.attributes["k8s.pod.name"] != nil and resource.attributes["postgresql.database.name"] == nil and resource.attributes["db.name"] == nil and resource.attributes["sqlserver.instance.name"] == nil
             statements:
               - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["k8s.pod.name"]], ""))
         log_statements:
@@ -341,18 +339,16 @@ agent:
             statements:
               - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["postgresql.database.name"]], ""))
           # PostgreSQL fallback: use injected db.name from pod annotation
+          # NOTE: conditions in a list are ORed, so they must be AND-joined into a
+          # single expression — otherwise the guards don't restrict and the
+          # pod-name last-resort rule (below) overwrites this with an unstable name.
           - conditions:
-              - resource.attributes["db.name"] != nil
-              - resource.attributes["postgresql.database.name"] == nil
-              - resource.attributes["sqlserver.instance.name"] == nil
+              - resource.attributes["db.name"] != nil and resource.attributes["postgresql.database.name"] == nil and resource.attributes["sqlserver.instance.name"] == nil
             statements:
               - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["db.name"]], ""))
           # PostgreSQL last resort: use k8s pod name
           - conditions:
-              - resource.attributes["k8s.pod.name"] != nil
-              - resource.attributes["postgresql.database.name"] == nil
-              - resource.attributes["db.name"] == nil
-              - resource.attributes["sqlserver.instance.name"] == nil
+              - resource.attributes["k8s.pod.name"] != nil and resource.attributes["postgresql.database.name"] == nil and resource.attributes["db.name"] == nil and resource.attributes["sqlserver.instance.name"] == nil
             statements:
               - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["k8s.pod.name"]], ""))
 
