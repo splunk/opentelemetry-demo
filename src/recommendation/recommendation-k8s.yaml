@@ -74,6 +74,9 @@ spec:
           value: product-catalog:8080
         - name: OTEL_PYTHON_LOG_CORRELATION
           value: 'true'
+        # Emit both old (db.name) and new (db.namespace) DB semconv attributes.
+        - name: OTEL_SEMCONV_STABILITY_OPT_IN
+          value: 'database/dup'
         - name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
           value: python
         - name: FLAGD_HOST
@@ -96,7 +99,7 @@ spec:
         - name: POSTGRES_PORT
           value: "5432"
         - name: POSTGRES_DB
-          value: "otel"
+          value: "astroshop"
         - name: POSTGRES_USER
           value: "demo_app_user"
         - name: POSTGRES_PASSWORD

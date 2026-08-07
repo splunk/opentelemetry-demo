@@ -73,7 +73,7 @@ spec:
         - name: OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT
           value: 'span_only'
         - name: OTEL_SEMCONV_STABILITY_OPT_IN
-          value: 'gen_ai_latest_experimental'
+          value: 'gen_ai_latest_experimental,database/dup'
         - name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
           value: python
         - name: FLAGD_HOST
@@ -81,7 +81,7 @@ spec:
         - name: FLAGD_PORT
           value: '8013'
         - name: DB_CONNECTION_STRING
-          value: host=postgresql user=otelu password=otelp dbname=otel
+          value: host=postgresql user=otelu password=otelp dbname=astroshop
         - name: LLM_HOST
           value: llm
         - name: LLM_PORT

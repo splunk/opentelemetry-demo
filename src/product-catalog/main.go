@@ -106,15 +106,31 @@ func init() {
 	logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
 }
 
+// dsnField extracts a key=value field from a libpq keyword/value DSN
+// (e.g. "host=postgresql dbname=astroshop"). Returns "" if absent.
+func dsnField(dsn, key string) string {
+	for _, part := range strings.Fields(dsn) {
+		if k, v, ok := strings.Cut(part, "="); ok && k == key {
+			return v
+		}
+	}
+	return ""
+}
+
 func initDatabase() error {
 	connStr := os.Getenv("DB_CONNECTION_STRING")
 	if connStr == "" {
 		return fmt.Errorf("DB_CONNECTION_STRING environment variable not set")
 	}
 
-	dbAttrs := otelsql.WithAttributes(
-		append(otelsql.AttributesFromDSN(connStr), semconv.DBSystemNamePostgreSQL)...,
-	)
+	// otelsql + semconv v1.38 emits the new db.namespace attribute only.
+	// Also emit the old db.name key (parsed from the DSN) so the inferred DB
+	// service resolves consistently with the other services that still use it.
+	attrs := append(otelsql.AttributesFromDSN(connStr), semconv.DBSystemNamePostgreSQL)
+	if dbName := dsnField(connStr, "dbname"); dbName != "" {
+		attrs = append(attrs, attribute.String("db.name", dbName))
+	}
+	dbAttrs := otelsql.WithAttributes(attrs...)
 
 	var err error
 	db, err = otelsql.Open("postgres", connStr,
