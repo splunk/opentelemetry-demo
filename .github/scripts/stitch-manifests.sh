@@ -154,11 +154,17 @@ stitch_service() {
     # The full tag is replaced wholesale by SERVICE_VERSION — no trailing capture group,
     # which previously caused double-suffix bugs (e.g., 2.0.1-beta-beta).
     if [ -n "$REGISTRY_URL" ] && [ "$SHOULD_REPLACE" = "true" ]; then
+        # Registry + pod-level version labels use the pod's SERVICE_VERSION;
+        # image tags are set per-image (apply_image_versions) so embedded
+        # sidecar images keep their own service version.
+        local TMP; TMP=$(mktemp)
         sed -e "s|ghcr.io/[^/]*/[^/]*|${REGISTRY_URL}|g" \
-            -e "s|\(${REGISTRY_URL}/[^:]*\):[0-9][0-9.]*[^[:space:]]*|\1:${SERVICE_VERSION}|" \
             -e "s|app.kubernetes.io/version: [0-9][0-9.]*[^\"[:space:]]*|app.kubernetes.io/version: ${SERVICE_VERSION}|g" \
             -e "s|service.version=[0-9][0-9.]*[^,[:space:]]*|service.version=${SERVICE_VERSION}|g" \
-            "$MANIFEST_FILE" >> "$OUT_FILE"
+            "$MANIFEST_FILE" > "$TMP"
+        apply_image_versions "$TMP"
+        cat "$TMP" >> "$OUT_FILE"
+        rm -f "$TMP"
     elif [ "$SHOULD_REPLACE" = "false" ]; then
         cat "$MANIFEST_FILE" >> "$OUT_FILE"
         echo "  (using original registry and versions)"
@@ -171,6 +177,31 @@ stitch_service() {
     echo "" >> "$OUT_FILE"
     echo "---" >> "$OUT_FILE"
     return 0
+}
+
+# ============================================================
+# Function: apply_image_versions
+# Retag each image line by the version of the service that image
+# belongs to (image name is otel-<service>). This ensures sidecar
+# images embedded in another pod's manifest (e.g. secureapp-loadgen-*
+# inside recommendation-k8s.yaml) get their OWN service version rather
+# than the host pod's — otherwise a single-service build retags the
+# sidecar to a tag that was never built (ImagePullBackOff).
+# Operates in place on an already registry-normalized file.
+# ============================================================
+apply_image_versions() {
+    local FILE="$1"
+    local IMG NAME V
+    for IMG in $(grep -oE "${REGISTRY_URL}/otel-[A-Za-z0-9._-]+:[0-9][0-9.]*[^[:space:]]*" "$FILE" \
+                 | sed -E 's|:[0-9].*$||' | sort -u); do
+        NAME="${IMG##*/otel-}"
+        V=$(get_service_version "$NAME")
+        # Escape regex-significant chars in the image path for the LHS.
+        local IMG_RE
+        IMG_RE=$(printf '%s' "$IMG" | sed -e 's/[.[\*^$/]/\\&/g')
+        sed -i.bak "s|\(${IMG_RE}\):[0-9][0-9.]*[^[:space:]]*|\1:${V}|g" "$FILE"
+        rm -f "${FILE}.bak"
+    done
 }
 
 # ============================================================
@@ -214,11 +245,14 @@ stitch_payment() {
         echo "# === $LABEL ===" >> "$OUT_FILE"
 
         if [ -n "$REGISTRY_URL" ] && [ "$SHOULD_REPLACE" = "true" ]; then
+            local TMP; TMP=$(mktemp)
             sed -e "s|ghcr.io/[^/]*/[^/]*|${REGISTRY_URL}|g" \
-                -e "s|\(${REGISTRY_URL}/[^:]*\):[0-9][0-9.]*[^[:space:]]*|\1:${SERVICE_VERSION}|" \
                 -e "s|app.kubernetes.io/version: [0-9][0-9.]*[^\"[:space:]]*|app.kubernetes.io/version: ${SERVICE_VERSION}|g" \
                 -e "s|service.version=[0-9][0-9.]*[^,[:space:]]*|service.version=${SERVICE_VERSION}|g" \
-                "$CURRENT_MANIFEST" >> "$OUT_FILE"
+                "$CURRENT_MANIFEST" > "$TMP"
+            apply_image_versions "$TMP"
+            cat "$TMP" >> "$OUT_FILE"
+            rm -f "$TMP"
         elif [ "$SHOULD_REPLACE" = "false" ]; then
             cat "$CURRENT_MANIFEST" >> "$OUT_FILE"
         else
