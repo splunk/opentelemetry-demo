@@ -77,6 +77,11 @@ spec:
         # Emit both old (db.name) and new (db.namespace) DB semconv attributes.
         - name: OTEL_SEMCONV_STABILITY_OPT_IN
           value: 'database/dup'
+        # Disable the psycopg2 auto-instrumentor so the manual instrument() call
+        # in recommendation_server.py (with sqlcommenter enabled) is the one that
+        # applies — enabling DBMon trace<->query correlation for Postgres.
+        - name: OTEL_PYTHON_DISABLED_INSTRUMENTATIONS
+          value: 'psycopg2'
         - name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
           value: python
         - name: FLAGD_HOST

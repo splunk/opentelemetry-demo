@@ -14,6 +14,7 @@ from concurrent import futures
 import grpc
 import psycopg2
 from psycopg2 import pool
+from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
 from opentelemetry import trace, metrics
 from opentelemetry._logs import set_logger_provider
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import (
@@ -347,6 +348,16 @@ def execute_cartesian_query(use_bad_query: bool):
 
 if __name__ == "__main__":
     service_name = must_map_env('OTEL_SERVICE_NAME')
+
+    # Instrument psycopg2 with sqlcommenter so DBMon can correlate the DB query
+    # samples back to APM traces (turns the inferred Postgres node into a
+    # monitored one). enable_commenter injects the trace context into the SQL;
+    # enable_attribute_commenter also surfaces it on the db.statement attribute.
+    # The psycopg2 auto-instrumentor is disabled via OTEL_PYTHON_DISABLED_INSTRUMENTATIONS
+    # in the manifest so this manual instrument (with the commenter) is the one
+    # that applies — otherwise the auto one instruments first and this is a no-op.
+    Psycopg2Instrumentor().instrument(enable_commenter=True, enable_attribute_commenter=True)
+
     api.set_provider(FlagdProvider(host=os.environ.get('FLAGD_HOST', 'flagd'), port=os.environ.get('FLAGD_PORT', 8013)))
     api.add_hooks([TracingHook()])
 
