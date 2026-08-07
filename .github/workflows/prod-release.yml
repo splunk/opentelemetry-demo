@@ -2,8 +2,10 @@ name: Build Prod Release (Build + Manifest)
 # Combined workflow: builds images, updates versions, stitches manifests, creates ONE PR
 # Replaces the two-step flow of prod-build-images.yml → (merge PR) → prod-build-manifest.yml
 #
-# Beta mode: builds images tagged {version}-beta, creates a GitHub pre-release with
-# manifests attached. Does NOT bump SPLUNK-VERSION or create a PR.
+# Beta mode: builds images tagged {version}-beta.N, creates a GitHub pre-release
+# with manifests attached. N auto-increments from existing {version}-beta.*
+# pre-releases, so repeated beta runs coexist (2.0.8-beta.1, .2, .3 ...) instead
+# of overwriting. Does NOT bump SPLUNK-VERSION or create a PR.
 # Use beta to test a release candidate before committing to the version.
 
 "on":
@@ -31,7 +33,7 @@ name: Build Prod Release (Build + Manifest)
         type: string
         default: 'all'
       beta:
-        description: 'Beta build — tags images with -beta suffix, creates pre-release, does NOT bump SPLUNK-VERSION'
+        description: 'Beta build — tags images with -beta.N suffix (N auto-increments), creates pre-release, does NOT bump SPLUNK-VERSION'
         required: false
         type: boolean
         default: false
@@ -72,6 +74,8 @@ jobs:
 
       - name: Determine version
         id: version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           CURRENT_VERSION=$(cat SPLUNK-VERSION)
           BUMP_TYPE="${{ inputs.version_bump }}"
@@ -130,11 +134,26 @@ jobs:
             IS_CUSTOM="true"
           fi
 
-          # Beta: append -beta suffix, don't actually bump anything
+          # Beta: append -beta.N suffix, don't actually bump anything.
+          # Iteration N auto-increments from existing v{base}-beta.* pre-releases
+          # so repeated beta runs coexist (2.0.8-beta.1, .2, .3 ...) rather than
+          # overwriting. Stateless — derived from GitHub releases, nothing committed.
           IS_BETA="${{ inputs.beta }}"
           BASE_VERSION="$VERSION"
           if [[ "$IS_BETA" == "true" ]]; then
-            VERSION="${VERSION}-beta"
+            EXISTING=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 200 \
+              --json tagName --jq '.[].tagName' 2>/dev/null \
+              | grep -E "^v${BASE_VERSION}-beta(\.[0-9]+)?$" || true)
+            MAXN=0
+            while IFS= read -r tag; do
+              [[ -z "$tag" ]] && continue
+              # legacy bare "-beta" (no number) counts as iteration 0
+              n=$(echo "$tag" | sed -E "s/^v${BASE_VERSION}-beta\.?([0-9]*)$/\1/")
+              [[ "$n" =~ ^[0-9]+$ ]] || n=0
+              (( n > MAXN )) && MAXN=$n
+            done <<< "$EXISTING"
+            NEXT=$(( MAXN + 1 ))
+            VERSION="${BASE_VERSION}-beta.${NEXT}"
             IS_FULL_RELEASE="false"  # Beta never triggers full release behavior
           fi
 
