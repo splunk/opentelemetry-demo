@@ -81,7 +81,7 @@ spec:
         - name: FLAGD_PORT
           value: '8013'
         - name: DB_CONNECTION_STRING
-          value: host=postgresql user=otelu password=otelp dbname=astroshop
+          value: host=postgresql user=otelu password=otelp dbname=astroshop application_name=product-reviews
         - name: LLM_HOST
           value: llm
         - name: LLM_PORT

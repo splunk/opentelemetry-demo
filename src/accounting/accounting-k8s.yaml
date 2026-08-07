@@ -71,7 +71,7 @@ spec:
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
           value: http://$(OTEL_COLLECTOR_NAME):4318
         - name: DB_CONNECTION_STRING
-          value: Host=postgresql;Username=otelu;Password=otelp;Database=astroshop
+          value: Host=postgresql;Username=otelu;Password=otelp;Database=astroshop;Application Name=accounting
         # Optional fire-and-forget call to order-validation (throttle-demo).
         # Disabled by default (unset). To enable, set to the service URL
         # e.g. http://order-validation:8080 — throttle-demo manifest deploys

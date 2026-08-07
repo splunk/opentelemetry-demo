@@ -77,7 +77,7 @@ spec:
         - name: FLAGD_PORT
           value: '8013'
         - name: DB_CONNECTION_STRING
-          value: "host=postgresql user=otelu password=otelp dbname=astroshop sslmode=disable"
+          value: "host=postgresql user=otelu password=otelp dbname=astroshop sslmode=disable application_name=product-catalog"
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
           value: http://$(OTEL_COLLECTOR_NAME):4317
         - name: GOMEMLIMIT

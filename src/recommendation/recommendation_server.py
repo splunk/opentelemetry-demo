@@ -290,7 +290,11 @@ def get_pg_pool():
                 port=int(os.environ.get('POSTGRES_PORT', '5432')),
                 database=os.environ.get('POSTGRES_DB', 'astroshop'),
                 user=os.environ.get('POSTGRES_USER', 'demo_app_user'),
-                password=os.environ.get('POSTGRES_PASSWORD', 'demo_password')
+                password=os.environ.get('POSTGRES_PASSWORD', 'demo_password'),
+                # SET application_name per session so DBMon can attribute the
+                # query samples to this service (Splunk's PostgreSQL trace<->query
+                # correlation reads application_name).
+                application_name=os.environ.get('OTEL_SERVICE_NAME', 'recommendation'),
             )
         except Exception as e:
             logging.getLogger('main').warning(f"Failed to create PostgreSQL pool: {e}")
