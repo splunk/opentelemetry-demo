@@ -14,9 +14,9 @@
 #     --version <chart-version> -n <namespace> \
 #     -f splunk-astronomy-shop-2.0.8-values.yaml
 #
-# Note: the release pipeline prepends its own Version/Generated/Source header to
-#       the published release-asset copy (stage-values-with-header.sh); this
-#       in-repo header documents the source file itself.
+# Note: at release time stage-values-with-header.sh stamps the release version
+#       onto the `# Version:` line above and injects Generated/Source provenance
+#       into the published asset copy; this in-repo file stays untouched.
 # =============================================================================
 clusterReceiver:
   extraEnvs:
