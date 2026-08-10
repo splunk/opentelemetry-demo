@@ -1,0 +1,147 @@
+# =============================================================================
+# oracle-cartesian-tester — Java+Splunk-agent service, cartesian query -> Oracle
+# =============================================================================
+# Mirror of the mysql/pg testers, aimed at the "telescope" Oracle DB (FREEPDB1).
+# Oracle's optimizer avoids the naive cartesian, so the query carries hints
+# (ORDERED USE_NL FULL) to force a slow nested-loop full-scan join.
+#
+# Deploy:  kubectl apply -f kubernetes/test/oracle-cartesian-tester.yaml
+# Remove:  kubectl delete -f kubernetes/test/oracle-cartesian-tester.yaml
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oracle-cartesian-tester-src
+  namespace: default
+data:
+  Cartesian.java: |
+    import java.sql.*;
+    import java.util.Random;
+
+    public class Cartesian {
+        public static void main(String[] args) throws Exception {
+            String url  = env("OR_URL",  "jdbc:oracle:thin:@//oracle-telescope:1521/FREEPDB1");
+            String user = env("OR_USER", "demo_app_user");
+            String pass = env("OR_PASS", "demo_password");
+            long   ms   = Long.parseLong(env("INTERVAL_SECONDS", "3")) * 1000L;
+
+            // Hints force a slow nested-loop full-scan cartesian (Oracle's CBO
+            // would otherwise optimize the naive join away).
+            String sql = "SELECT * FROM ("
+                       + "  SELECT /*+ ORDERED USE_NL(pt) FULL(p) FULL(pt) */ "
+                       + "         p.product_id, p.name, p.price, pt.tag, pt.relevance_score "
+                       + "  FROM products p, product_tags pt "
+                       + "  WHERE p.category = ? AND pt.tag = ? "
+                       + "  ORDER BY pt.relevance_score DESC) "
+                       + "WHERE ROWNUM <= 10";
+            String[] cats = {"telescope","eyepiece","mount","camera","filter"};
+            String[] tags = {"beginner","advanced","astrophotography","visual","planetary"};
+            Random rnd = new Random();
+
+            System.out.println("oracle-cartesian-tester: firing every " + (ms/1000) + "s against " + url);
+            while (true) {
+                long t0 = System.currentTimeMillis();
+                try (Connection c = DriverManager.getConnection(url, user, pass);
+                     PreparedStatement ps = c.prepareStatement(sql)) {
+                    ps.setString(1, cats[rnd.nextInt(cats.length)]);
+                    ps.setString(2, tags[rnd.nextInt(tags.length)]);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        int n = 0; while (rs.next()) n++;
+                        System.out.println("cartesian: " + n + " rows in " + (System.currentTimeMillis()-t0) + "ms");
+                    }
+                } catch (Exception e) {
+                    System.err.println("query failed: " + e.getMessage());
+                }
+                Thread.sleep(ms);
+            }
+        }
+        static String env(String k, String d) {
+            String v = System.getenv(k);
+            return (v == null || v.isEmpty()) ? d : v;
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oracle-cartesian-tester
+  namespace: default
+  labels:
+    app.kubernetes.io/component: oracle-cartesian-tester
+    app.kubernetes.io/name: oracle-cartesian-tester
+    app.kubernetes.io/part-of: opentelemetry-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: oracle-cartesian-tester
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: oracle-cartesian-tester
+        app.kubernetes.io/name: oracle-cartesian-tester
+    spec:
+      initContainers:
+      - name: fetch-deps
+        image: curlimages/curl:8.10.1
+        command: ["sh", "-c"]
+        args:
+          - |
+            set -e
+            echo "downloading oracle JDBC driver + splunk java agent..."
+            curl -fsSL -o /deps/ojdbc.jar \
+              https://repo1.maven.org/maven2/com/oracle/database/jdbc/ojdbc11/23.5.0.24.07/ojdbc11-23.5.0.24.07.jar
+            curl -fsSL -o /deps/splunk-otel-javaagent.jar \
+              https://github.com/signalfx/splunk-otel-java/releases/latest/download/splunk-otel-javaagent.jar
+            ls -l /deps
+        volumeMounts:
+        - name: deps
+          mountPath: /deps
+      containers:
+      - name: tester
+        image: eclipse-temurin:21-jdk
+        command: ["sh", "-c"]
+        args:
+          - exec java -javaagent:/deps/splunk-otel-javaagent.jar -cp /deps/ojdbc.jar /app/Cartesian.java
+        env:
+        - name: OTEL_SERVICE_NAME
+          value: oracle-cartesian-tester
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: http://$(NODE_IP):4318
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: http/protobuf
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: service.name=oracle-cartesian-tester,service.namespace=opentelemetry-demo
+        - name: OTEL_METRICS_EXPORTER
+          value: none
+        - name: SPLUNK_PROFILER_ENABLED
+          value: "false"
+        - name: OR_URL
+          value: jdbc:oracle:thin:@//oracle-telescope:1521/FREEPDB1
+        - name: OR_USER
+          value: demo_app_user
+        - name: OR_PASS
+          value: demo_password
+        - name: INTERVAL_SECONDS
+          value: "3"
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+        volumeMounts:
+        - name: deps
+          mountPath: /deps
+        - name: src
+          mountPath: /app
+      volumes:
+      - name: deps
+        emptyDir: {}
+      - name: src
+        configMap:
+          name: oracle-cartesian-tester-src
