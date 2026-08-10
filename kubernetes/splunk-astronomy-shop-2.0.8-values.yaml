@@ -227,6 +227,25 @@ agent:
                   enabled: true
                 postgresql.connection.max:
                   enabled: true
+          # MySQL receiver - discovered by agent on same node as the mysql pod.
+          mysql/main:
+            rule: type == "port" && pod.name matches "mysql-telescope" && port == 3306
+            resource_attributes:
+              k8s.pod.name: '`pod.name`'
+              db.name: '`pod.annotations["splunk.com/mysql.database"]`'
+            config:
+              endpoint: '`endpoint`'
+              username: otel-user
+              password: otel-user-password
+              collection_interval: 10s
+              resource_attributes:
+                mysql.instance.endpoint:
+                  enabled: true
+              events:
+                db.server.query_sample:
+                  enabled: true
+                db.server.top_query:
+                  enabled: true
       receiver_creator/kafka:
         watch_observers: [k8s_observer]
         receivers:
@@ -370,6 +389,12 @@ agent:
             statements:
               - set(log.attributes["server.address"], "postgresql")
               - set(log.attributes["server.port"], 5432)
+          # MySQL: same gap — inject server.address/server.port on dbmon events.
+          - conditions:
+              - log.attributes["db.system.name"] == "mysql" and log.attributes["server.address"] == nil
+            statements:
+              - set(log.attributes["server.address"], "mysql-telescope")
+              - set(log.attributes["server.port"], 3306)
           # SQL Server: use instance name for identification
           - conditions:
               - resource.attributes["sqlserver.instance.name"] != nil

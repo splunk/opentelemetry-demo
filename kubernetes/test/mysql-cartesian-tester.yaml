@@ -1,0 +1,141 @@
+# =============================================================================
+# mysql-cartesian-tester — Java+Splunk-agent service, cartesian query -> MySQL
+# =============================================================================
+# Mirror of pg-cartesian-tester, aimed at the "telescope" MySQL DB. Runs the
+# cartesian bad query every 3s so the mysql receiver captures it as a top query.
+#
+# Deploy:  kubectl apply -f kubernetes/test/mysql-cartesian-tester.yaml
+# Remove:  kubectl delete -f kubernetes/test/mysql-cartesian-tester.yaml
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-cartesian-tester-src
+  namespace: default
+data:
+  Cartesian.java: |
+    import java.sql.*;
+    import java.util.Random;
+
+    public class Cartesian {
+        public static void main(String[] args) throws Exception {
+            String url  = env("MY_URL",  "jdbc:mysql://mysql-telescope:3306/telescope");
+            String user = env("MY_USER", "demo_app_user");
+            String pass = env("MY_PASS", "demo_password");
+            long   ms   = Long.parseLong(env("INTERVAL_SECONDS", "3")) * 1000L;
+
+            String sql = "SELECT p.product_id, p.name, p.price, pt.tag, pt.relevance_score "
+                       + "FROM products p JOIN product_tags pt ON 1=1 "
+                       + "WHERE p.category = ? AND pt.tag = ? "
+                       + "ORDER BY pt.relevance_score DESC LIMIT 10";
+            String[] cats = {"telescope","eyepiece","mount","camera","filter"};
+            String[] tags = {"beginner","advanced","astrophotography","visual","planetary"};
+            Random rnd = new Random();
+
+            System.out.println("mysql-cartesian-tester: firing every " + (ms/1000) + "s against " + url);
+            while (true) {
+                long t0 = System.currentTimeMillis();
+                try (Connection c = DriverManager.getConnection(url, user, pass);
+                     PreparedStatement ps = c.prepareStatement(sql)) {
+                    ps.setString(1, cats[rnd.nextInt(cats.length)]);
+                    ps.setString(2, tags[rnd.nextInt(tags.length)]);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        int n = 0; while (rs.next()) n++;
+                        System.out.println("cartesian: " + n + " rows in " + (System.currentTimeMillis()-t0) + "ms");
+                    }
+                } catch (Exception e) {
+                    System.err.println("query failed: " + e.getMessage());
+                }
+                Thread.sleep(ms);
+            }
+        }
+        static String env(String k, String d) {
+            String v = System.getenv(k);
+            return (v == null || v.isEmpty()) ? d : v;
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-cartesian-tester
+  namespace: default
+  labels:
+    app.kubernetes.io/component: mysql-cartesian-tester
+    app.kubernetes.io/name: mysql-cartesian-tester
+    app.kubernetes.io/part-of: opentelemetry-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: mysql-cartesian-tester
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: mysql-cartesian-tester
+        app.kubernetes.io/name: mysql-cartesian-tester
+    spec:
+      initContainers:
+      - name: fetch-deps
+        image: curlimages/curl:8.10.1
+        command: ["sh", "-c"]
+        args:
+          - |
+            set -e
+            echo "downloading mysql JDBC driver + splunk java agent..."
+            curl -fsSL -o /deps/mysql.jar \
+              https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/9.1.0/mysql-connector-j-9.1.0.jar
+            curl -fsSL -o /deps/splunk-otel-javaagent.jar \
+              https://github.com/signalfx/splunk-otel-java/releases/latest/download/splunk-otel-javaagent.jar
+            ls -l /deps
+        volumeMounts:
+        - name: deps
+          mountPath: /deps
+      containers:
+      - name: tester
+        image: eclipse-temurin:21-jdk
+        command: ["sh", "-c"]
+        args:
+          - exec java -javaagent:/deps/splunk-otel-javaagent.jar -cp /deps/mysql.jar /app/Cartesian.java
+        env:
+        - name: OTEL_SERVICE_NAME
+          value: mysql-cartesian-tester
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: http://$(NODE_IP):4318
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: http/protobuf
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: service.name=mysql-cartesian-tester,service.namespace=opentelemetry-demo
+        - name: OTEL_METRICS_EXPORTER
+          value: none
+        - name: SPLUNK_PROFILER_ENABLED
+          value: "false"
+        - name: MY_URL
+          value: jdbc:mysql://mysql-telescope:3306/telescope
+        - name: MY_USER
+          value: demo_app_user
+        - name: MY_PASS
+          value: demo_password
+        - name: INTERVAL_SECONDS
+          value: "3"
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            memory: 384Mi
+        volumeMounts:
+        - name: deps
+          mountPath: /deps
+        - name: src
+          mountPath: /app
+      volumes:
+      - name: deps
+        emptyDir: {}
+      - name: src
+        configMap:
+          name: mysql-cartesian-tester-src
