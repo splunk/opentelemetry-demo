@@ -329,6 +329,14 @@ agent:
       transform/dbmon:
         error_mode: ignore
         metric_statements:
+          # PostgreSQL: the postgresql receiver emits no server.address/server.port
+          # (the sqlserver receiver does), which the monitored-DB entity keys on.
+          # Inject them so postgres resolves to a monitored node, not inferred.
+          - conditions:
+              - resource.attributes["db.system.name"] == "postgresql" and resource.attributes["server.address"] == nil
+            statements:
+              - set(resource.attributes["server.address"], "postgresql")
+              - set(resource.attributes["server.port"], 5432)
           # SQL Server: use instance name for identification
           - conditions:
               - resource.attributes["sqlserver.instance.name"] != nil
@@ -353,6 +361,15 @@ agent:
             statements:
               - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["k8s.pod.name"]], ""))
         log_statements:
+          # PostgreSQL: inject server.address/server.port (the postgresql receiver
+          # emits neither, unlike sqlserver) so it resolves to a monitored DB node.
+          # On dbmon log events these are RECORD-level attributes (matching where
+          # the sqlserver receiver puts server.address), so use attributes[...].
+          - conditions:
+              - log.attributes["db.system.name"] == "postgresql" and log.attributes["server.address"] == nil
+            statements:
+              - set(log.attributes["server.address"], "postgresql")
+              - set(log.attributes["server.port"], 5432)
           # SQL Server: use instance name for identification
           - conditions:
               - resource.attributes["sqlserver.instance.name"] != nil
