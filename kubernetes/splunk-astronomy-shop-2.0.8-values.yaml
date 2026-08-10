@@ -69,14 +69,6 @@ agent:
       receiver_creator:
         watch_observers: [k8s_observer]
         receivers:
-          mysql/online-boutique:
-            rule: type == "port" && pod.name matches "mysql" && port == 3306
-            config:
-              tls:
-                insecure: true
-              username: root
-              password: root
-              database: LxvGChW075
           redis:
             rule: type == "port" && pod.name matches "(redis|valkey)-cart" && port == 6379
             config:
