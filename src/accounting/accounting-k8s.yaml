@@ -78,7 +78,7 @@ spec:
         # that service. When set but service absent, TriggerValidation
         # swallows DNS NXDOMAIN / connection refused / timeout (120s cap).
         - name: OTEL_DOTNET_AUTO_TRACES_ENTITYFRAMEWORKCORE_INSTRUMENTATION_ENABLED
-          value: 'false'
+          value: 'true'
         # Emit both old (db.name) and new (db.namespace) DB semconv attributes.
         - name: OTEL_SEMCONV_STABILITY_OPT_IN
           value: 'database/dup'
