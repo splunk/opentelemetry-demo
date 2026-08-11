@@ -385,7 +385,15 @@ jobs:
 
       - name: Update hotfix tracking
         if: ${{ needs.determine-version.outputs.is_hotfix == 'true' }}
-        run: echo "Hotfix already tracked in determine-version step"
+        run: |
+          # determine-version ran manage-hotfix in a separate job (separate
+          # runner/filesystem), so .hotfix.yaml does not exist in this job's
+          # checkout. Regenerate it here with the SAME first-service logic so
+          # the Create Pull Request step can `git add .hotfix.yaml`. Both jobs
+          # start from the same committed baseline on main, so the increment is
+          # deterministic and matches the computed version.
+          SERVICE_NAME=$(echo "${{ inputs.services }}" | tr ',' '\n' | head -1 | xargs)
+          python3 .github/scripts/manage-hotfix.py add "$SERVICE_NAME"
 
       - name: Update source manifests with new image references
         run: |
