@@ -6,8 +6,15 @@ const Database = require('better-sqlite3');
 const yaml = require('js-yaml');
 const serialize = require('node-serialize');
 
+const { logs, SeverityNumber } = require('@opentelemetry/api-logs');
+
 const { vulnerabilityMetadata, ROTATE_ORDER } = require('./vulnerabilities');
 const { attackScenarioEnabled } = require('./config');
+
+// OTel logger whose instrumentation scope name is "secureapp" — the collector
+// routes log records with scope == "secureapp" to the SecureApp /v3/event ingest.
+// Mirrors the Java/Python apps' "secureapp" logger name.
+const secureappLogger = logs.getLogger('secureapp');
 
 let db;
 
@@ -75,9 +82,14 @@ function triggerLog4j() {
   } catch {
     // unsafe load path exercised
   }
-  console.error(
-    'Authentication failure for user: ${jndi:ldap://127.0.0.1:1389/log4j-test}',
-  );
+  const message =
+    'Authentication failure for user: ${jndi:ldap://127.0.0.1:1389/log4j-test}';
+  console.error(message);
+  secureappLogger.emit({
+    severityNumber: SeverityNumber.ERROR,
+    severityText: 'ERROR',
+    body: message,
+  });
   return result('log4j', { status: 'failed', message: 'Invalid credentials' });
 }
 

@@ -12,6 +12,7 @@
     "start:plain": "node src/server.js"
   },
   "dependencies": {
+    "@opentelemetry/api-logs": "^0.219.0",
     "@splunk/otel": "^4.9.0",
     "axios": "0.21.1",
     "better-sqlite3": "^11.7.0",

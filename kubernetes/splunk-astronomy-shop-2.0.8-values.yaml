@@ -282,6 +282,18 @@ agent:
             flush_timeout: 15s
             max_size: 10485760 # 10 MiB
             sizer: bytes
+      # Exports secureapp security events as logs -> SecureApp /v3/event.
+      # Fed by the routing/logs connector below (scope == "secureapp").
+      otlp_http/secureapp:
+        headers:
+          X-SF-Token: ${SPLUNK_OBSERVABILITY_ACCESS_TOKEN}
+          X-splunk-instrumentation-library: secureapp
+        logs_endpoint: https://ingest.${WORKSHOP_REALM}.signalfx.com/v3/event
+        sending_queue:
+          batch:
+            flush_timeout: 15s
+            max_size: 10485760 # 10 MiB
+            sizer: bytes
     processors:
       # Inject environment as a resource attribute for traces
       resource/add_environment:
@@ -437,6 +449,18 @@ agent:
             statements:
               - set(resource.attributes["service.instance.id"], Concat([resource.attributes["deployment.environment"], " - ", resource.attributes["k8s.pod.name"]], ""))
 
+    connectors:
+      # Split OTLP logs by instrumentation scope. Security-event records emitted
+      # by the secureapp sidecars' "secureapp" logger (scope == "secureapp") are
+      # routed to logs/secureapp -> /v3/event; all other logs stay on the
+      # default logs pipeline (HEC).
+      routing/logs:
+        default_pipelines: [logs]
+        table:
+          - context: log
+            condition: instrumentation_scope.name == "secureapp"
+            pipelines: [logs/secureapp]
+
     service:
       pipelines:
         metrics:
@@ -456,6 +480,23 @@ agent:
           receivers: [receiver_creator]
           processors: [memory_limiter, batch, resourcedetection, resource, resource/add_environment, transform/dbmon]
           exporters: [otlp_http/dbmon]
+        # SecureApp logs routing. otlp logs enter via logs/split, the
+        # routing/logs connector splits scope=="secureapp" off to /v3/event,
+        # everything else falls through to the default logs pipeline (HEC).
+        # The logs pipeline below overrides the chart default to swap the otlp
+        # receiver for routing/logs; receivers/processors/exporters otherwise
+        # mirror the chart default (splunk-otel-collector logs pipeline).
+        logs:
+          receivers: [file_log, routing/logs]
+          processors: [memory_limiter, k8s_attributes, filter/logs, batch, resourcedetection, resource, resource/logs, resource/add_environment]
+          exporters: [splunk_hec/o11y, splunk_hec/platform_logs]
+        logs/split:
+          receivers: [otlp]
+          exporters: [routing/logs]
+        logs/secureapp:
+          receivers: [routing/logs]
+          processors: [memory_limiter, batch]
+          exporters: [otlp_http/secureapp]
 
 logsCollection:
   extraFileLogs:
