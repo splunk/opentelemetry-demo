@@ -114,7 +114,7 @@ spec:
       # (initContainer with restartPolicy: Always, k8s >= 1.29).
       initContainers:
       - name: secureapp
-        image: ghcr.io/splunk/opentelemetry-demo/otel-secureapp-loadgen-python:2.0.7
+        image: ghcr.io/splunk/opentelemetry-demo/otel-secureapp-loadgen-python:2.0.7-hotfix-secureapp-loadgen-java-1
         imagePullPolicy: Always
         restartPolicy: Always
         command:

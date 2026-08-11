@@ -112,7 +112,7 @@ spec:
       # avoid collision with the ad container's 8080.
       initContainers:
       - name: secureapp
-        image: ghcr.io/splunk/opentelemetry-demo/otel-secureapp-loadgen-java:2.0.7
+        image: ghcr.io/splunk/opentelemetry-demo/otel-secureapp-loadgen-java:2.0.7-hotfix-secureapp-loadgen-java-1
         imagePullPolicy: Always
         restartPolicy: Always
         command: ["/bin/sh"]
