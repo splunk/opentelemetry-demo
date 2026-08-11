@@ -15,7 +15,7 @@ from sqlalchemy.pool import StaticPool
 
 from team_portal.vulnerabilities import vulnerability_metadata
 
-logger = logging.getLogger("TeamPortal")
+logger = logging.getLogger("secureapp")
 
 SQLALCHEMY_URL = "sqlite:///:memory:"
 _engine = create_engine(

@@ -1,0 +1,127 @@
+# =============================================================================
+# oracle-telescope — Oracle Database Free (DBmon test instance)
+# =============================================================================
+# Oracle Database Free 23 (gvenzl community image, fast-start). Default PDB
+# FREEPDB1, app user demo_app_user, seeded with the cartesian tables. The
+# oracledb receiver connects as SYSTEM (has the dictionary access it needs).
+#
+# Deploy:  kubectl apply -f kubernetes/test/oracle-telescope.yaml
+# Remove:  kubectl delete -f kubernetes/test/oracle-telescope.yaml
+# Service name (PDB): FREEPDB1   Port: 1521
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oracle-telescope-init
+  namespace: default
+data:
+  # gvenzl runs *.sql here on first init, connected to FREEPDB1 as APP_USER
+  # (demo_app_user), which has the RESOURCE role — enough to create + seed.
+  01-cartesian.sql: |
+    CREATE TABLE products (
+        id          NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        product_id  VARCHAR2(64) UNIQUE,
+        name        VARCHAR2(255),
+        category    VARCHAR2(64),
+        price       NUMBER(10,2)
+    );
+    CREATE TABLE product_tags (
+        id              NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        product_id      VARCHAR2(64),
+        tag             VARCHAR2(64),
+        relevance_score NUMBER(4,3)
+    );
+
+    INSERT INTO products (product_id, name, category, price)
+    SELECT 'prod_' || level, 'Product ' || level,
+           CASE MOD(level,5) WHEN 0 THEN 'telescope' WHEN 1 THEN 'eyepiece'
+                             WHEN 2 THEN 'mount' WHEN 3 THEN 'camera' ELSE 'filter' END,
+           ROUND(DBMS_RANDOM.VALUE(50,2050),2)
+    FROM dual CONNECT BY LEVEL <= 5000;
+
+    INSERT INTO product_tags (product_id, tag, relevance_score)
+    SELECT 'prod_' || (MOD(level-1,5000)+1),
+           CASE MOD(level,10) WHEN 0 THEN 'beginner' WHEN 1 THEN 'advanced'
+                              WHEN 2 THEN 'astrophotography' WHEN 3 THEN 'visual'
+                              WHEN 4 THEN 'planetary' WHEN 5 THEN 'deepsky'
+                              WHEN 6 THEN 'portable' WHEN 7 THEN 'goto'
+                              WHEN 8 THEN 'wifi' ELSE 'budget' END,
+           ROUND(DBMS_RANDOM.VALUE(0,1),3)
+    FROM dual CONNECT BY LEVEL <= 100000;
+    COMMIT;
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oracle-telescope
+  namespace: default
+  labels:
+    app.kubernetes.io/component: oracle-telescope
+spec:
+  type: ClusterIP
+  ports:
+  - port: 1521
+    targetPort: 1521
+    name: oracle
+  selector:
+    app.kubernetes.io/component: oracle-telescope
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oracle-telescope
+  namespace: default
+  labels:
+    app.kubernetes.io/component: oracle-telescope
+    app.kubernetes.io/name: oracle-telescope
+    app.kubernetes.io/part-of: opentelemetry-demo
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: oracle-telescope
+  template:
+    metadata:
+      annotations:
+        splunk.com/monitor: oracledb
+        splunk.com/oracledb.service: FREEPDB1
+      labels:
+        app.kubernetes.io/component: oracle-telescope
+        app.kubernetes.io/name: oracle-telescope
+    spec:
+      containers:
+      - name: oracle
+        image: gvenzl/oracle-free:23-slim-faststart
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 1521
+          name: oracle
+        env:
+        - name: ORACLE_PASSWORD          # SYS / SYSTEM password
+          value: "oracle"
+        - name: APP_USER
+          value: "demo_app_user"
+        - name: APP_USER_PASSWORD
+          value: "demo_password"
+        resources:
+          requests:
+            cpu: 300m
+            memory: 2Gi
+          limits:
+            memory: 4Gi
+        volumeMounts:
+        - name: init
+          mountPath: /container-entrypoint-initdb.d
+        readinessProbe:
+          exec:
+            command: ["sh", "-c", "healthcheck.sh"]
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 15   # Oracle healthcheck queries the DB; 1s default times out
+          failureThreshold: 30
+      volumes:
+      - name: init
+        configMap:
+          name: oracle-telescope-init

@@ -1,0 +1,153 @@
+# =============================================================================
+# pg-cartesian-tester — throwaway Java test service
+# =============================================================================
+# A tiny Java (JDBC) service, instrumented with the Splunk Java agent, that runs
+# the cartesian bad query against the astroshop PostgreSQL DB every 3s. Purpose:
+# test whether the Java agent produces the DB span attributes needed for the
+# APM node <-> DBmon "Database Instances" correlation (vs Python/.NET).
+#
+# No custom image build: an init container downloads the postgres JDBC driver +
+# the Splunk Java agent; the main container runs the .java source directly
+# (Java 21 single-file source mode) with the agent attached.
+#
+# Deploy:   kubectl apply -f kubernetes/test/pg-cartesian-tester.yaml
+# Remove:   kubectl delete -f kubernetes/test/pg-cartesian-tester.yaml
+# Requires: dev-astronomy egress to repo1.maven.org + github.com (for the jars).
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pg-cartesian-tester-src
+  namespace: default
+data:
+  Cartesian.java: |
+    import java.sql.*;
+    import java.util.Random;
+
+    public class Cartesian {
+        public static void main(String[] args) throws Exception {
+            String url  = env("PG_URL",  "jdbc:postgresql://postgresql:5432/astroshop");
+            String user = env("PG_USER", "demo_app_user");
+            String pass = env("PG_PASS", "demo_password");
+            long   ms   = Long.parseLong(env("INTERVAL_SECONDS", "3")) * 1000L;
+
+            // Bad query: JOIN ... ON 1=1 -> Cartesian product (same as the demo).
+            String sql = "SELECT p.product_id, p.name, p.price, pt.tag, pt.relevance_score "
+                       + "FROM products p JOIN product_tags pt ON 1=1 "
+                       + "WHERE p.category = ? AND pt.tag = ? "
+                       + "ORDER BY pt.relevance_score DESC LIMIT 10";
+            String[] cats = {"telescope","eyepiece","mount","camera","filter"};
+            String[] tags = {"beginner","advanced","astrophotography","visual","planetary"};
+            Random rnd = new Random();
+
+            System.out.println("pg-cartesian-tester: firing every " + (ms/1000) + "s against " + url);
+            while (true) {
+                long t0 = System.currentTimeMillis();
+                try (Connection c = DriverManager.getConnection(url, user, pass);
+                     PreparedStatement ps = c.prepareStatement(sql)) {
+                    ps.setString(1, cats[rnd.nextInt(cats.length)]);
+                    ps.setString(2, tags[rnd.nextInt(tags.length)]);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        int n = 0; while (rs.next()) n++;
+                        System.out.println("cartesian: " + n + " rows in " + (System.currentTimeMillis()-t0) + "ms");
+                    }
+                } catch (Exception e) {
+                    System.err.println("query failed: " + e.getMessage());
+                }
+                Thread.sleep(ms);
+            }
+        }
+        static String env(String k, String d) {
+            String v = System.getenv(k);
+            return (v == null || v.isEmpty()) ? d : v;
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pg-cartesian-tester
+  namespace: default
+  labels:
+    app.kubernetes.io/component: pg-cartesian-tester
+    app.kubernetes.io/name: pg-cartesian-tester
+    app.kubernetes.io/part-of: opentelemetry-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: pg-cartesian-tester
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: pg-cartesian-tester
+        app.kubernetes.io/name: pg-cartesian-tester
+    spec:
+      initContainers:
+      - name: fetch-deps
+        image: curlimages/curl:8.10.1
+        command: ["sh", "-c"]
+        args:
+          - |
+            set -e
+            echo "downloading postgres JDBC driver + splunk java agent..."
+            curl -fsSL -o /deps/postgresql.jar \
+              https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.4/postgresql-42.7.4.jar
+            curl -fsSL -o /deps/splunk-otel-javaagent.jar \
+              https://github.com/signalfx/splunk-otel-java/releases/latest/download/splunk-otel-javaagent.jar
+            ls -l /deps
+        volumeMounts:
+        - name: deps
+          mountPath: /deps
+      containers:
+      - name: tester
+        image: eclipse-temurin:21-jdk
+        command: ["sh", "-c"]
+        args:
+          - exec java -javaagent:/deps/splunk-otel-javaagent.jar -cp /deps/postgresql.jar /app/Cartesian.java
+        env:
+        - name: OTEL_SERVICE_NAME
+          value: pg-cartesian-tester
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        # Send OTLP to the node-local Splunk collector agent (HTTP 4318 —
+        # the Splunk Java agent defaults to the OTLP http/protobuf exporter).
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: http://$(NODE_IP):4318
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: http/protobuf
+        # deployment.environment is injected by the collector (resource/add_environment).
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: service.name=pg-cartesian-tester,service.namespace=opentelemetry-demo
+        # Keep the agent lean for a test client.
+        - name: OTEL_METRICS_EXPORTER
+          value: none
+        - name: SPLUNK_PROFILER_ENABLED
+          value: "false"
+        - name: PG_URL
+          value: jdbc:postgresql://postgresql:5432/astroshop
+        - name: PG_USER
+          value: demo_app_user
+        - name: PG_PASS
+          value: demo_password
+        - name: INTERVAL_SECONDS
+          value: "3"
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            memory: 384Mi
+        volumeMounts:
+        - name: deps
+          mountPath: /deps
+        - name: src
+          mountPath: /app
+      volumes:
+      - name: deps
+        emptyDir: {}
+      - name: src
+        configMap:
+          name: pg-cartesian-tester-src

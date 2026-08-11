@@ -75,8 +75,12 @@ internal class Consumer : IDisposable
             {
                 try
                 {
-                    using var activity = MyActivitySource.StartActivity("order-consumed",  ActivityKind.Internal);
+                    // Consume() blocks waiting for the next message. Start the
+                    // span AFTER it returns so the span measures only message
+                    // processing, not idle poll wait (which otherwise inflated
+                    // order-consumed to the inter-order gap, e.g. 30s).
                     var consumeResult = _consumer.Consume();
+                    using var activity = MyActivitySource.StartActivity("order-consumed", ActivityKind.Consumer);
                     ProcessMessage(consumeResult.Message);
                 }
                 catch (ConsumeException e)

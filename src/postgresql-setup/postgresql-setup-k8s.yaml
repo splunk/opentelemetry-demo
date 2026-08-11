@@ -31,7 +31,7 @@ data:
     -- SPDX-License-Identifier: Apache-2.0
 
     -- Enable pg_stat_statements for database monitoring (top query tracking)
-    -- Note: This runs in the 'otel' database. The extension is also created
+    -- Note: This runs in the 'astroshop' database. The extension is also created
     -- in the 'postgres' database by 00-pg-stat-statements.sh for top query monitoring.
     CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 

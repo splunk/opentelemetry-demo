@@ -65,12 +65,19 @@ spec:
               command:
               - /bin/bash
               - -c
-              - 'sleep 30
-
-                /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "${SA_PASSWORD}"
-                -C -i /docker-entrypoint-initdb.d/init-db.sql
-
-                '
+              # Seed FraudDetection once SQL Server accepts queries. Poll for
+              # readiness instead of a fixed sleep, and NEVER exit non-zero:
+              # a failed postStart hook makes kubelet kill the container, which
+              # on a fresh PVC interrupts first-boot system-DB creation and
+              # leaves model/msdb corrupt -> permanent CrashLoopBackOff. The
+              # seed is idempotent (IF NOT EXISTS), so re-running is safe.
+              - |
+                for i in $(seq 1 60); do
+                  /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "${SA_PASSWORD}" -C -Q "SELECT 1" && break
+                  sleep 5
+                done
+                /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "${SA_PASSWORD}" -C -i /docker-entrypoint-initdb.d/init-db.sql || true
+                exit 0
         resources:
           requests:
             cpu: 250m
@@ -78,15 +85,27 @@ spec:
           limits:
             cpu: '1'
             memory: 2Gi
+        # Startup probe gates liveness/readiness until SQL Server can actually
+        # answer a query. failureThreshold*periodSeconds = up to 300s for a slow
+        # first boot on local-path storage, so liveness never kills mid-init.
+        startupProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "${SA_PASSWORD}" -C -Q "SELECT 1"
+          periodSeconds: 10
+          failureThreshold: 30
         readinessProbe:
-          tcpSocket:
-            port: 1433
-          initialDelaySeconds: 10
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "${SA_PASSWORD}" -C -Q "SELECT 1"
           periodSeconds: 10
         livenessProbe:
           tcpSocket:
             port: 1433
-          initialDelaySeconds: 30
           periodSeconds: 20
       volumes:
       - name: init-script

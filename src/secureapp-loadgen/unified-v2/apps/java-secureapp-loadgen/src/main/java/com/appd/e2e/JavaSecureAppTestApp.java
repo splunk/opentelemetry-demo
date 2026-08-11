@@ -173,7 +173,7 @@ public class JavaSecureAppTestApp {
             try {
                 Class<?> logManagerClass = Class.forName("org.apache.logging.log4j.LogManager");
                 Method getLoggerMethod = logManagerClass.getMethod("getLogger", String.class);
-                Object logger = getLoggerMethod.invoke(null, "TeamPortal");
+                Object logger = getLoggerMethod.invoke(null, "secureapp");
                 Method errorMethod = logger.getClass().getMethod("error", String.class);
                 errorMethod.invoke(logger, "${jndi:ldap://127.0.0.1:1389/log4j-test}");
                 result = "{\"status\": \"failed\", \"message\": \"Invalid credentials\"}";
@@ -416,7 +416,7 @@ public class JavaSecureAppTestApp {
             try {
                 Class<?> logManagerClass = Class.forName("org.apache.logging.log4j.LogManager");
                 Method getLoggerMethod = logManagerClass.getMethod("getLogger", String.class);
-                Object logger = getLoggerMethod.invoke(null, "TeamPortal");
+                Object logger = getLoggerMethod.invoke(null, "secureapp");
                 Method errorMethod = logger.getClass().getMethod("error", String.class);
                 errorMethod.invoke(logger, "${jndi:ldap://127.0.0.1:1389/log4j-test}");
                 log.append("log4j:ok ");

@@ -1,0 +1,142 @@
+# =============================================================================
+# mysql-telescope — MySQL DBmon test instance
+# =============================================================================
+# A MySQL 8 instance (database "telescope") seeded with the cartesian demo
+# tables (products + product_tags), a monitoring user for the mysql receiver,
+# and an app user for the cartesian tester. Annotated for collector discovery.
+#
+# Deploy:  kubectl apply -f kubernetes/test/mysql-telescope.yaml
+# Remove:  kubectl delete -f kubernetes/test/mysql-telescope.yaml ; \
+#          kubectl delete pvc -l app.kubernetes.io/component=mysql-telescope
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-telescope-init
+  namespace: default
+data:
+  init.sql: |
+    -- Monitoring user for the Splunk mysql receiver (grants per Splunk docs).
+    CREATE USER IF NOT EXISTS 'otel-user'@'%' IDENTIFIED BY 'otel-user-password';
+    GRANT REPLICATION CLIENT ON *.* TO 'otel-user'@'%';
+    GRANT PROCESS ON *.* TO 'otel-user'@'%';
+    GRANT SELECT ON performance_schema.* TO 'otel-user'@'%';
+
+    -- App user the cartesian tester connects as.
+    CREATE USER IF NOT EXISTS 'demo_app_user'@'%' IDENTIFIED BY 'demo_password';
+    GRANT SELECT ON telescope.* TO 'demo_app_user'@'%';
+    FLUSH PRIVILEGES;
+
+    USE telescope;
+    SET SESSION cte_max_recursion_depth = 1000000;
+
+    CREATE TABLE IF NOT EXISTS products (
+        id          INT AUTO_INCREMENT PRIMARY KEY,
+        product_id  VARCHAR(64) UNIQUE NOT NULL,
+        name        VARCHAR(255),
+        category    VARCHAR(64),
+        price       DECIMAL(10,2)
+    );
+    CREATE TABLE IF NOT EXISTS product_tags (
+        id              INT AUTO_INCREMENT PRIMARY KEY,
+        product_id      VARCHAR(64) NOT NULL,
+        tag             VARCHAR(64),
+        relevance_score DECIMAL(4,3)
+    );
+
+    -- 5,000 products
+    INSERT INTO products (product_id, name, category, price)
+    WITH RECURSIVE seq AS (SELECT 1 AS n UNION ALL SELECT n+1 FROM seq WHERE n < 5000)
+    SELECT CONCAT('prod_', n), CONCAT('Product ', n),
+           ELT(FLOOR(1+RAND()*5), 'telescope','eyepiece','mount','camera','filter'),
+           ROUND(RAND()*2000+50, 2)
+    FROM seq;
+
+    -- 100,000 tags (5,000 products x 20)
+    INSERT INTO product_tags (product_id, tag, relevance_score)
+    WITH RECURSIVE seq AS (SELECT 1 AS n UNION ALL SELECT n+1 FROM seq WHERE n < 5000),
+                   twenty AS (SELECT 1 AS k UNION ALL SELECT k+1 FROM twenty WHERE k < 20)
+    SELECT CONCAT('prod_', s.n),
+           ELT(FLOOR(1+RAND()*10), 'beginner','advanced','astrophotography','visual','planetary',
+                                   'deepsky','portable','goto','wifi','budget'),
+           ROUND(RAND(), 3)
+    FROM seq s CROSS JOIN twenty t;
+    -- No indexes on the join columns: keeps the ON 1=1 cartesian join slow.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-telescope
+  namespace: default
+  labels:
+    app.kubernetes.io/component: mysql-telescope
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3306
+    targetPort: 3306
+    name: mysql
+  selector:
+    app.kubernetes.io/component: mysql-telescope
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-telescope
+  namespace: default
+  labels:
+    app.kubernetes.io/component: mysql-telescope
+    app.kubernetes.io/name: mysql-telescope
+    app.kubernetes.io/part-of: opentelemetry-demo
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: mysql-telescope
+  template:
+    metadata:
+      annotations:
+        splunk.com/monitor: mysql
+        splunk.com/mysql.database: telescope
+      labels:
+        app.kubernetes.io/component: mysql-telescope
+        app.kubernetes.io/name: mysql-telescope
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:8.4
+        imagePullPolicy: IfNotPresent
+        args:
+          - --performance-schema=ON
+        ports:
+        - containerPort: 3306
+          name: mysql
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: "rootpass"
+        - name: MYSQL_DATABASE
+          value: "telescope"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            memory: 1Gi
+        volumeMounts:
+        - name: init
+          mountPath: /docker-entrypoint-initdb.d
+        - name: data
+          mountPath: /var/lib/mysql
+        readinessProbe:
+          exec:
+            command: ["sh", "-c", "mysqladmin ping -h127.0.0.1 -uroot -prootpass"]
+          initialDelaySeconds: 20
+          periodSeconds: 10
+      volumes:
+      - name: init
+        configMap:
+          name: mysql-telescope-init
+      - name: data
+        emptyDir: {}

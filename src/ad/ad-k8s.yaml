@@ -140,6 +140,12 @@ spec:
           value: http://$(OTEL_COLLECTOR_NAME):4318
         - name: OTEL_EXPORTER_OTLP_PROTOCOL
           value: http/protobuf
+        # Export the OTLP logs signal so the Java agent's log4j appender ships
+        # the "secureapp"-scoped attack records to the collector (-> /v3/event).
+        # Without this the Splunk Java agent emits traces/metrics only and the
+        # security log records never leave the pod. (node/python set this too.)
+        - name: OTEL_LOGS_EXPORTER
+          value: otlp
         - name: SERVER_PORT
           value: "8180"
         - name: SPLUNK_PROFILER_ENABLED
