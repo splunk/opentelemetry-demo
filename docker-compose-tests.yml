@@ -1,6 +1,12 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
+# ============================================================================
+#  UNSUPPORTED IN THIS SPLUNK FORK — Docker Compose is not maintained here.
+#  Inherited from upstream; known-broken on a fresh clone (issues #298, #299).
+#  Deploy on Kubernetes instead — see HOW-TO-DEPLOY-AND-RUN.md / DEPLOYMENT.md.
+# ============================================================================
+
 include:
   - path:
       - docker-compose.yml     # depend on the main docker-compose file

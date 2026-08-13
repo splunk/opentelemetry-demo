@@ -185,28 +185,43 @@ check-clean-work-tree:
 	  exit 1; \
 	fi
 
+# ==============================================================================
+# Docker Compose is NOT supported in this Splunk fork.
+#
+# The docker-compose*.yml files are inherited from the upstream OpenTelemetry
+# demo and are intentionally NOT maintained against this fork's Splunk
+# instrumentation, image tags, and database wiring. They are known-broken on a
+# fresh clone (see issues #298 and #299). Deploy on Kubernetes instead.
+#
+# See HOW-TO-DEPLOY-AND-RUN.md and DEPLOYMENT.md.
+# ==============================================================================
+define COMPOSE_UNSUPPORTED
+	@echo ""
+	@echo "=============================================================================="
+	@echo " Docker Compose is NOT supported in this Splunk fork."
+	@echo ""
+	@echo " These compose files come from upstream OpenTelemetry and are not kept in"
+	@echo " sync with Splunk instrumentation, image tags, or DB wiring. They are"
+	@echo " known-broken on a fresh clone (issues #298, #299)."
+	@echo ""
+	@echo " Deploy on Kubernetes instead:"
+	@echo "   - HOW-TO-DEPLOY-AND-RUN.md   (short path: released manifests + values)"
+	@echo "   - DEPLOYMENT.md              (full Splunk Observability Cloud setup)"
+	@echo "   - Release: https://github.com/splunk/opentelemetry-demo/releases/tag/v2.0.7"
+	@echo ""
+	@echo " For laptop-scale, run the same manifests on k3d/minikube."
+	@echo "=============================================================================="
+	@echo ""
+	@exit 1
+endef
+
 .PHONY: start
 start:
-	$(DOCKER_COMPOSE_CMD) $(DOCKER_COMPOSE_ENV) up --force-recreate --remove-orphans --detach
-	@echo ""
-	@echo "OpenTelemetry Demo is running."
-	@echo "Go to http://localhost:8080 for the demo UI."
-	@echo "Go to http://localhost:8080/jaeger/ui for the Jaeger UI."
-	@echo "Go to http://localhost:8080/grafana/ for the Grafana UI."
-	@echo "Go to http://localhost:8080/loadgen/ for the Load Generator UI."
-	@echo "Go to http://localhost:8080/feature/ to change feature flags."
-	@echo "Go to http://localhost:8080/telemetry/ for the Weaver generated telemetry documentation."
+	$(COMPOSE_UNSUPPORTED)
 
 .PHONY: start-minimal
 start-minimal:
-	$(DOCKER_COMPOSE_CMD) $(DOCKER_COMPOSE_ENV) -f docker-compose.minimal.yml up --force-recreate --remove-orphans --detach
-	@echo ""
-	@echo "OpenTelemetry Demo in minimal mode is running."
-	@echo "Go to http://localhost:8080 for the demo UI."
-	@echo "Go to http://localhost:8080/jaeger/ui for the Jaeger UI."
-	@echo "Go to http://localhost:8080/grafana/ for the Grafana UI."
-	@echo "Go to http://localhost:8080/loadgen/ for the Load Generator UI."
-	@echo "Go to https://opentelemetry.io/docs/demo/feature-flags/ to learn how to change feature flags."
+	$(COMPOSE_UNSUPPORTED)
 
 .PHONY: stop
 stop:
