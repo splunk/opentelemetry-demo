@@ -105,6 +105,18 @@
       },
       "defaultVariant": "50%"
     },
+    "promoDiscountBug": {
+      "description": "Enables the checkout promo engine and sets the share of promo redemptions that match the leftover internal test promo code PROMOTEST100, which discounts the order total to zero. The rest get the live SPRING10 campaign discount, and most orders redeem no promo at all. Orders still complete successfully with no errors and normal latency, so the revenue loss is only visible in the checkout logs. Off applies no promo at all.",
+      "state": "ENABLED",
+      "variants": {
+        "100%": 1,
+        "50%": 0.5,
+        "25%": 0.25,
+        "10%": 0.1,
+        "off": 0
+      },
+      "defaultVariant": "off"
+    },
     "rumBlueGreen": {
       "description": "Enable RUM-based payment path (A/B) tracking in user.deployment_type attribute",
       "state": "ENABLED",
