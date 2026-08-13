@@ -118,6 +118,11 @@ spec:
           value: http://$(NODE_IP):4318
         - name: OTEL_EXPORTER_OTLP_PROTOCOL
           value: http/protobuf
+        # Correlate DB queries with APM traces: Splunk Java agent injects
+        # trace context as a SQL comment (DB Query Performance <-> APM).
+        # https://help.splunk.com/en/splunk-observability-cloud/monitor-databases/correlate-database-queries-with-splunk-apm-traces/correlate-database-queries-with-java-traces
+        - name: OTEL_INSTRUMENTATION_SPLUNK_JDBC_ENABLED
+          value: "true"
         # deployment.environment is injected by the collector (resource/add_environment).
         - name: OTEL_RESOURCE_ATTRIBUTES
           value: service.name=pg-cartesian-tester,service.namespace=opentelemetry-demo

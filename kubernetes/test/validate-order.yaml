@@ -1,0 +1,217 @@
+# validate-order — Java support service for accounting.
+#
+# Accounting fires a fire-and-forget POST /validate/{orderId} for every Kafka
+# order it consumes (ORDER_VALIDATION_ADDR env). This service looks that order
+# up in the accounting."order" table and returns whether it exists.
+#
+# Same setup as pg-cartesian-tester: JDK 21 single-file source launch under the
+# Splunk OTel Java agent, OTLP to the node-local collector agent, and
+# OTEL_INSTRUMENTATION_SPLUNK_JDBC_ENABLED=true so the DB lookup correlates with
+# the APM trace (DB Query Performance <-> APM). The Java agent also creates a
+# server span from accounting's traceparent, so the lookup nests under the
+# order's trace.
+#
+# Requires: egress to repo1.maven.org + github.com (JDBC driver + java agent).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: validate-order-src
+  namespace: default
+data:
+  ValidateOrder.java: |
+    import com.sun.net.httpserver.HttpExchange;
+    import com.sun.net.httpserver.HttpServer;
+    import java.io.OutputStream;
+    import java.net.InetSocketAddress;
+    import java.sql.Connection;
+    import java.sql.DriverManager;
+    import java.sql.PreparedStatement;
+    import java.sql.ResultSet;
+
+    // Minimal HTTP service: POST /validate/{orderId} -> look up the order.
+    public class ValidateOrder {
+        static String url, user, pass;
+
+        public static void main(String[] args) throws Exception {
+            url  = env("PG_URL",  "jdbc:postgresql://postgresql:5432/astroshop");
+            user = env("PG_USER", "otelu");
+            pass = env("PG_PASS", "otelp");
+            int port = Integer.parseInt(env("PORT", "8080"));
+
+            HttpServer s = HttpServer.create(new InetSocketAddress(port), 0);
+            s.createContext("/validate", ValidateOrder::handleValidate);
+            s.createContext("/health", ex -> respond(ex, 200, "{\"ok\":true}"));
+            s.setExecutor(null);
+            System.out.println("validate-order listening on :" + port + " -> " + url);
+            s.start();
+        }
+
+        // POST /validate/{orderId}
+        static void handleValidate(HttpExchange ex) throws java.io.IOException {
+            String path = ex.getRequestURI().getPath();
+            String prefix = "/validate/";
+            String orderId = path.length() > prefix.length() ? path.substring(prefix.length()) : "";
+            ex.getRequestBody().readAllBytes(); // accounting POSTs a JSON body; not needed here
+
+            boolean found = false;
+            String err = null;
+            if (!orderId.isEmpty()) {
+                String sql = "SELECT order_id FROM accounting.\"order\" WHERE order_id = ?";
+                try (Connection c = DriverManager.getConnection(url, user, pass);
+                     PreparedStatement ps = c.prepareStatement(sql)) {
+                    ps.setString(1, orderId);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        found = rs.next();
+                    }
+                } catch (Exception e) {
+                    err = e.getMessage();
+                }
+            }
+
+            int code = (err != null) ? 500 : 200;
+            String body = (err != null)
+                ? "{\"orderId\":\"" + esc(orderId) + "\",\"error\":\"" + esc(err) + "\"}"
+                : "{\"orderId\":\"" + esc(orderId) + "\",\"found\":" + found + "}";
+            System.out.println("validate order=" + orderId + " found=" + found + (err != null ? " err=" + err : ""));
+            respond(ex, code, body);
+        }
+
+        static void respond(HttpExchange ex, int code, String body) throws java.io.IOException {
+            byte[] b = body.getBytes();
+            ex.getResponseHeaders().set("Content-Type", "application/json");
+            ex.sendResponseHeaders(code, b.length);
+            try (OutputStream os = ex.getResponseBody()) { os.write(b); }
+        }
+
+        static String esc(String s) {
+            return s == null ? "" : s.replace("\\", "\\\\").replace("\"", "\\\"");
+        }
+
+        static String env(String k, String d) {
+            String v = System.getenv(k);
+            return (v == null || v.isEmpty()) ? d : v;
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: validate-order
+  namespace: default
+  labels:
+    app.kubernetes.io/component: validate-order
+    app.kubernetes.io/name: validate-order
+    app.kubernetes.io/part-of: opentelemetry-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: validate-order
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: validate-order
+        app.kubernetes.io/name: validate-order
+    spec:
+      initContainers:
+      - name: fetch-deps
+        image: curlimages/curl:8.10.1
+        command: ["sh", "-c"]
+        args:
+          - |
+            set -e
+            echo "downloading postgres JDBC driver + splunk java agent..."
+            curl -fsSL -o /deps/postgresql.jar \
+              https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.4/postgresql-42.7.4.jar
+            curl -fsSL -o /deps/splunk-otel-javaagent.jar \
+              https://github.com/signalfx/splunk-otel-java/releases/latest/download/splunk-otel-javaagent.jar
+            ls -l /deps
+        volumeMounts:
+        - name: deps
+          mountPath: /deps
+      containers:
+      - name: validate-order
+        image: eclipse-temurin:21-jdk
+        command: ["sh", "-c"]
+        args:
+          - exec java -javaagent:/deps/splunk-otel-javaagent.jar -cp /deps/postgresql.jar /app/ValidateOrder.java
+        ports:
+        - containerPort: 8080
+        env:
+        - name: OTEL_SERVICE_NAME
+          value: validate-order
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        # Send OTLP to the node-local Splunk collector agent (HTTP 4318).
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: http://$(NODE_IP):4318
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: http/protobuf
+        # Correlate DB queries with APM traces (DB Query Performance <-> APM).
+        # https://help.splunk.com/en/splunk-observability-cloud/monitor-databases/correlate-database-queries-with-splunk-apm-traces/correlate-database-queries-with-java-traces
+        - name: OTEL_INSTRUMENTATION_SPLUNK_JDBC_ENABLED
+          value: "true"
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: service.name=validate-order,service.namespace=opentelemetry-demo
+        - name: OTEL_METRICS_EXPORTER
+          value: none
+        - name: SPLUNK_PROFILER_ENABLED
+          value: "false"
+        - name: PG_URL
+          value: jdbc:postgresql://postgresql:5432/astroshop
+        - name: PG_USER
+          value: otelu
+        - name: PG_PASS
+          value: otelp
+        - name: PORT
+          value: "8080"
+        # The Splunk agent + JDK single-file source launch take ~15-25s to boot
+        # the HTTP server. A startupProbe gates readiness/liveness until then so
+        # health checks don't fail during startup.
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          periodSeconds: 5
+          failureThreshold: 30   # up to ~150s to become live
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            memory: 384Mi
+        volumeMounts:
+        - name: deps
+          mountPath: /deps
+        - name: src
+          mountPath: /app
+      volumes:
+      - name: deps
+        emptyDir: {}
+      - name: src
+        configMap:
+          name: validate-order-src
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: validate-order
+  namespace: default
+  labels:
+    app.kubernetes.io/component: validate-order
+    app.kubernetes.io/name: validate-order
+    app.kubernetes.io/part-of: opentelemetry-demo
+spec:
+  selector:
+    app.kubernetes.io/component: validate-order
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
