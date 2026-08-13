@@ -1,6 +1,19 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
+# ============================================================================
+#  UNSUPPORTED IN THIS SPLUNK FORK — DO NOT RUN WITH DOCKER COMPOSE
+#
+#  Inherited from upstream OpenTelemetry; NOT maintained against this fork's
+#  Splunk instrumentation, image tags, or DB wiring. Known-broken on a fresh
+#  clone (issues #298, #299).
+#
+#  Deploy on Kubernetes instead:
+#    - HOW-TO-DEPLOY-AND-RUN.md   (released manifests + values)
+#    - DEPLOYMENT.md              (full Splunk Observability Cloud setup)
+#    - https://github.com/splunk/opentelemetry-demo/releases/tag/v2.0.7
+# ============================================================================
+
 x-default-logging: &logging
   driver: "json-file"
   options:

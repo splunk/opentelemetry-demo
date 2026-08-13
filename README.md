@@ -56,8 +56,15 @@ See [PRODUCTION-WORKFLOW-GUIDE.md](./PRODUCTION-WORKFLOW-GUIDE.md) for workflow 
 
 ## Quick start
 
-You can be up and running with the demo in a few minutes. Check out the docs for
-your preferred deployment method:
+**This Splunk fork deploys on Kubernetes using released manifests.** See
+**[HOW-TO-DEPLOY-AND-RUN.md](HOW-TO-DEPLOY-AND-RUN.md)** for the short path and
+**[DEPLOYMENT.md](DEPLOYMENT.md)** for the full Splunk Observability Cloud setup.
+
+> **Note:** Docker Compose (`make start` / `docker-compose*.yml`) is inherited
+> from upstream, is **not maintained** in this fork, and is known-broken on a
+> fresh clone (issues #298/#299). Use the Kubernetes manifests instead.
+
+Upstream (generic, non-Splunk) deployment docs:
 
 - [Docker](https://opentelemetry.io/docs/demo/docker_deployment/)
 - [Kubernetes](https://opentelemetry.io/docs/demo/kubernetes_deployment/)
