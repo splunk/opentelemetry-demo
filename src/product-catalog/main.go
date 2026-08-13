@@ -123,12 +123,18 @@ func initDatabase() error {
 		return fmt.Errorf("DB_CONNECTION_STRING environment variable not set")
 	}
 
-	// otelsql + semconv v1.38 emits the new db.namespace attribute only.
-	// Also emit the old db.name key (parsed from the DSN) so the inferred DB
-	// service resolves consistently with the other services that still use it.
+	// otelsql.AttributesFromDSN only sets server.address/server.port — it does
+	// NOT emit the database name. Set it explicitly under both the new
+	// (db.namespace) and old (db.name) semconv keys, parsed from the DSN, so
+	// product-catalog's DB identity resolves to "astroshop" consistently with
+	// the services that emit new semconv (e.g. validate-order via the Java
+	// agent) and those still on the old key.
 	attrs := append(otelsql.AttributesFromDSN(connStr), semconv.DBSystemNamePostgreSQL)
 	if dbName := dsnField(connStr, "dbname"); dbName != "" {
-		attrs = append(attrs, attribute.String("db.name", dbName))
+		attrs = append(attrs,
+			semconv.DBNamespace(dbName),         // new semconv: db.namespace
+			attribute.String("db.name", dbName), // old semconv: db.name
+		)
 	}
 	dbAttrs := otelsql.WithAttributes(attrs...)
 
