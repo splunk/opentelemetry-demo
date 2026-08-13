@@ -75,6 +75,84 @@ data:
       return `https://${raw.replace(/\/+$/, '')}/`;
     }
 
+    // --- flagd feature flags via OFREP --------------------------------------
+    // flagd serves the OpenFeature Remote Evaluation Protocol over HTTP on
+    // port 8016 (see src/flagd/flagd-k8s.yaml). Node 24 has global fetch, so
+    // no OpenFeature SDK / gRPC deps are needed — one POST per flag. flagd
+    // returns the live value, so flipping a flag in flagd-ui is reflected on
+    // the next cycle with no loadgen restart. Disable with
+    // FLAGD_OFREP_ENABLED=false; override endpoint with FLAGD_OFREP_URL.
+    const FLAGD_OFREP_ENABLED = (process.env.FLAGD_OFREP_ENABLED || 'true').toLowerCase() !== 'false';
+    const FLAGD_OFREP_URL = (process.env.FLAGD_OFREP_URL || 'http://flagd:8016').replace(/\/+$/, '');
+
+    // --- Panic path (angry rage-click) tuning -------------------------------
+    // When the rumLoadGenPanicMode flag is on, every Nth load cycle takes a
+    // DIFFERENT path: instead of placing an order, the browser rapidly clicks
+    // the intentionally-inert "Show All Reviews" button to mimic a frustrated
+    // user rage-clicking, then clicks away — driving RUM frustration / rage-
+    // click detection. Mirrors the Splunk Synthetics rage-click transaction.
+    // N is a fixed constant here for now; the intent is for it to come from the
+    // same flagd entry (rumLoadGenPanicMode variant value) in a later step.
+    const PANIC_EVERY_N_LOOPS = 10;      // take the angry path once every N cycles
+    const PANIC_RAGE_CLICKS = 6;         // clicks per rage burst (synthetics: 1 + 5 repeats)
+    const PANIC_RAGE_INTERVAL_MS = 80;   // gap between rage clicks (synthetics: 80ms)
+    let panicLoopCounter = 0;            // increments each cycle; angry path on multiples of N
+
+    /**
+     * Evaluate a single flag via OFREP. Returns `def` on any failure (flagd
+     * unreachable, non-2xx, timeout, missing flag) so flag lookups never block
+     * or crash a load cycle.
+     */
+    async function getFlag(key, def) {
+      if (!FLAGD_OFREP_ENABLED) return def;
+      try {
+        const resp = await fetch(`${FLAGD_OFREP_URL}/ofrep/v1/evaluate/flags/${key}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ context: { targetingKey: 'rumloadgen' } }),
+          signal: AbortSignal.timeout(2000)
+        });
+        if (!resp.ok) {
+          if (debugEnabled) console.log(`[DEBUG] OFREP ${key}: HTTP ${resp.status}`);
+          return def;
+        }
+        const body = await resp.json();
+        return body.value !== undefined ? body.value : def;
+      } catch (e) {
+        if (debugEnabled) console.log(`[DEBUG] OFREP ${key} lookup failed: ${e.message}`);
+        return def;
+      }
+    }
+
+    /**
+     * Angry rage-click path. Rapidly clicks the intentionally-inert "Show All
+     * Reviews" button (id btn-show-all-reviews, data-cy ShowAllReviews) to
+     * simulate a frustrated user, then clicks away to the recommendations
+     * section — the same sequence as the Splunk Synthetics rage-click test.
+     * Best-effort: missing elements are logged and skipped, never thrown.
+     */
+    async function rageClickReviews(page) {
+      const reviewBtn = "[data-cy='ShowAllReviews']";
+      try {
+        await page.waitForSelector(reviewBtn, { timeout: 8000, visible: true });
+      } catch {
+        console.log('⚠️ Panic path: "Show All Reviews" button not found, skipping rage clicks');
+        return;
+      }
+      console.log(`🚨 rum-loadgen Panic mode: rage-clicking "Show All Reviews" ${PANIC_RAGE_CLICKS}x @ ${PANIC_RAGE_INTERVAL_MS}ms`);
+      for (let i = 0; i < PANIC_RAGE_CLICKS; i++) {
+        await page.click(reviewBtn).catch(() => {});
+        await delay(PANIC_RAGE_INTERVAL_MS);
+      }
+      // Click away to the recommendations section, like the synthetics test.
+      const away = "[data-cy='recommendation-list']";
+      await page.waitForSelector(away, { timeout: 5000, visible: true })
+        .then(() => page.click(away))
+        .then(() => console.log('👋 Panic path: clicked away to recommendations'))
+        .catch(() => console.log('⚠️ Panic path: recommendations click-away skipped'));
+      await delay(1500); // let the RUM batcher flush the rage-click beacon
+    }
+
     function getProductIds() {
       const envProductIds = (process.env.PRODUCT_IDS || '').trim();
       if (envProductIds) {
@@ -214,6 +292,20 @@ data:
         }
 
         const base = buildBaseUrl();
+
+        // Feature-flag check each cycle, before product selection, so a
+        // flagd-ui toggle takes effect on the very next loop. When
+        // rumLoadGenPanicMode is on, every PANIC_EVERY_N_LOOPS-th cycle takes
+        // the angry rage-click path instead of placing an order.
+        panicLoopCounter += 1;
+        const panicMode = await getFlag('rumLoadGenPanicMode', false);
+        const angry = panicMode && (panicLoopCounter % PANIC_EVERY_N_LOOPS === 0);
+        if (angry) {
+          console.log(`🚨 rum-loadgen Panic mode: ANGRY rage-click path this cycle (loop #${panicLoopCounter}, every ${PANIC_EVERY_N_LOOPS})`);
+        } else if (panicMode) {
+          console.log(`rum-loadgen Panic mode on; normal path (loop #${panicLoopCounter}, angry every ${PANIC_EVERY_N_LOOPS})`);
+        }
+
         const productsToOrder = getRandomProducts();
         const cycleCurrency = pickCurrency();
         console.log(`🛒 Ordering ${productsToOrder.length} product(s) in ${cycleCurrency}: ${productsToOrder.join(', ')}`);
@@ -321,10 +413,24 @@ data:
             console.log('⏭️ Skipping quick prompts (next run in ' + Math.round((QUICK_PROMPT_INTERVAL_MS - (now - lastQuickPromptTime)) / 1000) + 's)');
           }
 
+          // Angry path: rage-click the reviews button on this product page and
+          // leave — no add-to-cart, no remaining products, no order this cycle.
+          if (angry) {
+            await rageClickReviews(page);
+            break;
+          }
+
           const addSel = "[data-cy='product-add-to-cart']";
           await page.waitForSelector(addSel);
           console.log(`🖱️ Clicking "Add To Cart" for product ${productId}`);
           await page.click(addSel);
+        }
+
+        // Angry cycles already rage-clicked and clicked away above — skip
+        // ordering entirely (the frustrated user never checks out).
+        if (angry) {
+          await fetchShippingInfo(page);
+          return;
         }
 
         // Place order after all products are added to cart

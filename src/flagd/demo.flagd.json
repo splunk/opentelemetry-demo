@@ -1,6 +1,15 @@
 {
   "$schema": "https://flagd.dev/schema/v0/flags.json",
   "flags": {
+    "rumLoadGenPanicMode": {
+      "description": "RUM loadgen reacts to this flag each cycle via OFREP. On = every Nth load cycle (N fixed at 10 in the loadgen for now) takes an angry rage-click path: rapidly clicks the inert 'Show All Reviews' button then clicks away, no order — drives RUM frustration/rage-click detection. Off = normal order flow every cycle.",
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "off"
+    },
     "orderValidationThrottle": {
       "description": "order-validation runs full CPU-bound compliance/audit path, exposing k8s CPU throttle scenario. Off returns precomputed stub.",
       "state": "ENABLED",
