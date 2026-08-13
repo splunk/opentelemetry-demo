@@ -465,7 +465,7 @@ agent:
       pipelines:
         metrics:
           exporters: [signalfx]
-          processors: [memory_limiter, k8s_attributes, batch, resourcedetection, resource, resource/add_environment, resource/strip_verbose, transform/dbmon]
+          processors: [memory_limiter, k8s_attributes, batch, resource_detection, resource, resource/add_environment, resource/strip_verbose, transform/dbmon]
           receivers: [host_metrics, kubelet_stats, otlp, receiver_creator, receiver_creator/kafka]
         traces:
           # signalfx exporter removed from traces — chart 0.153.1 align.
@@ -473,12 +473,12 @@ agent:
           # here reduces load on the exporter currently timing out under
           # back-pressure on the cluster-receiver.
           exporters: [otlp_http]
-          processors: [memory_limiter, filter/drop_flagd, transform/dc_not_error, k8s_attributes, batch, resourcedetection, resource, resource/add_environment]
+          processors: [memory_limiter, filter/drop_flagd, transform/dc_not_error, k8s_attributes, batch, resource_detection, resource, resource/add_environment]
           receivers: [otlp, jaeger, zipkin]
         # DBMon logs pipeline - sends query samples and top queries to Splunk O11y
         logs/dbmon:
           receivers: [receiver_creator]
-          processors: [memory_limiter, batch, resourcedetection, resource, resource/add_environment, transform/dbmon]
+          processors: [memory_limiter, batch, resource_detection, resource, resource/add_environment, transform/dbmon]
           exporters: [otlp_http/dbmon]
         # SecureApp logs routing. otlp logs enter via logs/split, the
         # routing/logs connector splits scope=="secureapp" off to /v3/event,
@@ -488,7 +488,7 @@ agent:
         # mirror the chart default (splunk-otel-collector logs pipeline).
         logs:
           receivers: [file_log, routing/logs]
-          processors: [memory_limiter, k8s_attributes, filter/logs, batch, resourcedetection, resource, resource/logs, resource/add_environment]
+          processors: [memory_limiter, k8s_attributes, filter/logs, batch, resource_detection, resource, resource/logs, resource/add_environment]
           exporters: [splunk_hec/o11y, splunk_hec/platform_logs]
         logs/split:
           receivers: [otlp]
