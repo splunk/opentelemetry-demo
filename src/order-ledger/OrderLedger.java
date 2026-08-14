@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 //
-// validate-order — minimal Java support service for accounting.
+// order-ledger — minimal Java support service for accounting.
 //
 // Accounting fires a fire-and-forget POST /validate/{orderId} for every Kafka
 // order it consumes (ORDER_VALIDATION_ADDR env). This service looks that order
@@ -22,7 +22,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 
-public class ValidateOrder {
+public class OrderLedger {
     static String url, user, pass;
 
     public static void main(String[] args) throws Exception {
@@ -32,10 +32,10 @@ public class ValidateOrder {
         int port = Integer.parseInt(env("PORT", "8080"));
 
         HttpServer s = HttpServer.create(new InetSocketAddress(port), 0);
-        s.createContext("/validate", ValidateOrder::handleValidate);
+        s.createContext("/validate", OrderLedger::handleValidate);
         s.createContext("/health", ex -> respond(ex, 200, "{\"ok\":true}"));
         s.setExecutor(null);
-        System.out.println("validate-order listening on :" + port + " -> " + url);
+        System.out.println("order-ledger listening on :" + port + " -> " + url);
         s.start();
     }
 
