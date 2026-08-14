@@ -189,7 +189,12 @@ func main() {
 		logger.Error((err.Error()))
 	}
 
-	provider, err := flagd.NewProvider()
+	// WithoutCache: evaluate every flag against flagd live. The default RPC
+	// provider caches per-flag and only invalidates on configuration_change
+	// events; runtime flag changes (e.g. via flagd-ui) were not being picked
+	// up, so checkout kept routing to payment-vB after paymentFailure was set
+	// to off. Disabling the cache makes routing honor the current flag value.
+	provider, err := flagd.NewProvider(flagd.WithoutCache())
 	if err != nil {
 		logger.Error(fmt.Sprintf("Error creating flagd provider: %v", err))
 	}
