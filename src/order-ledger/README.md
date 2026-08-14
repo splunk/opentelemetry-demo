@@ -1,4 +1,4 @@
-# validate-order
+# order-ledger
 
 Minimal Java support service for **accounting**. Demonstrates
 **database-query ↔ APM-trace correlation** (Splunk DB Query Performance ↔ APM).
@@ -26,16 +26,16 @@ the order's trace.
 ## Build & deploy
 
 Standard service — defined in `services.yaml` (`build: true`, `manifest: true`,
-`group: validate-order`). It builds to
-`ghcr.io/splunk/opentelemetry-demo/otel-validate-order` and stitches into its own
-opt-in manifest variant `splunk-astronomy-shop-<VERSION>-validate-order.yaml`.
+`group: order-ledger`). It builds to
+`ghcr.io/splunk/opentelemetry-demo/otel-order-ledger` and stitches into its own
+opt-in manifest variant `splunk-astronomy-shop-<VERSION>-order-ledger.yaml`.
 
 ## Activating the accounting call
 
 Set on the **accounting** deployment:
 
 ```
-ORDER_VALIDATION_ADDR=http://validate-order:8080
+ORDER_VALIDATION_ADDR=http://order-ledger:8080
 ```
 
 > This shares accounting's single validation hook with

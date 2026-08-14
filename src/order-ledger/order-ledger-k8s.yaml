@@ -1,6 +1,6 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
-# Kubernetes manifest for validate-order
+# Kubernetes manifest for order-ledger
 #
 # Demo intent: database-query <-> APM trace correlation.
 # Accounting fire-and-forgets POST /validate/{orderId} for every Kafka order it
@@ -10,18 +10,18 @@
 # correlates with the APM trace (DB Query Performance <-> APM), nested under the
 # order's trace via accounting's traceparent.
 #
-# To activate: set ORDER_VALIDATION_ADDR=http://validate-order:8080 on the
+# To activate: set ORDER_VALIDATION_ADDR=http://order-ledger:8080 on the
 # accounting deployment. (This shares accounting's single validation hook with
 # order-validation/throttle-demo — only one target can be wired at a time.)
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: validate-order
+  name: order-ledger
   labels:
-    opentelemetry.io/name: validate-order
-    app.kubernetes.io/component: validate-order
-    app.kubernetes.io/name: validate-order
+    opentelemetry.io/name: order-ledger
+    app.kubernetes.io/component: order-ledger
+    app.kubernetes.io/name: order-ledger
     app.kubernetes.io/version: 2.0.7
     app.kubernetes.io/part-of: opentelemetry-demo
 spec:
@@ -31,16 +31,16 @@ spec:
     name: tcp-service
     targetPort: 8080
   selector:
-    opentelemetry.io/name: validate-order
+    opentelemetry.io/name: order-ledger
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: validate-order
+  name: order-ledger
   labels:
-    opentelemetry.io/name: validate-order
-    app.kubernetes.io/component: validate-order
-    app.kubernetes.io/name: validate-order
+    opentelemetry.io/name: order-ledger
+    app.kubernetes.io/component: order-ledger
+    app.kubernetes.io/name: order-ledger
     app.kubernetes.io/version: 2.0.7
     app.kubernetes.io/part-of: opentelemetry-demo
 spec:
@@ -48,18 +48,18 @@ spec:
   revisionHistoryLimit: 10
   selector:
     matchLabels:
-      opentelemetry.io/name: validate-order
+      opentelemetry.io/name: order-ledger
   template:
     metadata:
       labels:
-        opentelemetry.io/name: validate-order
-        app.kubernetes.io/component: validate-order
-        app.kubernetes.io/name: validate-order
+        opentelemetry.io/name: order-ledger
+        app.kubernetes.io/component: order-ledger
+        app.kubernetes.io/name: order-ledger
     spec:
       serviceAccountName: opentelemetry-demo
       containers:
-      - name: validate-order
-        image: ghcr.io/splunk/opentelemetry-demo/otel-validate-order:2.0.7
+      - name: order-ledger
+        image: ghcr.io/splunk/opentelemetry-demo/otel-order-ledger:2.0.7
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -76,8 +76,12 @@ spec:
               fieldPath: status.hostIP
         - name: OTEL_COLLECTOR_NAME
           value: $(NODE_IP)
+        # Java agent defaults to http/protobuf → node-local collector HTTP port 4318
+        # (4317 is gRPC; using it here caused "Connection reset" export failures).
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: http://$(OTEL_COLLECTOR_NAME):4317
+          value: http://$(OTEL_COLLECTOR_NAME):4318
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: http/protobuf
         - name: OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
           value: cumulative
         - name: OTEL_RESOURCE_ATTRIBUTES

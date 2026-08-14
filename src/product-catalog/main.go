@@ -127,7 +127,7 @@ func initDatabase() error {
 	// NOT emit the database name. Set it explicitly under both the new
 	// (db.namespace) and old (db.name) semconv keys, parsed from the DSN, so
 	// product-catalog's DB identity resolves to "astroshop" consistently with
-	// the services that emit new semconv (e.g. validate-order via the Java
+	// the services that emit new semconv (e.g. order-ledger via the Java
 	// agent) and those still on the old key.
 	attrs := append(otelsql.AttributesFromDSN(connStr), semconv.DBSystemNamePostgreSQL)
 	if dbName := dsnField(connStr, "dbname"); dbName != "" {

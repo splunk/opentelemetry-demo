@@ -168,10 +168,10 @@ services:
     manifest: true
     group: throttle-demo
 
-  - name: validate-order
+  - name: order-ledger
     build: true
     manifest: true
-    group: validate-order   # opt-in variant: DB-query <-> APM correlation demo
+    group: order-ledger   # opt-in variant: DB-query <-> APM correlation demo
 
   - name: shipping
     build: false

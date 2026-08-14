@@ -1,4 +1,4 @@
-# validate-order — Java support service for accounting.
+# order-ledger — Java support service for accounting.
 #
 # Accounting fires a fire-and-forget POST /validate/{orderId} for every Kafka
 # order it consumes (ORDER_VALIDATION_ADDR env). This service looks that order
@@ -15,10 +15,10 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: validate-order-src
+  name: order-ledger-src
   namespace: default
 data:
-  ValidateOrder.java: |
+  OrderLedger.java: |
     import com.sun.net.httpserver.HttpExchange;
     import com.sun.net.httpserver.HttpServer;
     import java.io.OutputStream;
@@ -29,7 +29,7 @@ data:
     import java.sql.ResultSet;
 
     // Minimal HTTP service: POST /validate/{orderId} -> look up the order.
-    public class ValidateOrder {
+    public class OrderLedger {
         static String url, user, pass;
 
         public static void main(String[] args) throws Exception {
@@ -39,10 +39,10 @@ data:
             int port = Integer.parseInt(env("PORT", "8080"));
 
             HttpServer s = HttpServer.create(new InetSocketAddress(port), 0);
-            s.createContext("/validate", ValidateOrder::handleValidate);
+            s.createContext("/validate", OrderLedger::handleValidate);
             s.createContext("/health", ex -> respond(ex, 200, "{\"ok\":true}"));
             s.setExecutor(null);
-            System.out.println("validate-order listening on :" + port + " -> " + url);
+            System.out.println("order-ledger listening on :" + port + " -> " + url);
             s.start();
         }
 
@@ -96,22 +96,22 @@ data:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: validate-order
+  name: order-ledger
   namespace: default
   labels:
-    app.kubernetes.io/component: validate-order
-    app.kubernetes.io/name: validate-order
+    app.kubernetes.io/component: order-ledger
+    app.kubernetes.io/name: order-ledger
     app.kubernetes.io/part-of: opentelemetry-demo
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/component: validate-order
+      app.kubernetes.io/component: order-ledger
   template:
     metadata:
       labels:
-        app.kubernetes.io/component: validate-order
-        app.kubernetes.io/name: validate-order
+        app.kubernetes.io/component: order-ledger
+        app.kubernetes.io/name: order-ledger
     spec:
       initContainers:
       - name: fetch-deps
@@ -130,16 +130,16 @@ spec:
         - name: deps
           mountPath: /deps
       containers:
-      - name: validate-order
+      - name: order-ledger
         image: eclipse-temurin:21-jdk
         command: ["sh", "-c"]
         args:
-          - exec java -javaagent:/deps/splunk-otel-javaagent.jar -cp /deps/postgresql.jar /app/ValidateOrder.java
+          - exec java -javaagent:/deps/splunk-otel-javaagent.jar -cp /deps/postgresql.jar /app/OrderLedger.java
         ports:
         - containerPort: 8080
         env:
         - name: OTEL_SERVICE_NAME
-          value: validate-order
+          value: order-ledger
         - name: NODE_IP
           valueFrom:
             fieldRef:
@@ -154,7 +154,7 @@ spec:
         - name: OTEL_INSTRUMENTATION_SPLUNK_JDBC_ENABLED
           value: "true"
         - name: OTEL_RESOURCE_ATTRIBUTES
-          value: service.name=validate-order,service.namespace=opentelemetry-demo
+          value: service.name=order-ledger,service.namespace=opentelemetry-demo
         - name: OTEL_METRICS_EXPORTER
           value: none
         - name: SPLUNK_PROFILER_ENABLED
@@ -197,20 +197,20 @@ spec:
         emptyDir: {}
       - name: src
         configMap:
-          name: validate-order-src
+          name: order-ledger-src
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: validate-order
+  name: order-ledger
   namespace: default
   labels:
-    app.kubernetes.io/component: validate-order
-    app.kubernetes.io/name: validate-order
+    app.kubernetes.io/component: order-ledger
+    app.kubernetes.io/name: order-ledger
     app.kubernetes.io/part-of: opentelemetry-demo
 spec:
   selector:
-    app.kubernetes.io/component: validate-order
+    app.kubernetes.io/component: order-ledger
   ports:
   - name: http
     port: 8080
