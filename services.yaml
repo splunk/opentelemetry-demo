@@ -170,8 +170,7 @@ services:
 
   - name: order-ledger
     build: true
-    manifest: true
-    group: order-ledger   # opt-in variant: DB-query <-> APM correlation demo
+    manifest: true   # core service: accounting calls it per order (DB-query <-> APM correlation)
 
   - name: shipping
     build: false
