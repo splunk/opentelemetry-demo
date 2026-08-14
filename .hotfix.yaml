@@ -1,8 +1,0 @@
-# Production Hotfix Tracking
-# This file tracks hotfixes applied to the current base version
-# Cleared automatically on full releases (minor/major bumps)
-# DO NOT EDIT MANUALLY
-
-base_version: 2.0.7
-hotfixes:
-  secureapp-loadgen-java: 1
