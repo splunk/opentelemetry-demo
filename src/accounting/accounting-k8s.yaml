@@ -72,11 +72,14 @@ spec:
           value: http://$(OTEL_COLLECTOR_NAME):4318
         - name: DB_CONNECTION_STRING
           value: Host=postgresql;Username=otelu;Password=otelp;Database=astroshop
-        # Optional fire-and-forget call to order-validation (throttle-demo).
-        # Disabled by default (unset). To enable, set to the service URL
-        # e.g. http://order-validation:8080 — throttle-demo manifest deploys
-        # that service. When set but service absent, TriggerValidation
-        # swallows DNS NXDOMAIN / connection refused / timeout (120s cap).
+        # Fire-and-forget order lookup per Kafka order. order-ledger is a core
+        # service (POST /validate/{orderId} -> DB lookup, DB-query <-> APM
+        # correlation). TriggerValidation swallows DNS NXDOMAIN / connection
+        # refused / timeout if the target is absent, so this is safe even
+        # without order-ledger. throttle-demo overrides this to its own
+        # order-validation service.
+        - name: ORDER_VALIDATION_ADDR
+          value: http://order-ledger:8080
         - name: OTEL_DOTNET_AUTO_TRACES_ENTITYFRAMEWORKCORE_INSTRUMENTATION_ENABLED
           value: 'true'
         # Emit both old (db.name) and new (db.namespace) DB semconv attributes.
