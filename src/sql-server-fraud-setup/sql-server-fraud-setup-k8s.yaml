@@ -8,7 +8,7 @@ metadata:
 type: Opaque
 stringData:
   SA_PASSWORD: ChangeMe_SuperStrong123!
-  DB_CONNECTION_STRING: Server=tcp:sql-server-fraud.astronomy-shop.svc.cluster.local,1433;Database=FraudDetection;User
+  DB_CONNECTION_STRING: Server=tcp:sql-server-fraud,1433;Database=FraudDetection;User
     Id=sa;Password=ChangeMe_SuperStrong123!;Encrypt=True;TrustServerCertificate=True
 ---
 apiVersion: v1
