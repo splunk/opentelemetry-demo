@@ -76,8 +76,12 @@ spec:
               fieldPath: status.hostIP
         - name: OTEL_COLLECTOR_NAME
           value: $(NODE_IP)
+        # Java agent defaults to http/protobuf → node-local collector HTTP port 4318
+        # (4317 is gRPC; using it here caused "Connection reset" export failures).
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: http://$(OTEL_COLLECTOR_NAME):4317
+          value: http://$(OTEL_COLLECTOR_NAME):4318
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: http/protobuf
         - name: OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
           value: cumulative
         - name: OTEL_RESOURCE_ATTRIBUTES
