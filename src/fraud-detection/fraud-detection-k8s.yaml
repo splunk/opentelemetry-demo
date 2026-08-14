@@ -65,7 +65,7 @@ spec:
         - name: OTEL_RESOURCE_ATTRIBUTES
           value: service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version=2.1.3,service.kafka=propagation
         - name: SQL_SERVER_HOST
-          value: sql-server-fraud.default.svc.cluster.local
+          value: sql-server-fraud
         - name: SQL_SERVER_PORT
           value: '1433'
         - name: SQL_SERVER_DATABASE
@@ -100,7 +100,7 @@ spec:
       - command:
         - sh
         - -c
-        - until nc -z -v -w30 sql-server-fraud.default.svc.cluster.local 1433; do echo
+        - until nc -z -v -w30 sql-server-fraud 1433; do echo
           waiting for sql-server-fraud; sleep 2; done;
         image: busybox:latest
         name: wait-for-sqlserver
