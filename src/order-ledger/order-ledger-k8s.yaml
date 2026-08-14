@@ -59,7 +59,7 @@ spec:
       serviceAccountName: opentelemetry-demo
       containers:
       - name: order-ledger
-        image: ghcr.io/splunk/opentelemetry-demo/otel-order-ledger:2.0.7
+        image: ghcr.io/splunk/opentelemetry-demo/otel-order-ledger:2.1.0-beta.1
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
