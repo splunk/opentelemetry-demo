@@ -39,6 +39,12 @@ ext['json-smart.version'] = '2.5.2'
 // Spring Framework 6.1.13; override to 6.2.18 to clear the cluster.
 ext['spring-framework.version'] = '6.2.18'
 
+// CVE-2026-40984: Micrometer HTTP metrics DoS via crafted requests. Spring
+// Boot 3.3.4 BOM manages micrometer-core 1.13.4; the 1.13 line has no fix
+// (affected through 1.13.18, no 1.13.19 released). Override to 1.15.12, the
+// earliest published fixed version.
+ext['micrometer.version'] = '1.15.12'
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
