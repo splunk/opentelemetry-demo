@@ -32,6 +32,19 @@ ext['mssql-jdbc.version'] = '12.8.2.jre11'
 // Fixed in 2.5.2.
 ext['json-smart.version'] = '2.5.2'
 
+// CVE-2024-38819 (WebMvc.fn/WebFlux.fn static-resource path traversal — not
+// exploitable here: this app has no functional-web/static-resource routes,
+// only @RestController endpoints) plus the 2026 spring-web CVE cluster
+// (CVE-2026-22740/22737/22745/22741/22735). Spring Boot 3.3.4 BOM manages
+// Spring Framework 6.1.13; override to 6.2.18 to clear the cluster.
+ext['spring-framework.version'] = '6.2.18'
+
+// CVE-2026-40984: Micrometer HTTP metrics DoS via crafted requests. Spring
+// Boot 3.3.4 BOM manages micrometer-core 1.13.4; the 1.13 line has no fix
+// (affected through 1.13.18, no 1.13.19 released). Override to 1.15.12, the
+// earliest published fixed version.
+ext['micrometer.version'] = '1.15.12'
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
