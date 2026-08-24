@@ -6,7 +6,7 @@ This directory defines the Kubernetes ServiceAccount used by all Splunk Astronom
 
 ## What It Does
 
-Creates the `opentelemetry-demo` ServiceAccount that provides:
+Creates the `splunk-opentelemetry-demo` ServiceAccount that provides:
 
 - **Pod Identity**: Gives all application pods a consistent identity within Kubernetes
 - **RBAC Integration**: Enables role-based access control for pods
@@ -15,7 +15,7 @@ Creates the `opentelemetry-demo` ServiceAccount that provides:
 
 ## ServiceAccount Name
 
-**Name**: `opentelemetry-demo`
+**Name**: `splunk-opentelemetry-demo`
 **Namespace**: `astronomy-shop`
 
 ## Used By
@@ -26,7 +26,7 @@ This ServiceAccount is referenced by **23 application services** via:
 spec:
   template:
     spec:
-      serviceAccountName: opentelemetry-demo
+      serviceAccountName: splunk-opentelemetry-demo
 ```
 
 ### Services Using This ServiceAccount
@@ -50,10 +50,10 @@ kubectl apply -f src/demo-service-account/demo-service-account-k8s.yaml
 
 ```bash
 # View ServiceAccount
-kubectl get serviceaccount opentelemetry-demo -n astronomy-shop
+kubectl get serviceaccount splunk-opentelemetry-demo -n astronomy-shop
 
 # Describe ServiceAccount
-kubectl describe serviceaccount opentelemetry-demo -n astronomy-shop
+kubectl describe serviceaccount splunk-opentelemetry-demo -n astronomy-shop
 ```
 
 ### View Pods Using This ServiceAccount
@@ -85,7 +85,7 @@ If you rename this ServiceAccount, you must also update all service manifests th
 
 ```bash
 # Search for references
-grep -r "serviceAccountName: opentelemetry-demo" src/
+grep -r "serviceAccountName: splunk-opentelemetry-demo" src/
 ```
 
 Update each service's deployment to use the new ServiceAccount name.

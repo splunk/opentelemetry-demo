@@ -7,4 +7,4 @@ metadata:
   name: astronomy-shop
   labels:
     app.kubernetes.io/name: astronomy-shop
-    app.kubernetes.io/part-of: opentelemetry-demo
+    app.kubernetes.io/part-of: splunk-opentelemetry-demo

@@ -11,7 +11,7 @@ metadata:
     app.kubernetes.io/component: planning
     app.kubernetes.io/name: planning
     app.kubernetes.io/version: 1.8.0
-    app.kubernetes.io/part-of: opentelemetry-demo
+    app.kubernetes.io/part-of: splunk-opentelemetry-demo
 spec:
   replicas: 1
   revisionHistoryLimit: 10
@@ -25,7 +25,7 @@ spec:
         app.kubernetes.io/component: planning
         app.kubernetes.io/name: planning
     spec:
-      serviceAccountName: opentelemetry-demo
+      serviceAccountName: splunk-opentelemetry-demo
       containers:
       - name: planning
         image: ghcr.io/splunk/opentelemetry-demo/otel-planning:2.0.8
