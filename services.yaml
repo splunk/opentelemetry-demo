@@ -39,6 +39,13 @@ registry:
   # The dev-repo.yaml file is gitignored to prevent fork repo URLs in main repo
 
 services:
+  # Must be stitched FIRST: all application pods reference this ServiceAccount
+  # via serviceAccountName. Emitting it ahead of every Deployment avoids the
+  # race where ReplicaSets fail pod creation with "serviceaccount not found".
+  - name: demo-service-account
+    build: false
+    manifest: true
+
   - name: ingress
     build: false
     manifest: false  # Only included in DIAB builds via stitch-manifests.sh
@@ -119,10 +126,6 @@ services:
   - name: demo-namespace
     build: false
     manifest: false  # Disabled - using default namespace instead
-
-  - name: demo-service-account
-    build: false
-    manifest: true
 
   - name: payment
     build: true

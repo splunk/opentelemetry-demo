@@ -71,7 +71,14 @@ const Cart: NextPage = () => {
       // Record on span - Splunk RUM will capture the full stack trace
       span.recordException(error);
       span.setStatus({ code: 2, message: (error as Error).message });
-      console.error('CartPageError: pricing race condition -', (error as Error).message);
+      // Report to Splunk RUM's console instrumentation with an Error OBJECT (not a
+      // string) so the stack trace is captured and sourcemap-mapped. Passing a plain
+      // string here logs as type "String" with no stack trace in RUM.
+      const cartError = new Error(
+        `CartPageError: pricing race condition - ${(error as Error).message}`
+      );
+      cartError.stack = (error as Error).stack; // preserve synthetic call stack
+      console.error(cartError);
     }
 
     span.end();

@@ -14,7 +14,7 @@ metadata:
   labels:
     app.kubernetes.io/name: postgres-init
     app.kubernetes.io/component: database
-    app.kubernetes.io/part-of: opentelemetry-demo
+    app.kubernetes.io/part-of: splunk-opentelemetry-demo
 data:
   # Shell script runs first (alphabetically) to create extension in postgres database
   00-pg-stat-statements.sh: |

@@ -10,7 +10,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: flagd-shared-config
   labels:
-    app.kubernetes.io/part-of: opentelemetry-demo
+    app.kubernetes.io/part-of: splunk-opentelemetry-demo
     app.kubernetes.io/component: flagd
 spec:
   accessModes:

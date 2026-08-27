@@ -27,7 +27,7 @@ metadata:
   namespace: otel-demo
   labels:
     app: sqlserver
-    app.kubernetes.io/part-of: opentelemetry-demo
+    app.kubernetes.io/part-of: splunk-opentelemetry-demo
 spec:
   replicas: 1
   selector:
@@ -76,7 +76,7 @@ metadata:
   namespace: otel-demo
   labels:
     app: sqlserver
-    app.kubernetes.io/part-of: opentelemetry-demo
+    app.kubernetes.io/part-of: splunk-opentelemetry-demo
 spec:
   type: ClusterIP
   ports:
