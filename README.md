@@ -1,45 +1,80 @@
 <!-- markdownlint-disable-next-line -->
-# <img src="https://opentelemetry.io/img/logos/opentelemetry-logo-nav.png" alt="OTel logo" width="45"> OpenTelemetry Demo
+# <img src="https://opentelemetry.io/img/logos/opentelemetry-logo-nav.png" alt="OTel logo" width="45"> Splunk OpenTelemetry Demo — Astronomy Shop
 
 [![Slack](https://img.shields.io/badge/slack-@cncf/otel/demo-brightgreen.svg?logo=slack)](https://cloud-native.slack.com/archives/C03B4CWV4DA)
-[![Version](https://img.shields.io/github/v/release/open-telemetry/opentelemetry-demo?color=blueviolet)](https://github.com/open-telemetry/opentelemetry-demo/releases)
-[![Commits](https://img.shields.io/github/commits-since/open-telemetry/opentelemetry-demo/latest?color=ff69b4&include_prereleases)](https://github.com/open-telemetry/opentelemetry-demo/graphs/commit-activity)
-[![Downloads](https://img.shields.io/docker/pulls/otel/demo)](https://hub.docker.com/r/otel/demo)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg?color=red)](https://github.com/open-telemetry/opentelemetry-demo/blob/main/LICENSE)
-[![Integration Tests](https://github.com/open-telemetry/opentelemetry-demo/actions/workflows/run-integration-tests.yml/badge.svg)](https://github.com/open-telemetry/opentelemetry-demo/actions/workflows/run-integration-tests.yml)
-[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/opentelemetry-demo)](https://artifacthub.io/packages/helm/opentelemetry-helm/opentelemetry-demo)
-[![FOSSA Status](https://app.fossa.com/api/projects/custom%2B162%2Fgithub.com%2Fopen-telemetry%2Fopentelemetry-demo.svg?type=shield&issueType=license)](https://app.fossa.com/projects/custom%2B162%2Fgithub.com%2Fopen-telemetry%2Fopentelemetry-demo?ref=badge_shield&issueType=license)
-[![FOSSA Status](https://app.fossa.com/api/projects/custom%2B162%2Fgithub.com%2Fopen-telemetry%2Fopentelemetry-demo.svg?type=shield&issueType=security)](https://app.fossa.com/projects/custom%2B162%2Fgithub.com%2Fopen-telemetry%2Fopentelemetry-demo?ref=badge_shield&issueType=security)
-[![OpenSSF Scorecard for opentelemetry-demo](https://api.scorecard.dev/projects/github.com/open-telemetry/opentelemetry-demo/badge)](https://scorecard.dev/viewer/?uri=github.com/open-telemetry/opentelemetry-demo)
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/9247/badge)](https://www.bestpractices.dev/en/projects/9247)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg?color=red)](./LICENSE)
 
-## Welcome to the OpenTelemetry Astronomy Shop Demo
+> This is **Splunk's fork** of the [OpenTelemetry Demo](https://github.com/open-telemetry/opentelemetry-demo),
+> maintained by the Splunk Observability field/demo team as a
+> **Kubernetes-only distribution** with deep Splunk Observability Cloud-specific
+> instrumentation and demo scenarios, built for field demos and workshops.
+
+## Welcome to the Splunk Astronomy Shop
 
 This repository contains the OpenTelemetry Astronomy Shop, a microservice-based
 distributed system intended to illustrate the implementation of OpenTelemetry in
-a near real-world environment.
+a near real-world environment — extended with Splunk Observability Cloud
+integrations, additional demo services, and fault-injection scenarios built
+for live demos and hands-on workshops.
 
-Our goals are threefold:
+## How this distribution differs from upstream
 
-- Provide a realistic example of a distributed system that can be used to
-  demonstrate OpenTelemetry instrumentation and observability.
-- Build a base for vendors, tooling authors, and others to extend and
-  demonstrate their OpenTelemetry integrations.
-- Create a living example for OpenTelemetry contributors to use for testing new
-  versions of the API, SDK, and other components or enhancements.
+| Aspect | Upstream OTel Demo | This fork |
+| --- | --- | --- |
+| Deployment | Docker Compose or Kubernetes | **Kubernetes only** — Docker Compose is inherited from upstream, unmaintained, and known-broken (issues #298/#299) |
+| Collector | Bundled OpenTelemetry Collector | **Splunk OTel Collector Helm chart**, swapped in entirely |
+| Backends | Jaeger, Prometheus, OpenSearch (generic OTLP fan-out) | Splunk Observability Cloud (APM, IM, RUM, Log Observer) via signalfx/otlp_http/splunk_hec exporters |
+| Load generation | Locust-based | **Custom Puppeteer-based load generator** — chosen for better RUM compatibility and easier scripted fault conditions |
+| CI/CD | GitHub Actions targeting Docker Hub images | Splunk-specific build/promote/release pipeline publishing to `ghcr.io/splunk/opentelemetry-demo` |
 
-We've already made [huge
-progress](https://github.com/open-telemetry/opentelemetry-demo/blob/main/CHANGELOG.md),
-and development is ongoing. We hope to represent the full feature set of
-OpenTelemetry across its languages in the future.
+None of the Splunk-specific functionality below ships in the upstream demo.
 
-If you'd like to help (**which we would love**), check out our [contributing
-guidance](./CONTRIBUTING.md).
+## Splunk-specific features & enhancements
 
-If you'd like to extend this demo or maintain a fork of it, read our
-[fork guidance](https://opentelemetry.io/docs/demo/forking/).
+### Collector & pipeline
 
-## Forking This Repository (Splunk Version)
+- **Splunk backends** — signalfx, otlp_http, and splunk_hec (×2, for metrics/traces and logs) exporters
+- **Database Monitoring (DBMon)** — Postgres/MySQL/Oracle/SQL Server auto-discovery, query-sample and top-query collection
+- **Kafka metrics scraper**
+- **SecureApp log routing** — dedicated event pipeline for attack-simulation telemetry
+- **Cardinality control** — `strip_verbose` (enforces SignalFx's 36-dimension cap), `add_environment`
+- **Noise reduction** — strips flagd's noisy EventStream/Resolve spans; reclassifies Envoy DC/canceled as not-error
+- **Kubernetes infra telemetry** — kubelet stats, cluster events, syslog/auth_log tagged with `com.splunk.*`
+- **Async trace continuity across Kafka** — span-link-based propagation into accounting and planning, and trace correlation into fraud-detection (solves the classic broken-trace-across-async-messaging problem)
+- **Pipeline tuning** — signalfx traces disabled where redundant, cluster-receiver memory limits (500Mi/1Gi)
+
+### App & instrumentation
+
+- **Splunk RUM** — full Real User Monitoring with sourcemap upload for de-minified browser stack traces
+- **Continuous profiling** — CPU + memory, across all supported languages, ~14 services
+- **SecureApp** — dedicated attack load generator + telemetry for security-focused demos
+- **Custom Puppeteer load generator** — replaces upstream's generator for better RUM fidelity and scriptable fault conditions
+
+### Demo scenarios
+
+- Database Monitoring (slow query detection, query-to-trace correlation)
+- RUM (panic-mode incident, blue/green deploy comparison)
+- Continuous profiling (CPU hotspot investigation)
+- Order-validation CPU throttling
+- GenAI failures (inaccurate LLM output, rate limiting)
+- SecureApp attack simulation
+- Payment unreachable / A-B testing
+- AWS Lambda (planning service, serverless)
+- Hybrid on-prem datacenter (`shop-dc-shim`, dual AppDynamics + Splunk instrumentation)
+
+> **Note:** a couple of additional scenarios are in active development and not
+> yet part of a release — a logging-workshop scenario (checkout promo-discount
+> bug) and an improved Database Monitoring "slow query" scenario. They'll be
+> added here once merged.
+
+## Kubernetes architecture & requirements
+
+This distribution deploys exclusively via Kubernetes manifests (no Helm chart
+for the demo app itself; the collector uses the official Splunk Helm chart).
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full service inventory and
+[DEPLOYMENT.md](./DEPLOYMENT.md) for cluster/account prerequisites.
+
+## Forking this repository
 
 **If you're forking this Splunk-specific repository**, run the setup script after cloning:
 
@@ -48,7 +83,8 @@ If you'd like to extend this demo or maintain a fork of it, read our
 ```
 
 This script will:
-- Configure your development registry (dev-repo.yaml)
+
+- Configure your development registry (`dev-repo.yaml`)
 - Prevent accidental production version file commits
 - Set up your fork for test builds
 
@@ -71,9 +107,14 @@ Upstream (generic, non-Splunk) deployment docs:
 
 ## Documentation
 
-For detailed documentation, see [Demo Documentation][docs]. If you're curious
-about a specific feature, the [docs landing page][docs] can point you in the
-right direction.
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — service inventory, deployment topology, telemetry patterns
+- [DEPLOYMENT.md](./DEPLOYMENT.md) — Splunk Observability Cloud + collector setup
+- [HOW-TO-DEPLOY-AND-RUN.md](./HOW-TO-DEPLOY-AND-RUN.md) — shortest path to a running demo
+- [DEVELOPING.md](./DEVELOPING.md) — local dev, fork setup, contributing a service
+- [PRODUCTION-WORKFLOW-GUIDE.md](./PRODUCTION-WORKFLOW-GUIDE.md) — release/promotion workflow
+
+For upstream OpenTelemetry Demo documentation not specific to this fork, see the
+[Demo Documentation][docs].
 
 ## Demos featuring the Astronomy Shop
 
@@ -101,9 +142,10 @@ keeping it up to date for you.
 
 ## Contributing
 
-To get involved with the project see our [CONTRIBUTING](CONTRIBUTING.md)
-documentation. Our [SIG Calls](CONTRIBUTING.md#join-a-sig-call) are every other
-Wednesday at 8:30 AM PST and anyone is welcome.
+To get involved with this fork, see [CONTRIBUTING](CONTRIBUTING.md) and
+[DEVELOPING.md](./DEVELOPING.md). For the upstream community project, our
+[SIG Calls](CONTRIBUTING.md#join-a-sig-call) are every other Wednesday at
+8:30 AM PST and anyone is welcome.
 
 ### Maintainers
 
@@ -177,7 +219,7 @@ For more information about the emeritus role, see the [community repository](htt
 [ServiceNow Cloud Observability]: https://docs.lightstep.com/otel/quick-start-operator#send-data-from-the-opentelemetry-demo
 [SigNoz]: https://signoz.io/blog/opentelemetry-demo/
 [SolarWinds Observability]: https://github.com/solarwinds/opentelemetry-demo
-[Splunk]: https://github.com/signalfx/opentelemetry-demo
+[Splunk]: https://github.com/splunk/opentelemetry-demo
 [Sumo Logic]: https://www.sumologic.com/blog/common-opentelemetry-demo-application/
 [TelemetryHub]: https://github.com/TelemetryHub/opentelemetry-demo/tree/telemetryhub-backend
 [Teletrace]: https://github.com/teletrace/opentelemetry-demo
