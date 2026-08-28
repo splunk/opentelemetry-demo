@@ -321,6 +321,9 @@ Load Generators -> All services
 2. **Fraud Detection**: Real-time fraud analysis with SQL Server
 3. **Shop DC Shim**: On-premises datacenter simulation
 4. **Product Reviews**: LLM-powered review analysis
+5. **Order Ledger**: DB Query Performance ↔ APM trace correlation via JDBC span
+   context (`OTEL_INSTRUMENTATION_SPLUNK_JDBC_ENABLED=true`), nested under
+   accounting's trace
 
 ### Enhanced Services
 
@@ -328,6 +331,11 @@ Load Generators -> All services
 2. **Payment**: Dual-version deployment (v1/v2) for A/B testing
 3. **Recommendation**: Enhanced ML telemetry
 4. **Ad Service**: Custom metrics and traces
+5. **Async messaging (Kafka)**: Span-link-based trace propagation into
+   accounting and planning, and trace correlation into fraud-detection, to
+   preserve trace continuity across async boundaries
+6. **Load Generator**: Custom Puppeteer-based generator (replaces upstream
+   Locust) for better RUM fidelity and scriptable fault conditions
 
 ### Configuration Features
 
