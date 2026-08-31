@@ -377,7 +377,7 @@ agent:
           # gRPC health service, matched on the RPC attributes and on the span
           # name (instrumentations differ on which they populate).
           - attributes["rpc.service"] == "grpc.health.v1.Health"
-          - IsMatch(name, "^grpc\\.health\\.v1\\.Health/")
+          - IsMatch(name, "grpc\\.health\\.v1\\.Health/")
           # HTTP liveness/readiness endpoints (shipping, quote, llm, frontend,
           # order-validation, ...). Anchored so real product paths that merely
           # contain "health" are not dropped.
