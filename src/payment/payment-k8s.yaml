@@ -47,7 +47,7 @@ spec:
       serviceAccountName: splunk-opentelemetry-demo
       containers:
       - name: payment
-        image: ghcr.io/splunk/opentelemetry-demo/otel-payment:1.8.0
+        image: ghcr.io/splunk/opentelemetry-demo/otel-payment:2.0.8-hotfix-payment-1
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
