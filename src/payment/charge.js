@@ -243,17 +243,31 @@ function calculateFailureTimings(totalAttempts) {
 }
 
 module.exports.charge = async request => {
-  // Create a SERVER span so attributes are promoted in Splunk O11y
+  // The gRPC auto-instrumentation has already opened a SERVER span for this
+  // call, and that span is what Splunk APM counts as the payment request.
+  // Keeping this one INTERNAL stops a single Charge being counted twice in the
+  // request rate.
+  const serverSpan = trace.getActiveSpan();
+  const spanAttributes = {
+    'rpc.system': 'grpc',
+    'rpc.service': 'PaymentService',
+    'rpc.method': 'Charge',
+    // Add version-specific attributes
+    ...versionConfig.resourceAttributes,
+  };
   const span = tracer.startSpan('charge', {
-    kind: SpanKind.SERVER,
-    attributes: {
-      'rpc.system': 'grpc',
-      'rpc.service': 'PaymentService',
-      'rpc.method': 'Charge',
-      // Add version-specific attributes
-      ...versionConfig.resourceAttributes,
-    }
+    kind: SpanKind.INTERNAL,
+    attributes: spanAttributes,
   });
+
+  // Attributes previously landed on the entry span because this span was
+  // SpanKind.SERVER. Mirror them onto the auto-instrumented server span so
+  // Splunk O11y still promotes them.
+  const setSpanAttributes = attributes => {
+    span.setAttributes(attributes);
+    serverSpan?.setAttributes(attributes);
+  };
+  serverSpan?.setAttributes(spanAttributes);
   await OpenFeature.setProviderAndWait(flagProvider);
 
   // Use version-specific retry settings with optional feature flag override
@@ -292,7 +306,7 @@ module.exports.charge = async request => {
   // Default to success version; on ultimate failure we overwrite to FAILURE_VERSION below
   const version = SUCCESS_VERSION;
 
-  span.setAttributes({
+  setSpanAttributes({
     version,
     'app.payment.card_type': cardType,
     'app.payment.card_valid': valid,
@@ -301,7 +315,7 @@ module.exports.charge = async request => {
 
   // Add planned failure information to span
   if (shouldFailRequest && failureTimings) {
-    span.setAttributes({
+    setSpanAttributes({
       'app.payment.planned_failure': true,
       'app.payment.target_duration_ms': failureTimings.totalDurationMs
     });
@@ -393,7 +407,7 @@ module.exports.charge = async request => {
           );
         }
 
-        span.setAttribute('app.payment.charged', !synthetic);
+        setSpanAttributes({ 'app.payment.charged': !synthetic });
 
         const { transaction_id, cardType: resolvedCardType, cardNumber, amount } = resp;
 
@@ -413,7 +427,7 @@ module.exports.charge = async request => {
           'Transaction complete.'
         );
         transactionsCounter.add(1, { 'app.payment.currency': amount.currency_code });
-        span.setAttributes({ 'retry.count': attempt - 1, 'retry.success': true });
+        setSpanAttributes({ 'retry.count': attempt - 1, 'retry.success': true });
         result = { transactionId: transaction_id, success: true, retries: attempt - 1 };
         break;
 
@@ -425,7 +439,7 @@ module.exports.charge = async request => {
 
         // Flag the root span for every 401 attempt (not just the final failure)
         if (err.code === 401) {
-          span.setAttributes({
+          setSpanAttributes({
             version: FAILURE_VERSION,
             // TODO: populate actual kubernetes_pod_uid via Downward API (e.g., env var K8S_POD_UID)
             //kubernetes_pod_uid: process.env.K8S_POD_UID || 'UNKNOWN',
@@ -483,7 +497,7 @@ module.exports.charge = async request => {
 // All attempts failed: mark spans and return a 500/401-style failure (no throw)
     const finalCode = (lastErr && lastErr.code === 401) ? 401 : 500;
 
-    span.setAttributes({
+    setSpanAttributes({
       version: FAILURE_VERSION,
       error: true,
       'app.loyalty.level': 'gold',
@@ -516,7 +530,7 @@ module.exports.charge = async request => {
       );
     }
 
-    span.setAttribute('app.payment.charged', false);
+    setSpanAttributes({ 'app.payment.charged': false });
 
     // final log INSIDE the root span context (so trace/span ids are injected)
     context.with(trace.setSpan(context.active(), span), () => {
