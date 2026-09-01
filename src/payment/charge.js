@@ -569,10 +569,19 @@ module.exports.charge = async request => {
         );
       }
     });
-    // Throw after all retries so upstream services see the failure
+    // Throw after all retries so upstream services see the failure.
+    //
+    // Deliberately generic: this message crosses the gRPC boundary and lands in
+    // checkout's span as grpc.error_message / otel.status_description, and in
+    // both services' exception events as exception.message and
+    // exception.stacktrace. Naming the rejected credential there would print the
+    // API token value across every failed trace. Matches InvalidRequestError,
+    // which is what the simulated gateway raises per attempt for a 401.
+    // The token stays in the payment service logs, which is where the demo
+    // narrative expects it to be found.
     const errToThrow = new Error(
       finalCode === 401
-        ? `Payment failed after retries: Invalid API Token (${API_TOKEN_FAILURE_TOKEN})`
+        ? 'Invalid request'
         : 'Payment failed after retries'
     );
     // attach code for structured error handling
