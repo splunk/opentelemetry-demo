@@ -506,8 +506,15 @@ module.exports.charge = async request => {
       'http.status_code': finalCode,
     });
 
-    // set explicit error status on the root span so it doesn't show as "unknown"
-    span.setStatus({ code: SpanStatusCode.ERROR, message: String(finalCode) });
+    // Set an explicit error status so the span doesn't show as "unknown".
+    // The description mirrors the message thrown to the caller rather than the
+    // bare status code, so otel.status_description reads the same on this span
+    // and on the auto-instrumented entry span. Still generic -- the API token
+    // belongs in the logs, not in trace attributes.
+    span.setStatus({
+      code: SpanStatusCode.ERROR,
+      message: finalCode === 401 ? 'Invalid request' : 'Payment failed after retries',
+    });
 
     // keep baggage handling as you have it
     const baggage = propagation.getBaggage(context.active());
