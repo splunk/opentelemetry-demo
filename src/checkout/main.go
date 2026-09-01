@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"math/rand"
 	"net"
 	"net/http"
@@ -208,7 +209,7 @@ func main() {
 	svc.httpClient = &http.Client{
 		Transport: otelhttp.NewTransport(http.DefaultTransport,
 			otelhttp.WithSpanOptions(trace.WithAttributes(
-				attribute.String("peer.service","shipping"),
+				attribute.String("peer.service", "shipping"),
 			)),
 		),
 	}
@@ -301,6 +302,49 @@ func (cs *checkout) Watch(req *healthpb.HealthCheckRequest, ws healthpb.Health_W
 	return status.Errorf(codes.Unimplemented, "health check via Watch not implemented")
 }
 
+// Promo codes applied at checkout. SPRING10 is the live customer campaign.
+// PROMOTEST100 is an internal test code that was never removed from the
+// pricing rules; when it matches, the order total is discounted to zero.
+// NONE means the promo engine is disabled and the customer pays full price.
+const (
+	noPromoCode       = "NONE"
+	livePromoCode     = "SPRING10"
+	livePromoDiscount = 10 // percent
+	testPromoCode     = "PROMOTEST100"
+	testPromoDiscount = 100 // percent
+
+	// promoRedemptionRate is the fraction of orders that redeem any promo code
+	// while the promo engine is enabled. Most shoppers don't use one, so the
+	// majority of orders stay at full price regardless of the flag setting.
+	promoRedemptionRate = 0.30
+)
+
+// moneyToFloat converts Money to a decimal value rounded to two places. The
+// currency service truncates when packing nanos, so raw conversions arrive with
+// long fractional tails; rounding keeps reported amounts at cent precision.
+func moneyToFloat(m *pb.Money) float64 {
+	v := float64(m.GetUnits()) + float64(m.GetNanos())/1_000_000_000
+	return math.Round(v*100) / 100
+}
+
+// applyPromoDiscount returns a new Money reduced by discountPct percent.
+// Integer arithmetic keeps the result exact for whole-percent discounts.
+func applyPromoDiscount(m *pb.Money, discountPct int64) *pb.Money {
+	if discountPct <= 0 {
+		return m
+	}
+	if discountPct >= 100 {
+		return &pb.Money{CurrencyCode: m.GetCurrencyCode()}
+	}
+	totalNanos := m.GetUnits()*1_000_000_000 + int64(m.GetNanos())
+	kept := totalNanos * (100 - discountPct) / 100
+	return &pb.Money{
+		CurrencyCode: m.GetCurrencyCode(),
+		Units:        kept / 1_000_000_000,
+		Nanos:        int32(kept % 1_000_000_000),
+	}
+}
+
 func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (*pb.PlaceOrderResponse, error) {
 	span := trace.SpanFromContext(ctx)
 	span.SetAttributes(
@@ -345,7 +389,27 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		total = money.Must(money.Sum(total, multPrice))
 	}
 
-	txID, err := cs.chargeCard(ctx, total, req.CreditCard)
+	// Resolve the promo code for this order. The promoDiscountBug flag enables the
+	// promo engine; while enabled, promoRedemptionRate of orders redeem a code and
+	// the flag value decides what share of those redemptions incorrectly match the
+	// internal PROMOTEST100 test code instead of the live SPRING10 campaign. With
+	// the flag off no promo is applied at all, so the default behaviour of the demo
+	// is unchanged. Only the charged amount is affected -- the order items, shipping
+	// cost and the confirmation sent back to the customer all keep the full price.
+	promoCode := noPromoCode
+	discountPct := int64(0)
+	if bugRate := cs.getFeatureFlagFloat(ctx, "promoDiscountBug", 0.0); bugRate > 0 && rand.Float64() < promoRedemptionRate {
+		if rand.Float64() < bugRate {
+			promoCode = testPromoCode
+			discountPct = testPromoDiscount
+		} else {
+			promoCode = livePromoCode
+			discountPct = livePromoDiscount
+		}
+	}
+	chargeTotal := applyPromoDiscount(total, discountPct)
+
+	txID, err := cs.chargeCard(ctx, chargeTotal, req.CreditCard)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to charge card: %+v", err)
 	}
@@ -375,8 +439,25 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		Items:              prep.orderItems,
 	}
 
+	// Normalize to USD so revenue can be aggregated across currencies. This runs
+	// after the charge so it stays off the payment path. The promo discount is a
+	// flat percentage, so converting the pre-discount total once and re-applying
+	// the discount avoids a second currency conversion.
+	totalUSD := total
+	if total.GetCurrencyCode() != "USD" {
+		if convertedUSD, cerr := cs.convertCurrency(ctx, total, "USD"); cerr == nil {
+			totalUSD = convertedUSD
+		} else {
+			logger.Warn(fmt.Sprintf("failed to convert order total to USD for reporting: %+v", cerr))
+		}
+	}
+	chargeTotalUSD := applyPromoDiscount(totalUSD, discountPct)
+
 	shippingCostFloat, _ := strconv.ParseFloat(fmt.Sprintf("%d.%02d", prep.shippingCostLocalized.GetUnits(), prep.shippingCostLocalized.GetNanos()/1000000000), 64)
-	totalPriceFloat, _ := strconv.ParseFloat(fmt.Sprintf("%d.%02d", total.GetUnits(), total.GetNanos()/1000000000), 64)
+	totalPriceFloat := moneyToFloat(total)
+	chargedPriceFloat := moneyToFloat(chargeTotal)
+	totalUSDFloat := moneyToFloat(totalUSD)
+	chargedUSDFloat := moneyToFloat(chargeTotalUSD)
 
 	span.SetAttributes(
 		attribute.String("app.order.id", orderID.String()),
@@ -391,6 +472,12 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		slog.String("app.order.id", orderID.String()),
 		slog.Float64("app.shipping.amount", shippingCostFloat),
 		slog.Float64("app.order.amount", totalPriceFloat),
+		slog.Float64("app.order.amount.charged", chargedPriceFloat),
+		slog.String("app.order.currency", total.GetCurrencyCode()),
+		slog.Float64("app.order.amount.usd", totalUSDFloat),
+		slog.Float64("app.order.amount.charged.usd", chargedUSDFloat),
+		slog.String("app.promo.code", promoCode),
+		slog.Float64("app.order.discount.pct", float64(discountPct)),
 		slog.Int("app.order.items.count", len(prep.orderItems)),
 		slog.String("app.shipping.tracking.id", shippingTrackingID),
 	)
@@ -469,7 +556,7 @@ func mustCreateClient(svcAddr string, peerService string) *grpc.ClientConn {
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler(
 			otelgrpc.WithSpanOptions(trace.WithAttributes(
-				attribute.String("peer.service",peerService),
+				attribute.String("peer.service", peerService),
 			)),
 		)),
 	)
