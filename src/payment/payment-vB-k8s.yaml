@@ -136,8 +136,15 @@ spec:
           value: http://$(OTEL_COLLECTOR_NAME):4318
 
         # Logging (more verbose for version B)
+        # OTEL_LOG_LEVEL stays at info: at debug the OTel SDK diag logger
+        # pretty-prints every exported span (SpanImpl dumps, instrumentation
+        # patch traces) as multi-line stdout, which the filelog receiver
+        # ingests one line per record with no parseable severity -- hundreds
+        # of UNKNOWN entries per minute that crowd out the real logs.
+        # LOG_LEVEL keeps vB verbose where it is useful: pino emits
+        # single-line JSON carrying severity and trace context.
         - name: OTEL_LOG_LEVEL
-          value: debug
+          value: info
         - name: LOG_LEVEL
           value: debug
 
