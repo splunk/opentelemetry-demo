@@ -370,6 +370,7 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		return nil, status.Errorf(codes.Internal, "failed to generate order uuid")
 	}
 
+	logger.InfoContext(ctx, "entering order preparation", slog.String("order_id", orderID.String()))
 	prep, err := cs.prepareOrderItemsAndShippingQuoteFromCart(ctx, req.UserId, req.UserCurrency, req.Address)
 	if err != nil {
 		// Return FailedPrecondition for empty cart (client error), Internal for other errors
@@ -379,6 +380,8 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		return nil, status.Errorf(codes.Internal, err.Error())
 	}
 	span.AddEvent("prepared")
+	logger.InfoContext(ctx, "leaving order preparation",
+		slog.Int("order_items", len(prep.orderItems)))
 
 	total := &pb.Money{CurrencyCode: req.UserCurrency,
 		Units: 0,
@@ -409,8 +412,14 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 	}
 	chargeTotal := applyPromoDiscount(total, discountPct)
 
+	logger.InfoContext(ctx, "order total calculated",
+		slog.String("currency", chargeTotal.GetCurrencyCode()),
+		slog.Int64("units", chargeTotal.GetUnits()))
+	logger.InfoContext(ctx, "promo code resolved", slog.String("promo_code", promoCode))
+	logger.InfoContext(ctx, "entering payment service", slog.String("order_id", orderID.String()))
 	txID, err := cs.chargeCard(ctx, chargeTotal, req.CreditCard)
 	if err != nil {
+		logger.InfoContext(ctx, "leaving payment service", slog.String("result", "declined"))
 		// Unwind breadcrumbs. Without these the payment error is the last log
 		// line in the whole trace, which hands the root cause to the viewer
 		// before they have looked at anything. Each line states something that
@@ -426,6 +435,14 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		logger.InfoContext(ctx, "order confirmation email not sent")
 		logger.InfoContext(ctx, "order not published to orders topic")
 		logger.InfoContext(ctx, "order total not recorded for reporting")
+		for _, it := range prep.orderItems {
+			logger.InfoContext(ctx, "order item not charged",
+				slog.String("product_id", it.GetItem().GetProductId()),
+				slog.Int("quantity", int(it.GetItem().GetQuantity())))
+		}
+		logger.InfoContext(ctx, "promo code not redeemed", slog.String("promo_code", promoCode))
+		logger.InfoContext(ctx, "order id released", slog.String("order_id", orderID.String()))
+		logger.InfoContext(ctx, "returning INTERNAL to caller")
 		logger.InfoContext(ctx, "leaving PlaceOrder",
 			slog.String("user_id", req.UserId),
 			slog.String("outcome", "abandoned"))
@@ -528,28 +545,39 @@ func (cs *checkout) prepareOrderItemsAndShippingQuoteFromCart(ctx context.Contex
 	defer span.End()
 
 	var out orderPrep
+
+	logger.InfoContext(ctx, "entering cart service", slog.String("user_id", userID))
 	cartItems, err := cs.getUserCart(ctx, userID)
 	if err != nil {
 		return out, fmt.Errorf("cart failure: %+v", err)
 	}
+	logger.InfoContext(ctx, "leaving cart service", slog.Int("items", len(cartItems)))
 
 	// Validate cart is not empty before proceeding
 	if len(cartItems) == 0 {
 		return out, fmt.Errorf("cannot place order with empty cart")
 	}
 
+	logger.InfoContext(ctx, "entering product catalog service")
 	orderItems, err := cs.prepOrderItems(ctx, cartItems, userCurrency)
 	if err != nil {
 		return out, fmt.Errorf("failed to prepare order: %+v", err)
 	}
+	logger.InfoContext(ctx, "leaving product catalog service", slog.Int("order_items", len(orderItems)))
+
+	logger.InfoContext(ctx, "entering shipping service")
 	shippingUSD, err := cs.quoteShipping(ctx, address, cartItems)
 	if err != nil {
 		return out, fmt.Errorf("shipping quote failure: %+v", err)
 	}
+	logger.InfoContext(ctx, "leaving shipping service")
+
+	logger.InfoContext(ctx, "entering currency service", slog.String("target_currency", userCurrency))
 	shippingPrice, err := cs.convertCurrency(ctx, shippingUSD, userCurrency)
 	if err != nil {
 		return out, fmt.Errorf("failed to convert shipping cost to currency: %+v", err)
 	}
+	logger.InfoContext(ctx, "leaving currency service")
 
 	out.shippingCostLocalized = shippingPrice
 	out.cartItems = cartItems

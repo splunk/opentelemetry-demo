@@ -16,9 +16,12 @@ async function chargeServiceHandler(call, callback) {
     span?.setAttributes({
       'app.payment.amount': parseFloat(`${amount.units}.${amount.nanos}`).toFixed(2)
     })
+    logger.info("Entering payment service.")
     logger.info("Charge request received.")
 
     const response = await charge.charge(call.request)
+    logger.info("Charge authorized, returning to caller.")
+    logger.info("Leaving payment service.")
     callback(null, response)
 
   } catch (err) {
@@ -30,6 +33,8 @@ async function chargeServiceHandler(call, callback) {
 
     // Emitted after the error so the failure is not the final log line in the
     // trace; checkout adds its own unwind breadcrumbs on top of these.
+    logger.info("Charge not authorized, no funds captured.")
+    logger.info("Payment gateway session closed.")
     logger.info("Charge request rejected, returning to caller.")
     logger.info("Leaving payment service.")
   }
