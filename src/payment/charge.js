@@ -595,6 +595,9 @@ module.exports.charge = async request => {
     errToThrow.code = finalCode;
 throw errToThrow;
   } finally {
+    // Runs on both paths, so a failed charge still emits a closing INFO line
+    // after its ERROR records rather than ending the trace on the error.
+    logger.info({ retries: attempt - 1 }, 'Charge attempt sequence complete.');
     span.end();
   }
 };

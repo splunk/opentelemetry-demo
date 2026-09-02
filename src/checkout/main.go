@@ -411,6 +411,24 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 
 	txID, err := cs.chargeCard(ctx, chargeTotal, req.CreditCard)
 	if err != nil {
+		// Unwind breadcrumbs. Without these the payment error is the last log
+		// line in the whole trace, which hands the root cause to the viewer
+		// before they have looked at anything. Each line states something that
+		// is actually true about the abandoned order, so the trail stays
+		// honest while the failure sits in the middle of the stream rather
+		// than at the end.
+		logger.InfoContext(ctx, "payment declined, unwinding order",
+			slog.String("user_id", req.UserId))
+		logger.InfoContext(ctx, "no transaction id returned by payment service")
+		logger.InfoContext(ctx, "cart left intact for retry",
+			slog.String("user_id", req.UserId))
+		logger.InfoContext(ctx, "shipping order not placed")
+		logger.InfoContext(ctx, "order confirmation email not sent")
+		logger.InfoContext(ctx, "order not published to orders topic")
+		logger.InfoContext(ctx, "order total not recorded for reporting")
+		logger.InfoContext(ctx, "leaving PlaceOrder",
+			slog.String("user_id", req.UserId),
+			slog.String("outcome", "abandoned"))
 		return nil, status.Errorf(codes.Internal, "failed to charge card: %+v", err)
 	}
 

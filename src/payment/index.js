@@ -27,6 +27,11 @@ async function chargeServiceHandler(call, callback) {
     span?.recordException(err)
     span?.setStatus({ code: opentelemetry.SpanStatusCode.ERROR })
     callback(err)
+
+    // Emitted after the error so the failure is not the final log line in the
+    // trace; checkout adds its own unwind breadcrumbs on top of these.
+    logger.info("Charge request rejected, returning to caller.")
+    logger.info("Leaving payment service.")
   }
 }
 
