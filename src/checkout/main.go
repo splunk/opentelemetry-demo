@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"math/rand"
 	"net"
 	"net/http"
@@ -208,7 +209,7 @@ func main() {
 	svc.httpClient = &http.Client{
 		Transport: otelhttp.NewTransport(http.DefaultTransport,
 			otelhttp.WithSpanOptions(trace.WithAttributes(
-				attribute.String("peer.service","shipping"),
+				attribute.String("peer.service", "shipping"),
 			)),
 		),
 	}
@@ -301,6 +302,49 @@ func (cs *checkout) Watch(req *healthpb.HealthCheckRequest, ws healthpb.Health_W
 	return status.Errorf(codes.Unimplemented, "health check via Watch not implemented")
 }
 
+// Promo codes applied at checkout. SPRING10 is the live customer campaign.
+// PROMOTEST100 is an internal test code that was never removed from the
+// pricing rules; when it matches, the order total is discounted to zero.
+// NONE means the promo engine is disabled and the customer pays full price.
+const (
+	noPromoCode       = "NONE"
+	livePromoCode     = "SPRING10"
+	livePromoDiscount = 10 // percent
+	testPromoCode     = "PROMOTEST100"
+	testPromoDiscount = 100 // percent
+
+	// promoRedemptionRate is the fraction of orders that redeem any promo code
+	// while the promo engine is enabled. Most shoppers don't use one, so the
+	// majority of orders stay at full price regardless of the flag setting.
+	promoRedemptionRate = 0.30
+)
+
+// moneyToFloat converts Money to a decimal value rounded to two places. The
+// currency service truncates when packing nanos, so raw conversions arrive with
+// long fractional tails; rounding keeps reported amounts at cent precision.
+func moneyToFloat(m *pb.Money) float64 {
+	v := float64(m.GetUnits()) + float64(m.GetNanos())/1_000_000_000
+	return math.Round(v*100) / 100
+}
+
+// applyPromoDiscount returns a new Money reduced by discountPct percent.
+// Integer arithmetic keeps the result exact for whole-percent discounts.
+func applyPromoDiscount(m *pb.Money, discountPct int64) *pb.Money {
+	if discountPct <= 0 {
+		return m
+	}
+	if discountPct >= 100 {
+		return &pb.Money{CurrencyCode: m.GetCurrencyCode()}
+	}
+	totalNanos := m.GetUnits()*1_000_000_000 + int64(m.GetNanos())
+	kept := totalNanos * (100 - discountPct) / 100
+	return &pb.Money{
+		CurrencyCode: m.GetCurrencyCode(),
+		Units:        kept / 1_000_000_000,
+		Nanos:        int32(kept % 1_000_000_000),
+	}
+}
+
 func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (*pb.PlaceOrderResponse, error) {
 	span := trace.SpanFromContext(ctx)
 	span.SetAttributes(
@@ -326,6 +370,7 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		return nil, status.Errorf(codes.Internal, "failed to generate order uuid")
 	}
 
+	logger.InfoContext(ctx, "entering order preparation", slog.String("order_id", orderID.String()))
 	prep, err := cs.prepareOrderItemsAndShippingQuoteFromCart(ctx, req.UserId, req.UserCurrency, req.Address)
 	if err != nil {
 		// Return FailedPrecondition for empty cart (client error), Internal for other errors
@@ -335,6 +380,8 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		return nil, status.Errorf(codes.Internal, err.Error())
 	}
 	span.AddEvent("prepared")
+	logger.InfoContext(ctx, "leaving order preparation",
+		slog.Int("order_items", len(prep.orderItems)))
 
 	total := &pb.Money{CurrencyCode: req.UserCurrency,
 		Units: 0,
@@ -345,8 +392,60 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		total = money.Must(money.Sum(total, multPrice))
 	}
 
-	txID, err := cs.chargeCard(ctx, total, req.CreditCard)
+	// Resolve the promo code for this order. The promoDiscountBug flag enables the
+	// promo engine; while enabled, promoRedemptionRate of orders redeem a code and
+	// the flag value decides what share of those redemptions incorrectly match the
+	// internal PROMOTEST100 test code instead of the live SPRING10 campaign. With
+	// the flag off no promo is applied at all, so the default behaviour of the demo
+	// is unchanged. Only the charged amount is affected -- the order items, shipping
+	// cost and the confirmation sent back to the customer all keep the full price.
+	promoCode := noPromoCode
+	discountPct := int64(0)
+	if bugRate := cs.getFeatureFlagFloat(ctx, "promoDiscountBug", 0.0); bugRate > 0 && rand.Float64() < promoRedemptionRate {
+		if rand.Float64() < bugRate {
+			promoCode = testPromoCode
+			discountPct = testPromoDiscount
+		} else {
+			promoCode = livePromoCode
+			discountPct = livePromoDiscount
+		}
+	}
+	chargeTotal := applyPromoDiscount(total, discountPct)
+
+	logger.InfoContext(ctx, "order total calculated",
+		slog.String("currency", chargeTotal.GetCurrencyCode()),
+		slog.Int64("units", chargeTotal.GetUnits()))
+	logger.InfoContext(ctx, "promo code resolved", slog.String("promo_code", promoCode))
+	logger.InfoContext(ctx, "entering payment service", slog.String("order_id", orderID.String()))
+	txID, err := cs.chargeCard(ctx, chargeTotal, req.CreditCard)
 	if err != nil {
+		logger.InfoContext(ctx, "leaving payment service", slog.String("result", "declined"))
+		// Unwind breadcrumbs. Without these the payment error is the last log
+		// line in the whole trace, which hands the root cause to the viewer
+		// before they have looked at anything. Each line states something that
+		// is actually true about the abandoned order, so the trail stays
+		// honest while the failure sits in the middle of the stream rather
+		// than at the end.
+		logger.InfoContext(ctx, "payment declined, unwinding order",
+			slog.String("user_id", req.UserId))
+		logger.InfoContext(ctx, "no transaction id returned by payment service")
+		logger.InfoContext(ctx, "cart left intact for retry",
+			slog.String("user_id", req.UserId))
+		logger.InfoContext(ctx, "shipping order not placed")
+		logger.InfoContext(ctx, "order confirmation email not sent")
+		logger.InfoContext(ctx, "order not published to orders topic")
+		logger.InfoContext(ctx, "order total not recorded for reporting")
+		for _, it := range prep.orderItems {
+			logger.InfoContext(ctx, "order item not charged",
+				slog.String("product_id", it.GetItem().GetProductId()),
+				slog.Int("quantity", int(it.GetItem().GetQuantity())))
+		}
+		logger.InfoContext(ctx, "promo code not redeemed", slog.String("promo_code", promoCode))
+		logger.InfoContext(ctx, "order id released", slog.String("order_id", orderID.String()))
+		logger.InfoContext(ctx, "returning INTERNAL to caller")
+		logger.InfoContext(ctx, "leaving PlaceOrder",
+			slog.String("user_id", req.UserId),
+			slog.String("outcome", "abandoned"))
 		return nil, status.Errorf(codes.Internal, "failed to charge card: %+v", err)
 	}
 
@@ -375,8 +474,25 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		Items:              prep.orderItems,
 	}
 
+	// Normalize to USD so revenue can be aggregated across currencies. This runs
+	// after the charge so it stays off the payment path. The promo discount is a
+	// flat percentage, so converting the pre-discount total once and re-applying
+	// the discount avoids a second currency conversion.
+	totalUSD := total
+	if total.GetCurrencyCode() != "USD" {
+		if convertedUSD, cerr := cs.convertCurrency(ctx, total, "USD"); cerr == nil {
+			totalUSD = convertedUSD
+		} else {
+			logger.Warn(fmt.Sprintf("failed to convert order total to USD for reporting: %+v", cerr))
+		}
+	}
+	chargeTotalUSD := applyPromoDiscount(totalUSD, discountPct)
+
 	shippingCostFloat, _ := strconv.ParseFloat(fmt.Sprintf("%d.%02d", prep.shippingCostLocalized.GetUnits(), prep.shippingCostLocalized.GetNanos()/1000000000), 64)
-	totalPriceFloat, _ := strconv.ParseFloat(fmt.Sprintf("%d.%02d", total.GetUnits(), total.GetNanos()/1000000000), 64)
+	totalPriceFloat := moneyToFloat(total)
+	chargedPriceFloat := moneyToFloat(chargeTotal)
+	totalUSDFloat := moneyToFloat(totalUSD)
+	chargedUSDFloat := moneyToFloat(chargeTotalUSD)
 
 	span.SetAttributes(
 		attribute.String("app.order.id", orderID.String()),
@@ -391,6 +507,12 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		slog.String("app.order.id", orderID.String()),
 		slog.Float64("app.shipping.amount", shippingCostFloat),
 		slog.Float64("app.order.amount", totalPriceFloat),
+		slog.Float64("app.order.amount.charged", chargedPriceFloat),
+		slog.String("app.order.currency", total.GetCurrencyCode()),
+		slog.Float64("app.order.amount.usd", totalUSDFloat),
+		slog.Float64("app.order.amount.charged.usd", chargedUSDFloat),
+		slog.String("app.promo.code", promoCode),
+		slog.Float64("app.order.discount.pct", float64(discountPct)),
 		slog.Int("app.order.items.count", len(prep.orderItems)),
 		slog.String("app.shipping.tracking.id", shippingTrackingID),
 	)
@@ -423,28 +545,39 @@ func (cs *checkout) prepareOrderItemsAndShippingQuoteFromCart(ctx context.Contex
 	defer span.End()
 
 	var out orderPrep
+
+	logger.InfoContext(ctx, "entering cart service", slog.String("user_id", userID))
 	cartItems, err := cs.getUserCart(ctx, userID)
 	if err != nil {
 		return out, fmt.Errorf("cart failure: %+v", err)
 	}
+	logger.InfoContext(ctx, "leaving cart service", slog.Int("items", len(cartItems)))
 
 	// Validate cart is not empty before proceeding
 	if len(cartItems) == 0 {
 		return out, fmt.Errorf("cannot place order with empty cart")
 	}
 
+	logger.InfoContext(ctx, "entering product catalog service")
 	orderItems, err := cs.prepOrderItems(ctx, cartItems, userCurrency)
 	if err != nil {
 		return out, fmt.Errorf("failed to prepare order: %+v", err)
 	}
+	logger.InfoContext(ctx, "leaving product catalog service", slog.Int("order_items", len(orderItems)))
+
+	logger.InfoContext(ctx, "entering shipping service")
 	shippingUSD, err := cs.quoteShipping(ctx, address, cartItems)
 	if err != nil {
 		return out, fmt.Errorf("shipping quote failure: %+v", err)
 	}
+	logger.InfoContext(ctx, "leaving shipping service")
+
+	logger.InfoContext(ctx, "entering currency service", slog.String("target_currency", userCurrency))
 	shippingPrice, err := cs.convertCurrency(ctx, shippingUSD, userCurrency)
 	if err != nil {
 		return out, fmt.Errorf("failed to convert shipping cost to currency: %+v", err)
 	}
+	logger.InfoContext(ctx, "leaving currency service")
 
 	out.shippingCostLocalized = shippingPrice
 	out.cartItems = cartItems
@@ -469,7 +602,7 @@ func mustCreateClient(svcAddr string, peerService string) *grpc.ClientConn {
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler(
 			otelgrpc.WithSpanOptions(trace.WithAttributes(
-				attribute.String("peer.service",peerService),
+				attribute.String("peer.service", peerService),
 			)),
 		)),
 	)

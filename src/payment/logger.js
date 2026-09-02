@@ -20,7 +20,13 @@ const logger = pino({
     return {
       'service.name': process.env['OTEL_SERVICE_NAME'] || 'payment',
       'service.version': process.env['SERVICE_VERSION'] || '1.0.0',
-      'deployment.environment': process.env['OTEL_RESOURCE_ATTRIBUTES']?.match(/deployment\.environment=([^,]+)/)?.[1] || process.env['ENVIRONMENT'] || 'unknown',
+      // Fallback chain. OTEL_RESOURCE_ATTRIBUTES rarely carries the
+      // environment in k8s -- the collector injects it downstream via
+      // resource/add_environment -- and ENVIRONMENT is not set on these pods,
+      // so without WORKSHOP_ENV (workshop-secret key "env") every record
+      // logged "unknown". Also accept deployment.environment.name, the
+      // current semconv key.
+      'deployment.environment': process.env['OTEL_RESOURCE_ATTRIBUTES']?.match(/deployment\.environment(?:\.name)?=([^,]+)/)?.[1] || process.env['ENVIRONMENT'] || process.env['WORKSHOP_ENV'] || 'unknown',
       // OpenTelemetry trace context for correlation in Splunk
       ...(spanContext && spanContext.traceId && {
         'trace_id': spanContext.traceId,

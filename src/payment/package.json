@@ -26,6 +26,7 @@
     "@opentelemetry/resources": "2.6.1",
     "@opentelemetry/sdk-metrics": "2.6.1",
     "@opentelemetry/sdk-node": "0.220.0",
+    "@opentelemetry/sdk-trace-base": "2.9.0",
     "@splunk/otel": "^4.5.1",
     "grpc-js-health-check": "1.2.2",
     "pino": "^10.3.1",
