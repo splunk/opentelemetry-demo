@@ -67,7 +67,7 @@ export default class MyDocument extends Document<{ envString: string }> {
           {/* Load user attributes generator - must load before RUM initialization */}
           <script src="/global-attributes.js"></script>
           <script
-              src="https://cdn.signalfx.com/o11y-gdi-rum/v3.0.0/splunk-otel-web.js"
+              src="https://cdn.observability.splunkcloud.com/o11y-gdi-rum/v3.2/splunk-otel-web.js"
               crossOrigin="anonymous"
           />
           <script
@@ -106,7 +106,7 @@ export default class MyDocument extends Document<{ envString: string }> {
               }}
           />
           <script
-              src="https://cdn.signalfx.com/o11y-gdi-rum/v3.0.0/splunk-otel-web-session-recorder.js"
+              src="https://cdn.observability.splunkcloud.com/o11y-gdi-rum/v3.2/splunk-otel-web-session-recorder.js"
               crossOrigin="anonymous"
           />
           <script
