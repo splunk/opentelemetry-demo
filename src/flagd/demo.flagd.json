@@ -171,7 +171,15 @@
         "off": false
       },
       "defaultVariant": "off"
-
+    },
+    "imagePullBackoff": {
+      "description": "Create dummy payment-imagepull Deployment with a guaranteed-invalid image so Kubernetes emits ImagePullBackOff events. Does not change the real payment service. Off deletes the dummy pod.",
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "off"
     },
     "emailMemoryLeak": {
       "description": "Memory leak in the email service.",

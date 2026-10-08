@@ -118,6 +118,10 @@ services:
     manifest: true
     replace_registry: false  # Uses ghcr.io/open-telemetry/demo (standard)
 
+  - name: k8s-scenario-controller
+    build: true
+    manifest: true
+
   - name: llm
     build: true
     manifest: true
