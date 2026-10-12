@@ -94,7 +94,13 @@ spec:
             - name: SCENARIO_MODULES
               value: "*"
             - name: IMAGEPULL_BAD_IMAGE
-              value: registry.invalid/payment_bad:latest
+              value: ghcr.io/splunk/opentelemetry-demo/otel-cart:lastest
+            - name: SHELLTESTER_IMAGE
+              value: docker.io/library/busybox:1.37.0
+            - name: SHELLTESTER_METRIC
+              value: scnariotest_metric
+            - name: SHELLTESTER_INTERVAL_SECONDS
+              value: "1"
           resources:
             requests:
               cpu: 20m
