@@ -173,7 +173,16 @@
       "defaultVariant": "off"
     },
     "imagePullBackoff": {
-      "description": "Create dummy payment-imagepull Deployment with a guaranteed-invalid image so Kubernetes emits ImagePullBackOff events. Does not change the real payment service. Off deletes the dummy pod.",
+      "description": "Create dummy cart-imagepull Deployment that pulls otel-cart:lastest (typo of latest) so Kubernetes emits ImagePullBackOff. Does not change the real cart service. Off deletes the dummy pod.",
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "off"
+    },
+    "shell_tester": {
+      "description": "Controller watchdog test. On launches a dummy shell-tester pod that POSTs OTLP gauge scnariotest_metric (0→100 then reset) to the node collector. Off terminates the script. Does not change live shop services.",
       "state": "ENABLED",
       "variants": {
         "on": true,

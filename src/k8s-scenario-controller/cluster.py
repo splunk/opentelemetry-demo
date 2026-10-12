@@ -74,6 +74,11 @@ class Cluster:
                 return None
             raise
 
+    def list_pods(self, label_selector: str):
+        return self.core.list_namespaced_pod(
+            self.namespace, label_selector=label_selector
+        ).items
+
     def deployment_exists(self, name: str) -> bool:
         return self.get_deployment(name) is not None
 

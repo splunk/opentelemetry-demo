@@ -1,11 +1,12 @@
 """Scenario 2 — ImagePullBackOff.
 
-Field demo: kubernetes-demos/scenario2-image-pull (payment with
-registry.invalid/payment_bad:latest).
+Field demo: kubernetes-demos/scenario2-image-pull.
 
-Astronomy Shop already has a real payment service, so this module
-creates a *separate* dummy Deployment instead of patching payment.
-Distinct labels keep the real payment Service from selecting it.
+Astronomy Shop cart is a live checkout dependency, so this module
+creates a *separate* dummy Deployment instead of patching cart.
+It pulls the real cart image repo with a typo tag (`lastest` instead
+of `latest`) so kubelet emits ImagePullBackOff. Distinct labels keep
+the real cart Service from selecting it.
 """
 
 from __future__ import annotations
@@ -17,9 +18,13 @@ from modules.base import ScenarioModule
 
 log = logging.getLogger("k8s-scenario-controller")
 
-DEPLOYMENT_NAME = "payment-imagepull"
-CONTAINER_NAME = "payment-imagepull"
-DEFAULT_BAD_IMAGE = "registry.invalid/payment_bad:latest"
+DEPLOYMENT_NAME = "cart-imagepull"
+CONTAINER_NAME = "cart-imagepull"
+# Previous dummy name — delete if leftover from earlier builds.
+LEGACY_DEPLOYMENT_NAME = "payment-imagepull"
+DEFAULT_BAD_IMAGE = (
+    "ghcr.io/splunk/opentelemetry-demo/otel-cart:lastest"
+)
 
 
 class ImagePullBackoff(ScenarioModule):
@@ -29,6 +34,9 @@ class ImagePullBackoff(ScenarioModule):
     default = False
 
     def reconcile(self, cluster, value) -> None:
+        if cluster.get_deployment(LEGACY_DEPLOYMENT_NAME) is not None:
+            cluster.delete_deployment(LEGACY_DEPLOYMENT_NAME)
+
         enabled = bool(value)
         current = cluster.get_deployment(DEPLOYMENT_NAME)
         if not enabled:
