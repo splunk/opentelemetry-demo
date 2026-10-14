@@ -1,7 +1,7 @@
-"""Controller watchdog test — flagd `shell_tester`.
+"""Controller watchdog test — flagd `S-TEST-shelltester`.
 
 On: ConfigMap + Deployment run a shell loop that POSTs OTLP gauge
-`scnariotest_metric` to the node-local collector (same NODE_IP:4318
+`scenariotest_metric` to the node-local collector (same NODE_IP:4318
 path as shop pods). Value steps 0→100 then resets to 0.
 
 Off: delete the dummy Deployment and ConfigMap (script stops).
@@ -28,13 +28,13 @@ CONTAINER_NAME = "shell-tester"
 SCRIPT_NAME = "emit-metric.sh"
 LABEL = "opentelemetry.io/name"
 DEFAULT_IMAGE = "docker.io/library/busybox:1.37.0"
-DEFAULT_METRIC = "scnariotest_metric"
+DEFAULT_METRIC = "scenariotest_metric"
 DEFAULT_INTERVAL = "1"
 
 # Busybox wget POSTs OTLP/JSON to the node agent. VALUE wraps after 100.
 _SCRIPT = r"""#!/bin/sh
 ENDPOINT="${OTLP_ENDPOINT:-http://127.0.0.1:4318}"
-METRIC="${METRIC_NAME:-scnariotest_metric}"
+METRIC="${METRIC_NAME:-scenariotest_metric}"
 INTERVAL="${INTERVAL_SECONDS:-1}"
 VALUE=0
 
@@ -62,7 +62,7 @@ done
 
 class ShellTester(ScenarioModule):
     name = "shell-tester"
-    flag_key = "shell_tester"
+    flag_key = "S-TEST-shelltester"
     flag_type = "boolean"
     default = False
 
