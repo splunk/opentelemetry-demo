@@ -98,9 +98,25 @@ spec:
             - name: SHELLTESTER_IMAGE
               value: docker.io/library/busybox:1.37.0
             - name: SHELLTESTER_METRIC
-              value: scnariotest_metric
+              value: scenariotest_metric
             - name: SHELLTESTER_INTERVAL_SECONDS
               value: "1"
+            # S-I-Noisy-neighbor: hog size (MiB) and spread replica count.
+            # Keep hog modest on shared shop nodes; raise only on a demo node.
+            - name: NOISY_NEIGHBOR_MIB
+              value: "256"
+            - name: NOISY_SPREAD_REPLICAS
+              value: "10"
+            - name: NOISY_NEIGHBOR_IMAGE
+              value: docker.io/library/python:3.12-alpine3.23
+            # S-II-Degraded-deployments: dummy paymentservice replica count.
+            - name: DEGRADED_PAYMENT_REPLICAS
+              value: "10"
+            # S-IV-Resource-management: dummy paymentservice-oom memory limit.
+            - name: PAYMENT_OOM_LIMIT_MIB
+              value: "100"
+            - name: PAYMENT_OOM_IMAGE
+              value: docker.io/library/python:3.12-alpine3.23
           resources:
             requests:
               cpu: 20m
