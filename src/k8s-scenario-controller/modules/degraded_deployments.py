@@ -1,7 +1,7 @@
-"""S-II — Troubleshoot degraded deployments.
+"""S-Degraded-deployments — Troubleshoot degraded deployments.
 
-Sales demo 2: K8s Overview → Top issues → PaymentService degraded,
-then the same pending-pod / anti-affinity walk as S-I steps 6–9.
+Sales demo: K8s Overview → Top issues → PaymentService degraded,
+then the same pending-pod / anti-affinity walk as S-Noisy-neighbour.
 
 Does **not** patch live `payment` / `payment-vA` / `payment-vB`. Dummy
 Deployment `paymentservice` uses distinct labels so the real payment
@@ -29,7 +29,7 @@ PAUSE_IMAGE = "registry.k8s.io/pause:3.10"
 
 class DegradedDeployments(ScenarioModule):
     name = "degraded-deployments"
-    flag_key = "S-II-Degraded-deployments"
+    flag_key = "S-Degraded-deployments"
     flag_type = "boolean"
     default = False
 

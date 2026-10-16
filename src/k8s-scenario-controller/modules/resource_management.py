@@ -1,4 +1,4 @@
-"""S-IV — Kubernetes resource management (APM to K8s).
+"""S-Resource-management — Kubernetes resource management (APM to K8s).
 
 Sales demo 4: email degrades every few hours; by the time you look
 the pod is healthy again. Sawtooth memory → OOMKill → restart.
@@ -143,7 +143,7 @@ if __name__ == "__main__":
 
 class ResourceManagement(ScenarioModule):
     name = "resource-management"
-    flag_key = "S-IV-Resource-management"
+    flag_key = "S-Resource-management"
     flag_type = "boolean"
     default = False
 
