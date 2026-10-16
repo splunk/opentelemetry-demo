@@ -4,7 +4,7 @@ The leading underscore keeps this file out of auto-discovery.
 
 class CheckoutOom(ScenarioModule):
     name = "checkout-oom"
-    flag_key = "S-V-checkoutOomRollout"  # S-I…S-IV = field demos, S-TEST- = controller test
+    flag_key = "S-checkoutOomRollout"  # S-<title> = field demo, S-TEST- = controller test
     flag_type = "boolean"
     default = False
 

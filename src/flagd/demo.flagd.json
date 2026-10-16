@@ -172,7 +172,7 @@
       },
       "defaultVariant": "off"
     },
-    "S-I-Noisy-neighbor": {
+    "S-Noisy-neighbour": {
       "description": "Noisy neighbor + scheduling blast radius. On creates dummy otel-collector-noisy (sandbox script holds memory; logs the allocation) and storefront-spread (5 replicas, required hostname anti-affinity so extras Pending on a 3-node cluster). Does not patch the real Splunk collector or shop Deployments. Off deletes both.",
       "state": "ENABLED",
       "variants": {
@@ -181,7 +181,7 @@
       },
       "defaultVariant": "off"
     },
-    "S-II-Degraded-deployments": {
+    "S-Degraded-deployments": {
       "description": "Degraded deployments inventory. On creates dummy paymentservice (5 replicas, required hostname anti-affinity) so K8s Overview shows 3/5 available on a 3-node cluster. Does not patch live payment. Off deletes the dummy.",
       "state": "ENABLED",
       "variants": {
@@ -190,7 +190,7 @@
       },
       "defaultVariant": "off"
     },
-    "S-III-imagePullBackoff": {
+    "S-imagePullBackoff": {
       "description": "Create dummy cart-imagepull Deployment that pulls otel-cart:lastest (typo of latest) so Kubernetes emits ImagePullBackOff. Does not change the real cart service. Off deletes the dummy pod.",
       "state": "ENABLED",
       "variants": {
@@ -199,7 +199,7 @@
       },
       "defaultVariant": "off"
     },
-    "S-IV-Resource-management": {
+    "S-Resource-management": {
       "description": "APM-to-K8s email OOM. On creates dummy email-oom (service.name=email) that leaks until the 100Mi limit, OOMKills, and restarts (sawtooth + probe failures). Does not patch live email. Off deletes it. Fix in the story: raise the container memory limit.",
       "state": "ENABLED",
       "variants": {

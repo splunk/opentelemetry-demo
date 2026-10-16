@@ -103,7 +103,7 @@ spec:
               value: scenariotest_metric
             - name: SHELLTESTER_INTERVAL_SECONDS
               value: "1"
-            # S-I-Noisy-neighbor: hog size (MiB) and spread replica count.
+            # S-Noisy-neighbour: hog size (MiB) and spread replica count.
             # Keep hog modest on shared shop nodes; raise only on a demo node.
             - name: NOISY_NEIGHBOR_MIB
               value: "256"
@@ -111,10 +111,10 @@ spec:
               value: "5"
             - name: NOISY_NEIGHBOR_IMAGE
               value: docker.io/library/python:3.12-alpine3.23
-            # S-II-Degraded-deployments: 5 replicas on a 3-node cluster → 3/5.
+            # S-Degraded-deployments: 5 replicas on a 3-node cluster → 3/5.
             - name: DEGRADED_PAYMENT_REPLICAS
               value: "5"
-            # S-IV-Resource-management: dummy email-oom memory limit.
+            # S-Resource-management: dummy email-oom memory limit.
             - name: EMAIL_OOM_LIMIT_MIB
               value: "100"
             - name: EMAIL_OOM_IMAGE

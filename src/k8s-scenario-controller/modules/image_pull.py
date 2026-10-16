@@ -1,4 +1,4 @@
-"""S-III — ImagePullBackOff.
+"""S-imagePullBackoff — ImagePullBackOff.
 
 Field demo: kubernetes-demos/scenario2-image-pull.
 
@@ -29,7 +29,7 @@ DEFAULT_BAD_IMAGE = (
 
 class ImagePullBackoff(ScenarioModule):
     name = "image-pull"
-    flag_key = "S-III-imagePullBackoff"
+    flag_key = "S-imagePullBackoff"
     flag_type = "boolean"
     default = False
 

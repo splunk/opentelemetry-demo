@@ -1,4 +1,4 @@
-"""S-I — Node pressure & noisy-neighbor impact.
+"""S-Noisy-neighbour — Node pressure & noisy-neighbor impact.
 
 Field demo: kubernetes-demos/scenario1-four-clusters, mapped to the
 sales story (otel-collector hog + anti-affinity spread).
@@ -62,7 +62,7 @@ while True:
 
 class NoisyNeighbor(ScenarioModule):
     name = "noisy-neighbor"
-    flag_key = "S-I-Noisy-neighbor"
+    flag_key = "S-Noisy-neighbour"
     flag_type = "boolean"
     default = False
 

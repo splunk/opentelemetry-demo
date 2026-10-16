@@ -4,7 +4,7 @@ To add a scenario (for example OOM stall or node memory pressure):
 
   1. Copy modules/image_pull.py to modules/<name>.py
   2. Subclass ScenarioModule, set `name` + `flag_key`, implement reconcile()
-     Flag keys: S-I-…S-IV-<title> for field demos, S-TEST-<title> for controller tests.
+     Flag keys: S-<title> for field demos, S-TEST-<title> for controller tests.
   3. Add the flag to src/flagd/demo.flagd.json
   4. If the module needs extra Kubernetes verbs, extend the Role in
      k8s-scenario-controller-k8s.yaml (ConfigMaps/Services are already allowed)
