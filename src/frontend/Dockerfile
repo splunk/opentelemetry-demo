@@ -49,7 +49,7 @@ COPY ./src/frontend/package-lock.json package-lock.json
 RUN npm ci --omit=dev
 
 # Install rum-cli for runtime sourcemap upload (not in prod dependencies)
-RUN npm install @splunk/rum-cli@1.0.0
+RUN npm install @splunk/rum-cli@1.0.1
 
 # -----------------------------------------------------------------------------
 

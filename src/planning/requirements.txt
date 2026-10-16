@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Splunk OpenTelemetry distribution (includes all OTel core packages)
-splunk-opentelemetry[all]==2.6.0
+splunk-opentelemetry[all]==2.13.2
 
 # Kafka consumer
 confluent-kafka==2.6.1

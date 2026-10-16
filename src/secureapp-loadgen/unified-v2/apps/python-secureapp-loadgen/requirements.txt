@@ -3,11 +3,11 @@ Flask>=3.0.3,<4
 gunicorn>=22.0.0,<24
 
 # Splunk OpenTelemetry + SecureApp extension
-splunk-opentelemetry[secureapp]>=2.11.0,<3
+splunk-opentelemetry[secureapp]>=2.13.2,<3
 
 # HTTP APM instrumentation (gunicorn + Flask)
-opentelemetry-instrumentation-flask>=0.48b0,<1
-opentelemetry-instrumentation-wsgi>=0.48b0,<1
+opentelemetry-instrumentation-flask>=0.66b1,<1
+opentelemetry-instrumentation-wsgi>=0.66b1,<1
 
 # Intentionally pinned vulnerable libraries for VA + attack mapping (low/medium CVEs)
 Jinja2==3.1.2          # CVE-2024-22195 — RCE/SSTI (rce)

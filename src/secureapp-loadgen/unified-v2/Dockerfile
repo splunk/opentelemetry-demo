@@ -28,7 +28,7 @@ RUN if [ "$SKIP_BUILD" = "false" ]; then \
 # JAVA — runtime target
 # ---------------------------------------------------------------------
 FROM eclipse-temurin:17-jre AS java
-ARG SPLUNK_OTEL_JAVAAGENT_VERSION=2.27.0
+ARG SPLUNK_OTEL_JAVAAGENT_VERSION=2.32.0
 ARG SPLUNK_OTEL_JAVAAGENT_URL=
 WORKDIR /app
 RUN apt-get update \

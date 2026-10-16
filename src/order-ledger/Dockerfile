@@ -17,7 +17,7 @@ WORKDIR /usr/src/app
 
 # Splunk OpenTelemetry Java agent (CSA). Applied via JAVA_TOOL_OPTIONS in the
 # k8s manifest, matching the other Java services in this fork.
-ADD --chmod=644 https://repo1.maven.org/maven2/com/splunk/splunk-otel-javaagent-csa/2.27.0/splunk-otel-javaagent-csa-2.27.0.jar /usr/src/app/splunk-otel-javaagent-csa.jar
+ADD --chmod=644 https://repo1.maven.org/maven2/com/splunk/splunk-otel-javaagent-csa/2.32.0/splunk-otel-javaagent-csa-2.32.0.jar /usr/src/app/splunk-otel-javaagent-csa.jar
 
 COPY --from=builder /build/OrderLedger.class /build/postgresql.jar /usr/src/app/
 
