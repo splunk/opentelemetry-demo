@@ -72,6 +72,8 @@ spec:
         app.kubernetes.io/name: k8s-scenario-controller
     spec:
       serviceAccountName: k8s-scenario-controller
+      # Time to delete dummy Deployments on SIGTERM before kubelet SIGKILLs.
+      terminationGracePeriodSeconds: 60
       containers:
         - name: k8s-scenario-controller
           image: ghcr.io/splunk/opentelemetry-demo/otel-k8s-scenario-controller:2.0.9-beta.1
@@ -106,16 +108,16 @@ spec:
             - name: NOISY_NEIGHBOR_MIB
               value: "256"
             - name: NOISY_SPREAD_REPLICAS
-              value: "10"
+              value: "5"
             - name: NOISY_NEIGHBOR_IMAGE
               value: docker.io/library/python:3.12-alpine3.23
-            # S-II-Degraded-deployments: dummy paymentservice replica count.
+            # S-II-Degraded-deployments: 5 replicas on a 3-node cluster → 3/5.
             - name: DEGRADED_PAYMENT_REPLICAS
-              value: "10"
-            # S-IV-Resource-management: dummy paymentservice-oom memory limit.
-            - name: PAYMENT_OOM_LIMIT_MIB
+              value: "5"
+            # S-IV-Resource-management: dummy email-oom memory limit.
+            - name: EMAIL_OOM_LIMIT_MIB
               value: "100"
-            - name: PAYMENT_OOM_IMAGE
+            - name: EMAIL_OOM_IMAGE
               value: docker.io/library/python:3.12-alpine3.23
           resources:
             requests:

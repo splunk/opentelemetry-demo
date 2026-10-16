@@ -1,15 +1,15 @@
 """S-II — Troubleshoot degraded deployments.
 
-Sales demo 2: K8s Overview → Top issues → PaymentService 7/10 available,
+Sales demo 2: K8s Overview → Top issues → PaymentService degraded,
 then the same pending-pod / anti-affinity walk as S-I steps 6–9.
 
 Does **not** patch live `payment` / `payment-vA` / `payment-vB`. Dummy
 Deployment `paymentservice` uses distinct labels so the real payment
 Service never selects it.
 
-10 replicas + required hostname podAntiAffinity: running = min(replicas,
-schedulable nodes), the rest Pending (7 nodes → 7/10, 3 Pending). YAML
-on a pending pod shows spec.affinity.
+5 replicas + required hostname podAntiAffinity, sized for a 3-node
+cluster (e.g. dev-astronomy): 3 Running, 2 Pending. YAML on a pending
+pod shows spec.affinity.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ log = logging.getLogger("k8s-scenario-controller")
 
 DEPLOYMENT_NAME = "paymentservice"
 LABEL = "opentelemetry.io/name"
-DEFAULT_REPLICAS = "10"
+DEFAULT_REPLICAS = "5"
 PAUSE_IMAGE = "registry.k8s.io/pause:3.10"
 
 

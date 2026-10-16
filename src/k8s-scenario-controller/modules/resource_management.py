@@ -1,14 +1,13 @@
 """S-IV — Kubernetes resource management (APM to K8s).
 
-Sales demo 4: payment degrades every few hours; by the time you look
+Sales demo 4: email degrades every few hours; by the time you look
 the pod is healthy again. Sawtooth memory → OOMKill → restart.
 Root cause: container memory limit too low.
 
-Does **not** patch live `payment` / `payment-vA` / `payment-vB`. Dummy
-Deployment `paymentservice-oom` reports APM service.name=paymentservice
-(OTLP traces to the node collector) so Overview → instances links to
-the crashing pod. Distinct k8s labels so the real payment Service
-never selects it.
+Does **not** patch live `email`. Dummy Deployment `email-oom` reports
+APM service.name=email (OTLP traces to the node collector) so
+Overview → instances links to the crashing pod. Distinct k8s labels
+so the real email Service never selects it.
 
 Tight limit (default 100Mi) + gradual leak = OOMKilled. HTTP probes
 start failing before the kill so Events show Unhealthy then OOMKilled.
@@ -23,8 +22,11 @@ from modules.base import ScenarioModule
 
 log = logging.getLogger("k8s-scenario-controller")
 
-DEPLOYMENT_NAME = "paymentservice-oom"
-CONFIGMAP_NAME = "paymentservice-oom-script"
+DEPLOYMENT_NAME = "email-oom"
+CONFIGMAP_NAME = "email-oom-script"
+# Previous dummy — delete if leftover from earlier builds.
+LEGACY_DEPLOYMENT_NAME = "paymentservice-oom"
+LEGACY_CONFIGMAP_NAME = "paymentservice-oom-script"
 SCRIPT_NAME = "oom-loop.py"
 LABEL = "opentelemetry.io/name"
 DEFAULT_IMAGE = "docker.io/library/python:3.12-alpine3.23"
@@ -45,7 +47,7 @@ step_seconds = int(os.environ.get("MEMORY_STEP_SECONDS", "30"))
 warmup = int(os.environ.get("MEMORY_WARMUP_SECONDS", "20"))
 fail_mib = int(os.environ.get("HEALTH_FAIL_MIB", "80"))
 otlp = os.environ.get("OTLP_ENDPOINT", "http://127.0.0.1:4318").rstrip("/")
-service = os.environ.get("OTEL_SERVICE_NAME", "paymentservice")
+service = os.environ.get("OTEL_SERVICE_NAME", "email")
 pod = os.environ.get("HOSTNAME", "unknown")
 chunk = 1024 * 1024
 held = []
@@ -83,7 +85,7 @@ def emit_span(error):
                                 {
                                     "traceId": os.urandom(16).hex(),
                                     "spanId": os.urandom(8).hex(),
-                                    "name": "charge",
+                                    "name": "send_email",
                                     "kind": 3,
                                     "startTimeUnixNano": str(now - 5_000_000),
                                     "endTimeUnixNano": str(now),
@@ -109,7 +111,7 @@ def emit_span(error):
 
 
 def leak():
-    print(f"paymentservice started; warmup {warmup}s", flush=True)
+    print(f"email started; warmup {warmup}s", flush=True)
     time.sleep(warmup)
     for _ in range(start_mib):
         held.append(bytearray(chunk))
@@ -146,6 +148,9 @@ class ResourceManagement(ScenarioModule):
     default = False
 
     def reconcile(self, cluster, value) -> None:
+        cluster.delete_deployment(LEGACY_DEPLOYMENT_NAME)
+        cluster.delete_configmap(LEGACY_CONFIGMAP_NAME)
+
         enabled = bool(value)
         if not enabled:
             cluster.delete_deployment(DEPLOYMENT_NAME)
@@ -162,17 +167,17 @@ class ResourceManagement(ScenarioModule):
             self._body(cluster.namespace, limit), self.name
         )
         log.info(
-            "%s %s limit=%sMi (sawtooth OOM; APM service.name=paymentservice)",
+            "%s %s limit=%sMi (sawtooth OOM; APM service.name=email)",
             action,
             DEPLOYMENT_NAME,
             limit,
         )
 
     def _limit_mib(self) -> str:
-        return os.getenv("PAYMENT_OOM_LIMIT_MIB", DEFAULT_LIMIT_MIB)
+        return os.getenv("EMAIL_OOM_LIMIT_MIB", DEFAULT_LIMIT_MIB)
 
     def _image(self) -> str:
-        return os.getenv("PAYMENT_OOM_IMAGE", DEFAULT_IMAGE)
+        return os.getenv("EMAIL_OOM_IMAGE", DEFAULT_IMAGE)
 
     def _configmap_body(self) -> dict:
         return {
@@ -206,7 +211,7 @@ class ResourceManagement(ScenarioModule):
                     "spec": {
                         "containers": [
                             {
-                                "name": "paymentservice",
+                                "name": "email",
                                 "image": self._image(),
                                 "imagePullPolicy": "IfNotPresent",
                                 "command": ["python3", f"/scripts/{SCRIPT_NAME}"],
@@ -223,7 +228,7 @@ class ResourceManagement(ScenarioModule):
                                     },
                                     {
                                         "name": "OTEL_SERVICE_NAME",
-                                        "value": "paymentservice",
+                                        "value": "email",
                                     },
                                     {"name": "MEMORY_WARMUP_SECONDS", "value": "20"},
                                     {"name": "MEMORY_START_MIB", "value": "16"},

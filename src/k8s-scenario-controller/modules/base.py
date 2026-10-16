@@ -41,6 +41,10 @@ class ScenarioModule(ABC):
             return flags.get_number(self.flag_key, self.default)
         return flags.get_boolean(self.flag_key, bool(self.default))
 
+    def teardown(self, cluster) -> None:
+        """Force the scenario off (controller shutdown)."""
+        self.reconcile(cluster, self.default)
+
     @abstractmethod
     def reconcile(self, cluster, value: Any) -> None:
         """Make the namespace match `value`. Must be idempotent."""

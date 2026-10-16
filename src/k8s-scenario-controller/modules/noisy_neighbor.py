@@ -1,7 +1,7 @@
 """S-I — Node pressure & noisy-neighbor impact.
 
 Field demo: kubernetes-demos/scenario1-four-clusters, mapped to the
-sales story (otel-collector hog + 10-replica anti-affinity spread).
+sales story (otel-collector hog + anti-affinity spread).
 
 Does **not** patch the real Splunk OTel Collector or shop Deployments.
 Two dummy workloads, distinct labels:
@@ -10,10 +10,10 @@ Two dummy workloads, distinct labels:
      Logs the allocation so Navigator can show "how the app behaves".
      Sized to be the obvious memory outlier without taking the node down;
      raise NOISY_NEIGHBOR_MIB only on a dedicated demo node.
-  2. storefront-spread — 10 replicas with *required* podAntiAffinity on
-     kubernetes.io/hostname. Pending pods appear when the cluster has
-     fewer schedulable nodes than replicas (7 nodes → 7 running / 3
-     pending). YAML on a pending pod shows the affinity rule.
+  2. storefront-spread — 5 replicas with *required* podAntiAffinity on
+     kubernetes.io/hostname, sized for a 3-node cluster (e.g.
+     dev-astronomy): 3 Running, 2 Pending. YAML on a pending pod shows
+     the affinity rule.
 
 Flag off deletes both Deployments and the script ConfigMap.
 """
@@ -35,7 +35,7 @@ SCRIPT_NAME = "hog.py"
 LABEL = "opentelemetry.io/name"
 DEFAULT_IMAGE = "docker.io/library/python:3.12-alpine3.23"
 DEFAULT_MIB = "256"
-DEFAULT_REPLICAS = "10"
+DEFAULT_REPLICAS = "5"
 
 _SCRIPT = """\
 import os
