@@ -601,9 +601,9 @@ func mustCreateClient(svcAddr string, peerService string) *grpc.ClientConn {
 	c, err := grpc.NewClient(svcAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler(
-			otelgrpc.WithSpanOptions(trace.WithAttributes(
+			otelgrpc.WithSpanAttributes(
 				attribute.String("peer.service", peerService),
-			)),
+			),
 		)),
 	)
 	if err != nil {
