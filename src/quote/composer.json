@@ -3,7 +3,7 @@
     "description": "Quote Service part of OpenTelemetry Demo",
     "license": "Apache-2.0",
     "require": {
-        "php": ">= 8.3",
+        "php": ">= 8.5",
         "ext-json": "*",
         "ext-pcntl": "*",
         "monolog/monolog": "3.10.0",
