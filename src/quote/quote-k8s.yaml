@@ -47,7 +47,7 @@ spec:
       serviceAccountName: splunk-opentelemetry-demo
       containers:
       - name: quote
-        image: ghcr.io/open-telemetry/demo:2.2.0-quote
+        image: ghcr.io/splunk/opentelemetry-demo/otel-quote:2.0.8
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
