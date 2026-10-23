@@ -154,9 +154,9 @@ services:
     manifest: true
 
   - name: quote
-    build: false
+    build: true
     manifest: true
-    replace_registry: false  # Uses ghcr.io/open-telemetry/demo (standard)
+    replace_registry: true  # Uses Splunk registry (PHP 8.5.12 custom build)
 
   - name: react-native-app
     build: false
