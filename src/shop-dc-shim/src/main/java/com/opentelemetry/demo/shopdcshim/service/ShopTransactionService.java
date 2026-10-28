@@ -71,11 +71,12 @@ public class ShopTransactionService {
 
     @PostConstruct
     public void init() {
-        // Calculate load multiplier based on TPM
+        // Per-request CPU/memory intensity. Independent of load-generator TPM (request rate).
         this.loadMultiplier = (double) tpm / baselineTpm;
 
         log.info("=== Shop DC Shim Configuration ===");
-        log.info("Load Scaling: TPM={}, Baseline={}, Load Multiplier={:.2f}x", tpm, baselineTpm, loadMultiplier);
+        log.info("Processing intensity: TPM={} (request rate is loadgen-only), baseline={}, multiplier={:.2f}x",
+                tpm, baselineTpm, loadMultiplier);
         log.info("Processing durations: Purchase={}ms, Validation={}ms, StatusCheck={}ms",
                 (int)(170 * loadMultiplier), (int)(150 * loadMultiplier), (int)(550 * loadMultiplier));
         log.info("Memory Optimization:");
