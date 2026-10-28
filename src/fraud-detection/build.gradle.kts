@@ -25,19 +25,28 @@ val protobufVersion = "4.33.1"
 // CVE-2026-44249: netty-handler <4.2.15.Final mis-masks IPv6 subnet rules
 // in IpSubnetFilterRule.compareTo(), allowing valid public IPs to bypass
 // restrictions. Fixed in 4.2.15.Final.
-// Force all io.netty artifacts to 4.2.15.Final to cover both.
+// VULN-107381/107379/106188 still flag 4.2.15.Final; force 4.2.19.Final.
 //
 // CVE-2026-45292: opentelemetry-java <1.62.0 baggage propagation DoS.
 // Transitive deps (openfeature-flagd provider, grpc bundles) still declare
 // older opentelemetry-api versions (e.g. 1.41.0). Force every io.opentelemetry
 // artifact to 1.62.0 so FOSSA no longer sees the vulnerable declared version.
+//
+// CVE-2026-54512/54513/54514/54515: jackson-databind PolymorphicTypeValidator
+// bypass when a type ID contains generic parameters (VULN-98582). 2.20.0 is
+// pulled transitively (not a demo pin — SecureApp's intentional jackson
+// gadget is 2.8.8 in secureapp-loadgen). Fixed in 2.18.8 / 2.21.4 / 3.1.4.
+// Force the 2.21 line to 2.21.5 (FOSSA remediation).
 configurations.all {
     resolutionStrategy.eachDependency {
         if (requested.group == "io.netty") {
-            useVersion("4.2.15.Final")
+            useVersion("4.2.19.Final")
         }
         if (requested.group == "io.opentelemetry") {
             useVersion("1.62.0")
+        }
+        if (requested.group == "com.fasterxml.jackson.core") {
+            useVersion("2.21.5")
         }
     }
 }
