@@ -4,6 +4,34 @@
 const pino = require('pino')
 const { trace } = require('@opentelemetry/api')
 
+// Never write "unknown" into the log body. The collector already inserts
+// deployment.environment (resource/add_environment, action: insert). A
+// literal "unknown" here becomes a second value in Splunk Log Observer
+// (astronomy-shop-eu + unknown) because insert does not overwrite body fields.
+function deploymentEnvironment() {
+  const fromPod = process.env.WORKSHOP_ENV || process.env.ENVIRONMENT
+  if (fromPod && fromPod !== 'unknown') {
+    return fromPod
+  }
+
+  const attrs = process.env.OTEL_RESOURCE_ATTRIBUTES
+  if (!attrs) {
+    return undefined
+  }
+
+  // Prefer current semconv. A single optional ".name" group would match
+  // deployment.environment=unknown before deployment.environment.name=...
+  const named = attrs.match(/(?:^|,)deployment\.environment\.name=([^,]+)/)
+  if (named?.[1] && named[1] !== 'unknown') {
+    return named[1]
+  }
+  const legacy = attrs.match(/(?:^|,)deployment\.environment=([^,]+)/)
+  if (legacy?.[1] && legacy[1] !== 'unknown') {
+    return legacy[1]
+  }
+  return undefined
+}
+
 // Splunk-compatible logger configuration
 // Outputs JSON logs to stdout for collection by Universal Forwarder or HEC
 const logger = pino({
@@ -16,17 +44,12 @@ const logger = pino({
   mixin() {
     const span = trace.getActiveSpan()
     const spanContext = span?.spanContext()
+    const environment = deploymentEnvironment()
 
     return {
       'service.name': process.env['OTEL_SERVICE_NAME'] || 'payment',
       'service.version': process.env['SERVICE_VERSION'] || '1.0.0',
-      // Fallback chain. OTEL_RESOURCE_ATTRIBUTES rarely carries the
-      // environment in k8s -- the collector injects it downstream via
-      // resource/add_environment -- and ENVIRONMENT is not set on these pods,
-      // so without WORKSHOP_ENV (workshop-secret key "env") every record
-      // logged "unknown". Also accept deployment.environment.name, the
-      // current semconv key.
-      'deployment.environment': process.env['OTEL_RESOURCE_ATTRIBUTES']?.match(/deployment\.environment(?:\.name)?=([^,]+)/)?.[1] || process.env['ENVIRONMENT'] || process.env['WORKSHOP_ENV'] || 'unknown',
+      ...(environment && { 'deployment.environment': environment }),
       // OpenTelemetry trace context for correlation in Splunk
       ...(spanContext && spanContext.traceId && {
         'trace_id': spanContext.traceId,
