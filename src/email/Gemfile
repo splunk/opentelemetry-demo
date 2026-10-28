@@ -8,7 +8,9 @@ source "https://rubygems.org"
 gem "net-smtp", "~> 0.5.1"
 gem "pony",     "~> 1.13"
 gem "puma",     "~> 8.0"
-gem "sinatra",  "~> 4.2"
+# VULN-90128: CVE-2025-61921 is fixed in 4.2.0; 4.2.1 is current latest.
+# Email runs Ruby 3.4.8, so the ReDoS does not apply even on older 4.x.
+gem "sinatra",  "~> 4.2", ">= 4.2.1"
 gem "rackup",   "~> 2.3"
 
 gem "google-protobuf", "~> 4.34.1"
