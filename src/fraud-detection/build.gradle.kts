@@ -45,7 +45,11 @@ configurations.all {
         if (requested.group == "io.opentelemetry") {
             useVersion("1.67.0")
         }
-        if (requested.group == "com.fasterxml.jackson.core") {
+        // jackson-annotations dropped patch versions in 2.20 (only 2.21 exists).
+        // Forcing the whole com.fasterxml.jackson.core group to 2.21.5 makes
+        // shadowJar fail: "Could not find jackson-annotations:2.21.5".
+        if (requested.group == "com.fasterxml.jackson.core" &&
+            requested.name != "jackson-annotations") {
             useVersion("2.21.5")
         }
     }
