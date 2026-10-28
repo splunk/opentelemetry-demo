@@ -47,7 +47,7 @@ spec:
       serviceAccountName: splunk-opentelemetry-demo
       containers:
       - name: cart
-        image: ghcr.io/splunk/opentelemetry-demo/otel-cart:2.0.8
+        image: ghcr.io/splunk/opentelemetry-demo/otel-cart:2.0.9
         imagePullPolicy: Always
         ports:
         - containerPort: 8080

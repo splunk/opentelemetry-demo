@@ -76,7 +76,7 @@ spec:
       terminationGracePeriodSeconds: 60
       containers:
         - name: k8s-scenario-controller
-          image: ghcr.io/splunk/opentelemetry-demo/otel-k8s-scenario-controller:2.0.9-beta.1
+          image: ghcr.io/splunk/opentelemetry-demo/otel-k8s-scenario-controller:2.0.9
           imagePullPolicy: Always
           ports:
             - containerPort: 8080

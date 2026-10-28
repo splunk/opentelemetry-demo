@@ -47,7 +47,7 @@ spec:
       serviceAccountName: splunk-opentelemetry-demo
       containers:
       - name: frontend
-        image: ghcr.io/hagen-p/opentelemetry-demo-splunk/otel-frontend:2.0.8-rum-3.2-test
+        image: ghcr.io/splunk/opentelemetry-demo/otel-frontend:2.0.9
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -143,7 +143,7 @@ spec:
       # with restartPolicy: Always, k8s >= 1.29).
       initContainers:
       - name: secureapp
-        image: ghcr.io/splunk/opentelemetry-demo/otel-secureapp-loadgen-node:2.0.8
+        image: ghcr.io/splunk/opentelemetry-demo/otel-secureapp-loadgen-node:2.0.9
         imagePullPolicy: Always
         restartPolicy: Always
         command: ["node", "-r", "@splunk/otel/instrument.js", "src/server.js"]
