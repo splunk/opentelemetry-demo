@@ -402,10 +402,9 @@ The demo can be enhanced with:
 ### Load Configuration
 
 **TPM (Transactions Per Minute):**
-- Controls both request frequency and processing intensity
-- Default: 25 TPM (100% baseline load)
-- Configurable per service (shop-dc-shim, load generators)
-- Scales resources proportionally
+- Load generator: request rate only (deployed default 2 TPM, one purchase every 30s)
+- shop-dc-shim: per-request CPU/memory intensity (deployed default 10, independent of loadgen)
+- Do not lower shim TPM when slowing the load generator — the DC app stays resource-heavy
 
 **Memory Optimization:**
 - Audit log disable: `-8,000-15,000 DB writes/day`

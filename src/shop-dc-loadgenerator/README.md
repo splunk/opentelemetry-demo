@@ -17,17 +17,16 @@ A Python-based load generator that simulates realistic on-premises retail store 
 
 The load generator's transaction rate can be easily controlled via the `TPM` environment variable:
 
-**TPM (Transactions Per Minute)**: Controls how frequently the load generator makes purchase requests
+**TPM (Transactions Per Minute)**: Request rate only. Does **not** change shop-dc-shim CPU/memory work per purchase.
 
 #### Examples
 
-| TPM | Interval | Transactions/Hour | Transactions/Day | Use Case |
-|-----|----------|-------------------|------------------|----------|
-| 1 | 60 seconds | 60 | 1,440 | Minimal load testing |
-| 5 | 12 seconds | 300 | 7,200 | Light load (20% of default) |
-| 10 | 6 seconds | 600 | 14,400 | Moderate load (40% of default) |
-| 25 | 2.4 seconds | 1,500 | 36,000 | **Default load** (100%) |
-| 50 | 1.2 seconds | 3,000 | 72,000 | Heavy load (200% of default) |
+| TPM | Interval | Transactions/Hour | Use Case |
+|-----|----------|-------------------|----------|
+| 1 | 60 seconds | 60 | Sparse demo traffic |
+| **2** | **30 seconds** | **120** | **Deployed default** — quieter traces, shim stays heavy |
+| 5 | 12 seconds | 300 | Moderate POS traffic |
+| 10 | 6 seconds | 600 | Previous default (too chatty for the DC demo) |
 
 ### Kubernetes Configuration
 
@@ -39,7 +38,7 @@ containers:
     image: ghcr.io/splunk/opentelemetry-demo/otel-shop-dc-loadgenerator:1.5.0
     env:
       - name: TPM
-        value: "5"  # Set your desired transactions per minute
+        value: "2"  # Request rate only; leave shop-dc-shim TPM at 10
     args: ["--url", "http://shop-dc-shim:8070", "--mode", "continuous", "--duration", "0"]
 ```
 
@@ -47,11 +46,11 @@ containers:
 
 ```bash
 # Use environment variable
-export TPM=5
+export TPM=2
 python shop_load_generator.py --url http://localhost:8070 --mode continuous
 
 # Or use command line argument (overrides env var if both are set)
-python shop_load_generator.py --url http://localhost:8070 --mode continuous --tpm 5
+python shop_load_generator.py --url http://localhost:8070 --mode continuous --tpm 2
 ```
 
 ## Modes
@@ -59,7 +58,7 @@ python shop_load_generator.py --url http://localhost:8070 --mode continuous --tp
 ### Continuous Mode (Default)
 Runs indefinitely at a steady rate:
 ```bash
-python shop_load_generator.py --mode continuous --tpm 10 --duration 0
+python shop_load_generator.py --mode continuous --tpm 2 --duration 0
 ```
 
 ### Burst Mode
