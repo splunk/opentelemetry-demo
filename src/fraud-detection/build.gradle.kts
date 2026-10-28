@@ -25,7 +25,7 @@ val protobufVersion = "4.33.1"
 // CVE-2026-44249: netty-handler <4.2.15.Final mis-masks IPv6 subnet rules
 // in IpSubnetFilterRule.compareTo(), allowing valid public IPs to bypass
 // restrictions. Fixed in 4.2.15.Final.
-// Force all io.netty artifacts to 4.2.15.Final to cover both.
+// VULN-107381/107379/106188 still flag 4.2.15.Final; force 4.2.19.Final.
 //
 // CVE-2026-45292: opentelemetry-java <1.62.0 baggage propagation DoS.
 // Transitive deps (openfeature-flagd provider, grpc bundles) still declare
@@ -40,7 +40,7 @@ val protobufVersion = "4.33.1"
 configurations.all {
     resolutionStrategy.eachDependency {
         if (requested.group == "io.netty") {
-            useVersion("4.2.15.Final")
+            useVersion("4.2.19.Final")
         }
         if (requested.group == "io.opentelemetry") {
             useVersion("1.67.0")
