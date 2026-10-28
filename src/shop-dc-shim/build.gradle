@@ -83,8 +83,14 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
     
-    // SQL Server driver
-    runtimeOnly 'com.microsoft.sqlserver:mssql-jdbc'
+    // SQL Server driver. mssql-jdbc optionally declares bcprov-jdk18on
+    // (Always Encrypted). FOSSA still counts that optional (VULN-84959
+    // 1.80.2 / CVE-2026-8763). Exclude the stale optional and pin 1.86.
+    runtimeOnly('com.microsoft.sqlserver:mssql-jdbc') {
+        exclude group: 'org.bouncycastle'
+    }
+    implementation 'org.bouncycastle:bcprov-jdk18on:1.86'
+    implementation 'org.bouncycastle:bcpkix-jdk18on:1.86'
     
     // OpenTelemetry (for Splunk Observability)
     // CVE-2026-45292: opentelemetry-java <1.62.0 baggage propagation is
