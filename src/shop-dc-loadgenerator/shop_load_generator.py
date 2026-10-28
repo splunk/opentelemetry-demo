@@ -513,7 +513,7 @@ def main():
     import os
 
     # Get TPM from environment variable with fallback to command line arg
-    default_tpm = int(os.getenv("TPM", "10"))
+    default_tpm = int(os.getenv("TPM", "2"))
 
     parser = argparse.ArgumentParser(description="Shop Datacenter Load Generator")
     parser.add_argument("--url", default="http://localhost:8070",

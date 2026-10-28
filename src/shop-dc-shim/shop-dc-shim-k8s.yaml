@@ -70,7 +70,7 @@ spec:
                   name: workshop-secret
                   key: env
             - name: TPM
-              value: "10"  # Transactions Per Minute - scales both request frequency and processing load
+              value: "10"  # Processing intensity only (CPU/memory work per request). Independent of loadgen TPM.
             # Memory optimization - uncomment to reduce memory usage
             # - name: AUDIT_LOG_ENABLED
             #   value: "false"  # Disable audit log generation
