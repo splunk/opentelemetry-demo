@@ -15,7 +15,7 @@ import oteldemo.Demo.*;
 import oteldemo.CheckoutServiceGrpc;
 import oteldemo.CartServiceGrpc;
 
-import javax.annotation.PreDestroy;
+import jakarta.annotation.PreDestroy;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
