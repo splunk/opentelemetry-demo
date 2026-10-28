@@ -494,8 +494,11 @@ module.exports.charge = async request => {
       return result;
     }
 
-// All attempts failed: mark spans and return a 500/401-style failure (no throw)
-    const finalCode = (lastErr && lastErr.code === 401) ? 401 : 500;
+    // All attempts failed. Callers (checkout/frontend) must see a generic
+    // 500 Internal Server Error — the 401 + API token is a demo breadcrumb
+    // that belongs only in payment logs, not in grpc.error_message /
+    // otel.status_description / exception.message on this or upstream spans.
+    const gatewayAuthFailed = lastErr && lastErr.code === 401;
 
     setSpanAttributes({
       version: FAILURE_VERSION,
@@ -503,17 +506,13 @@ module.exports.charge = async request => {
       'app.loyalty.level': 'gold',
       'retry.count': attempt - 1,
       'retry.success': false,
-      'http.status_code': finalCode,
+      'http.status_code': 500,
+      'http.response.status_code': '500',
     });
 
-    // Set an explicit error status so the span doesn't show as "unknown".
-    // The description mirrors the message thrown to the caller rather than the
-    // bare status code, so otel.status_description reads the same on this span
-    // and on the auto-instrumented entry span. Still generic -- the API token
-    // belongs in the logs, not in trace attributes.
     span.setStatus({
       code: SpanStatusCode.ERROR,
-      message: finalCode === 401 ? 'Invalid request' : 'Payment failed after retries',
+      message: 'Internal Server Error',
     });
 
     // keep baggage handling as you have it
@@ -539,9 +538,10 @@ module.exports.charge = async request => {
 
     setSpanAttributes({ 'app.payment.charged': false });
 
-    // final log INSIDE the root span context (so trace/span ids are injected)
+    // final log INSIDE the root span context (so trace/span ids are injected).
+    // This is the only place the 401 / token is allowed to appear.
     context.with(trace.setSpan(context.active(), span), () => {
-      if (finalCode === 401) {
+      if (gatewayAuthFailed) {
         logger.error(
           {
             severity: 'ERROR',
@@ -554,8 +554,7 @@ module.exports.charge = async request => {
             'service.name': versionConfig.name,
             token: API_TOKEN_FAILURE_TOKEN,
             version: FAILURE_VERSION,
-            message: `Failed payment processing through ButtercupPayments after ${RETRY_MAX} retries: Invalid API Token (${API_TOKEN_FAILURE_TOKEN})`,
-
+            message: `rpc error: code = Code(401) desc = Payment failed after retries: Invalid API Token (${API_TOKEN_FAILURE_TOKEN})`,
           }
         );
       } else {
@@ -571,29 +570,13 @@ module.exports.charge = async request => {
             'service.name': versionConfig.name,
             version: FAILURE_VERSION,
             message: 'Failed payment processing through ButtercupPayments after retries',
-
           }
         );
       }
     });
-    // Throw after all retries so upstream services see the failure.
-    //
-    // Deliberately generic: this message crosses the gRPC boundary and lands in
-    // checkout's span as grpc.error_message / otel.status_description, and in
-    // both services' exception events as exception.message and
-    // exception.stacktrace. Naming the rejected credential there would print the
-    // API token value across every failed trace. Matches InvalidRequestError,
-    // which is what the simulated gateway raises per attempt for a 401.
-    // The token stays in the payment service logs, which is where the demo
-    // narrative expects it to be found.
-    const errToThrow = new Error(
-      finalCode === 401
-        ? 'Invalid request'
-        : 'Payment failed after retries'
-    );
-    // attach code for structured error handling
-    errToThrow.code = finalCode;
-throw errToThrow;
+    const errToThrow = new Error('Internal Server Error');
+    errToThrow.code = 13; // gRPC INTERNAL — never 401, that would leak to callers
+    throw errToThrow;
   } finally {
     // Runs on both paths, so a failed charge still emits a closing INFO line
     // after its ERROR records rather than ending the trace on the error.
