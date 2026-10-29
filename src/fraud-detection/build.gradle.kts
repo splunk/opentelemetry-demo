@@ -43,7 +43,14 @@ configurations.all {
             useVersion("4.2.19.Final")
         }
         if (requested.group == "io.opentelemetry") {
-            useVersion("1.62.0")
+            useVersion("1.67.0")
+        }
+        // jackson-annotations dropped patch versions in 2.20 (only 2.21 exists).
+        // Forcing the whole com.fasterxml.jackson.core group to 2.21.5 makes
+        // shadowJar fail: "Could not find jackson-annotations:2.21.5".
+        if (requested.group == "com.fasterxml.jackson.core" &&
+            requested.name != "jackson-annotations") {
+            useVersion("2.21.5")
         }
         if (requested.group == "com.fasterxml.jackson.core") {
             useVersion("2.21.5")
@@ -71,8 +78,8 @@ dependencies {
     implementation("io.grpc:grpc-services:${grpcVersion}")
     // CVE-2026-45292: opentelemetry-java <1.62.0 baggage propagation is
     // vulnerable to unbounded CPU/memory when parsing oversized baggage.
-    implementation("io.opentelemetry:opentelemetry-api:1.62.0")
-    implementation("io.opentelemetry:opentelemetry-sdk:1.62.0")
+    implementation("io.opentelemetry:opentelemetry-api:1.67.0")
+    implementation("io.opentelemetry:opentelemetry-sdk:1.67.0")
     implementation("org.apache.logging.log4j:log4j-core:2.25.2")
     implementation("org.slf4j:slf4j-api:2.0.17")
     implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.25.2")

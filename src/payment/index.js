@@ -24,12 +24,18 @@ async function chargeServiceHandler(call, callback) {
     logger.info("Leaving payment service.")
     callback(null, response)
 
-  } catch (err) {
-    logger.warn({ err })
-
-    span?.recordException(err)
-    span?.setStatus({ code: opentelemetry.SpanStatusCode.ERROR })
-    callback(err)
+  } catch {
+    // Do not callback(err) or recordException(err): gRPC auto-instrumentation
+    // copies that onto grpc.error_message / exception.message, which checkout
+    // and frontend then show. The 401 + token stays in payment logs only.
+    span?.setStatus({
+      code: opentelemetry.SpanStatusCode.ERROR,
+      message: 'Internal Server Error',
+    })
+    callback({
+      code: grpc.status.INTERNAL,
+      message: 'Internal Server Error',
+    })
 
     // Emitted after the error so the failure is not the final log line in the
     // trace; checkout adds its own unwind breadcrumbs on top of these.

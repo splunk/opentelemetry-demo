@@ -28,7 +28,7 @@ RUN if [ "$SKIP_BUILD" = "false" ]; then \
 # JAVA — runtime target
 # ---------------------------------------------------------------------
 FROM eclipse-temurin:17-jre AS java
-ARG SPLUNK_OTEL_JAVAAGENT_VERSION=2.27.0
+ARG SPLUNK_OTEL_JAVAAGENT_VERSION=2.32.0
 ARG SPLUNK_OTEL_JAVAAGENT_URL=
 WORKDIR /app
 RUN apt-get update \
@@ -91,7 +91,12 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl libjpeg62-turbo zlib1g \
     && rm -rf /var/lib/apt/lists/*
 COPY src/secureapp-loadgen/unified-v2/apps/python-secureapp-loadgen/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# splunk-opentelemetry 2.13.2 → opentelemetry-configuration 0.66b1 requires pyyaml>=5.4,
+# which conflicts with the intentional PyYAML==5.3.1 VA pin. Install OTel first, then
+# force the vulnerable pin so scanners still see CVE-2020-14343.
+RUN grep -vE '^PyYAML==' requirements.txt > /tmp/requirements-otel.txt \
+    && pip install --no-cache-dir -r /tmp/requirements-otel.txt \
+    && pip install --no-cache-dir --force-reinstall --no-deps 'PyYAML==5.3.1'
 COPY src/secureapp-loadgen/unified-v2/apps/python-secureapp-loadgen/src ./src
 COPY src/secureapp-loadgen/unified-v2/apps/python-secureapp-loadgen/run.py .
 COPY src/secureapp-loadgen/unified-v2/apps/python-secureapp-loadgen/gunicorn.conf.py .

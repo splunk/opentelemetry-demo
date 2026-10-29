@@ -1,0 +1,104 @@
+"""S-imagePullBackoff — ImagePullBackOff.
+
+Field demo: kubernetes-demos/scenario2-image-pull.
+
+Astronomy Shop cart is a live checkout dependency, so this module
+creates a *separate* dummy Deployment instead of patching cart.
+It pulls the real cart image repo with a typo tag (`lastest` instead
+of `latest`) so kubelet emits ImagePullBackOff. Distinct labels keep
+the real cart Service from selecting it.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+
+from modules.base import ScenarioModule
+
+log = logging.getLogger("k8s-scenario-controller")
+
+DEPLOYMENT_NAME = "cart-imagepull"
+CONTAINER_NAME = "cart-imagepull"
+# Previous dummy name — delete if leftover from earlier builds.
+LEGACY_DEPLOYMENT_NAME = "payment-imagepull"
+DEFAULT_BAD_IMAGE = (
+    "ghcr.io/splunk/opentelemetry-demo/otel-cart:lastest"
+)
+
+
+class ImagePullBackoff(ScenarioModule):
+    name = "image-pull"
+    flag_key = "S-imagePullBackoff"
+    flag_type = "boolean"
+    default = False
+
+    def reconcile(self, cluster, value) -> None:
+        if cluster.get_deployment(LEGACY_DEPLOYMENT_NAME) is not None:
+            cluster.delete_deployment(LEGACY_DEPLOYMENT_NAME)
+
+        enabled = bool(value)
+        current = cluster.get_deployment(DEPLOYMENT_NAME)
+        if not enabled:
+            if current is not None:
+                cluster.delete_deployment(DEPLOYMENT_NAME)
+            return
+
+        desired_image = self._bad_image()
+        if current is not None and self._current_image(current) == desired_image:
+            return
+
+        action = cluster.apply_deployment(self._body(cluster.namespace), self.name)
+        log.info(
+            "%s %s with image %s (expected ImagePullBackOff)",
+            action,
+            DEPLOYMENT_NAME,
+            desired_image,
+        )
+
+    @staticmethod
+    def _current_image(deployment) -> str | None:
+        containers = deployment.spec.template.spec.containers or []
+        if not containers:
+            return None
+        return containers[0].image
+
+    def _bad_image(self) -> str:
+        return os.getenv("IMAGEPULL_BAD_IMAGE", DEFAULT_BAD_IMAGE)
+
+    def _body(self, namespace: str) -> dict:
+        labels = {
+            "opentelemetry.io/name": DEPLOYMENT_NAME,
+            "app.kubernetes.io/name": DEPLOYMENT_NAME,
+            "app.kubernetes.io/component": DEPLOYMENT_NAME,
+        }
+        return {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": DEPLOYMENT_NAME,
+                "namespace": namespace,
+                "labels": labels,
+            },
+            "spec": {
+                "replicas": 1,
+                "revisionHistoryLimit": 3,
+                "selector": {"matchLabels": {"opentelemetry.io/name": DEPLOYMENT_NAME}},
+                "template": {
+                    "metadata": {"labels": labels},
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": CONTAINER_NAME,
+                                "image": self._bad_image(),
+                                "imagePullPolicy": "Always",
+                                "resources": {
+                                    "requests": {"cpu": "1m", "memory": "8Mi"},
+                                    "limits": {"memory": "16Mi"},
+                                },
+                            }
+                        ]
+                    },
+                },
+            },
+        }

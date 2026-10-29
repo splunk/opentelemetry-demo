@@ -28,7 +28,7 @@ DOCKER_CMD=(
   docker buildx build
   --platform=linux/amd64,linux/arm64
   $CACHE_OPTION
-  --build-arg SPLUNK_OTEL_JAVA_VERSION=2.20.1
+  --build-arg SPLUNK_OTEL_JAVA_VERSION=2.32.0
   -t ghcr.io/splunk/opentelemetry-demo/otel-fraud-detection:"$VERSION"
   --load
   -f src/fraud-detection/Dockerfile

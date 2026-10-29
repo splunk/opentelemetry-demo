@@ -24,7 +24,7 @@ RUN if [ "$SKIP_BUILD" = "false" ]; then \
 FROM eclipse-temurin:17-jre
 
 # Splunk OTel Java agent — CSA build (Cisco Secure Application) includes SecureApp/Argento hooks
-ADD --chmod=644 https://repo1.maven.org/maven2/com/splunk/splunk-otel-javaagent-csa/2.27.0/splunk-otel-javaagent-csa-2.27.0.jar /app/splunk-otel-javaagent.jar
+ADD --chmod=644 https://repo1.maven.org/maven2/com/splunk/splunk-otel-javaagent-csa/2.32.0/splunk-otel-javaagent-csa-2.32.0.jar /app/splunk-otel-javaagent.jar
 
 WORKDIR /app
 

@@ -185,7 +185,7 @@ jobs:
           # Determine image name based on service
           # Most services use otel-{service} naming convention
           case "$SERVICE_NAME" in
-            accounting|ad|cart|fraud-detection|frontend|frontend-proxy|image-provider|llm|payment|product-reviews|recommendation)
+            accounting|ad|cart|fraud-detection|frontend|frontend-proxy|image-provider|k8s-scenario-controller|llm|payment|product-reviews|recommendation)
               IMAGE_NAME="otel-${SERVICE_NAME}"
               ;;
             *)
@@ -392,7 +392,7 @@ jobs:
           for SERVICE in $SERVICES_TO_UPDATE; do
             # Determine image name (same logic as in prepare-matrix)
             case "$SERVICE" in
-              accounting|ad|cart|fraud-detection|frontend|frontend-proxy|image-provider|llm|payment|product-reviews|recommendation)
+              accounting|ad|cart|fraud-detection|frontend|frontend-proxy|image-provider|k8s-scenario-controller|llm|payment|product-reviews|recommendation)
                 IMAGE_NAME="otel-${SERVICE}"
                 ;;
               *)

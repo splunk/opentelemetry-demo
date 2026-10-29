@@ -49,24 +49,23 @@ RUN cd /tmp && \
 
 # Download the specific Splunk OpenTelemetry Java agent CSA version and replace it within the AppDynamics directory
 RUN cd /tmp && \
-    SPLUNK_OTEL_CSA_URL="https://repo1.maven.org/maven2/com/splunk/splunk-otel-javaagent-csa/2.27.0/splunk-otel-javaagent-csa-2.27.0.jar" && \
-    SPLUNK_OTEL_CSA_FILENAME="splunk-otel-javaagent-csa-2.27.0.jar" && \
+    SPLUNK_OTEL_CSA_URL="https://repo1.maven.org/maven2/com/splunk/splunk-otel-javaagent-csa/2.32.0/splunk-otel-javaagent-csa-2.32.0.jar" && \
+    SPLUNK_OTEL_CSA_FILENAME="splunk-otel-javaagent-csa-2.32.0.jar" && \
     curl -L -f "$SPLUNK_OTEL_CSA_URL" -o "$SPLUNK_OTEL_CSA_FILENAME" && \
     echo "Downloaded Splunk OpenTelemetry CSA agent." && \
     ls -la "$SPLUNK_OTEL_CSA_FILENAME" && \
     \
-    # Define the target path and ensure the directory exists
-    TARGET_SPLUNK_AGENT_PATH="$APPDYNAMICS_AGENT_BASE_DIR/otel/splunk-otel-javaagent-2.21.0.jar" && \
-    TARGET_SPLUNK_AGENT_DIR=$(dirname "$TARGET_SPLUNK_AGENT_PATH") && \
-    TARGET_SPLUNK_AGENT_NAME=$(basename "$TARGET_SPLUNK_AGENT_PATH") && \
+    TARGET_SPLUNK_AGENT_DIR="$APPDYNAMICS_AGENT_BASE_DIR/otel" && \
+    TARGET_SPLUNK_AGENT_NAME="splunk-otel-javaagent-2.32.0.jar" && \
     \
     echo "Checking if target directory $TARGET_SPLUNK_AGENT_DIR exists..." && \
     mkdir -p "$TARGET_SPLUNK_AGENT_DIR" && \
+    rm -f "$TARGET_SPLUNK_AGENT_DIR"/splunk-otel-javaagent*.jar && \
     \
-    echo "Replacing $TARGET_SPLUNK_AGENT_PATH with the new Splunk OpenTelemetry CSA agent..." && \
+    echo "Installing Splunk OpenTelemetry CSA agent at $TARGET_SPLUNK_AGENT_DIR/$TARGET_SPLUNK_AGENT_NAME..." && \
     mv "$SPLUNK_OTEL_CSA_FILENAME" "$TARGET_SPLUNK_AGENT_DIR/$TARGET_SPLUNK_AGENT_NAME" && \
     chown shopdc:shopdc "$TARGET_SPLUNK_AGENT_DIR/$TARGET_SPLUNK_AGENT_NAME" && \
-    echo "Splunk OpenTelemetry CSA agent replaced successfully at $TARGET_SPLUNK_AGENT_DIR/$TARGET_SPLUNK_AGENT_NAME" && \
+    echo "Splunk OpenTelemetry CSA agent installed at $TARGET_SPLUNK_AGENT_DIR/$TARGET_SPLUNK_AGENT_NAME" && \
     rm -f "$SPLUNK_OTEL_CSA_FILENAME"
 
 # Copy application JAR and startup script

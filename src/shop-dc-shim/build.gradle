@@ -58,7 +58,15 @@ configurations {
 configurations.all {
     resolutionStrategy.eachDependency { details ->
         if (details.requested.group == 'io.opentelemetry') {
-            details.useVersion '1.62.0'
+            details.useVersion '1.67.0'
+        }
+        if (details.requested.group == 'org.bouncycastle') {
+            def name = details.requested.name
+            if (name.contains('jdk15on') || name.contains('jdk15to18')) {
+                details.useTarget "org.bouncycastle:${name.replace('jdk15on', 'jdk18on').replace('jdk15to18', 'jdk18on')}:1.86"
+            } else {
+                details.useVersion '1.86'
+            }
         }
         if (details.requested.group == 'org.bouncycastle') {
             def name = details.requested.name
@@ -95,8 +103,8 @@ dependencies {
     // OpenTelemetry (for Splunk Observability)
     // CVE-2026-45292: opentelemetry-java <1.62.0 baggage propagation is
     // vulnerable to unbounded CPU/memory when parsing oversized baggage.
-    implementation 'io.opentelemetry:opentelemetry-api:1.62.0'
-    implementation 'io.opentelemetry:opentelemetry-exporter-otlp:1.62.0'
+    implementation 'io.opentelemetry:opentelemetry-api:1.67.0'
+    implementation 'io.opentelemetry:opentelemetry-exporter-otlp:1.67.0'
     
     // gRPC dependencies
     // CVE-2026-44249: netty-handler <4.1.135.Final has an IPv6 subnet

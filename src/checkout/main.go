@@ -446,7 +446,10 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		logger.InfoContext(ctx, "leaving PlaceOrder",
 			slog.String("user_id", req.UserId),
 			slog.String("outcome", "abandoned"))
-		return nil, status.Errorf(codes.Internal, "failed to charge card: %+v", err)
+		// Generic 500 to callers. Payment's 401 / API token must not land on
+		// this span as grpc.error_message, otel.status_description, or
+		// exception.message — that is only in payment logs.
+		return nil, status.Error(codes.Internal, "Internal Server Error")
 	}
 
 	span.AddEvent("charged",
@@ -601,9 +604,9 @@ func mustCreateClient(svcAddr string, peerService string) *grpc.ClientConn {
 	c, err := grpc.NewClient(svcAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler(
-			otelgrpc.WithSpanOptions(trace.WithAttributes(
+			otelgrpc.WithSpanAttributes(
 				attribute.String("peer.service", peerService),
-			)),
+			),
 		)),
 	)
 	if err != nil {
@@ -773,7 +776,7 @@ func (cs *checkout) chargeCard(ctx context.Context, amount *pb.Money, paymentInf
 		Amount:     amount,
 		CreditCard: paymentInfo})
 	if err != nil {
-		return "", fmt.Errorf("could not charge the card: %+v", err)
+		return "", fmt.Errorf("Internal Server Error")
 	}
 	return paymentResp.GetTransactionId(), nil
 }

@@ -1,0 +1,139 @@
+# Kubernetes scenario controller
+# Polls flagd and applies demo workloads (ImagePullBackOff, later OOM / memory).
+# Uses a dedicated ServiceAccount — do not reuse splunk-opentelemetry-demo.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: k8s-scenario-controller
+  labels:
+    opentelemetry.io/name: k8s-scenario-controller
+    app.kubernetes.io/component: k8s-scenario-controller
+    app.kubernetes.io/name: k8s-scenario-controller
+    app.kubernetes.io/part-of: splunk-opentelemetry-demo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: k8s-scenario-controller
+  labels:
+    opentelemetry.io/name: k8s-scenario-controller
+    app.kubernetes.io/component: k8s-scenario-controller
+    app.kubernetes.io/name: k8s-scenario-controller
+    app.kubernetes.io/part-of: splunk-opentelemetry-demo
+rules:
+  # Enough for scenario 2 (Deployments) and later OOM / memory modules
+  # (ConfigMaps for scripts, Services if a dummy endpoint is needed).
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods", "configmaps", "services"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: k8s-scenario-controller
+  labels:
+    opentelemetry.io/name: k8s-scenario-controller
+    app.kubernetes.io/component: k8s-scenario-controller
+    app.kubernetes.io/name: k8s-scenario-controller
+    app.kubernetes.io/part-of: splunk-opentelemetry-demo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: k8s-scenario-controller
+subjects:
+  - kind: ServiceAccount
+    name: k8s-scenario-controller
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-scenario-controller
+  labels:
+    opentelemetry.io/name: k8s-scenario-controller
+    app.kubernetes.io/component: k8s-scenario-controller
+    app.kubernetes.io/name: k8s-scenario-controller
+    app.kubernetes.io/version: 2.0.9-beta.1
+    app.kubernetes.io/part-of: splunk-opentelemetry-demo
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      opentelemetry.io/name: k8s-scenario-controller
+  template:
+    metadata:
+      labels:
+        opentelemetry.io/name: k8s-scenario-controller
+        app.kubernetes.io/component: k8s-scenario-controller
+        app.kubernetes.io/name: k8s-scenario-controller
+    spec:
+      serviceAccountName: k8s-scenario-controller
+      # Time to delete dummy Deployments on SIGTERM before kubelet SIGKILLs.
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: k8s-scenario-controller
+          image: ghcr.io/splunk/opentelemetry-demo/otel-k8s-scenario-controller:2.0.9
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: health
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: FLAGD_OFREP_URL
+              value: http://flagd:8016
+            - name: RECONCILE_INTERVAL_SECONDS
+              value: "5"
+            - name: HEALTH_PORT
+              value: "8080"
+            # Comma-separated module names, or * for every enabled module.
+            - name: SCENARIO_MODULES
+              value: "*"
+            - name: IMAGEPULL_BAD_IMAGE
+              value: ghcr.io/splunk/opentelemetry-demo/otel-cart:lastest
+            - name: SHELLTESTER_IMAGE
+              value: docker.io/library/busybox:1.37.0
+            - name: SHELLTESTER_METRIC
+              value: scenariotest_metric
+            - name: SHELLTESTER_INTERVAL_SECONDS
+              value: "1"
+            # S-Noisy-neighbour: hog size (MiB) and spread replica count.
+            # Keep hog modest on shared shop nodes; raise only on a demo node.
+            - name: NOISY_NEIGHBOR_MIB
+              value: "256"
+            - name: NOISY_SPREAD_REPLICAS
+              value: "5"
+            - name: NOISY_NEIGHBOR_IMAGE
+              value: docker.io/library/python:3.12-alpine3.23
+            # S-Degraded-deployments: 5 replicas on a 3-node cluster → 3/5.
+            - name: DEGRADED_PAYMENT_REPLICAS
+              value: "5"
+            # S-Resource-management: dummy email-oom memory limit.
+            - name: EMAIL_OOM_LIMIT_MIB
+              value: "100"
+            - name: EMAIL_OOM_IMAGE
+              value: docker.io/library/python:3.12-alpine3.23
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
