@@ -52,9 +52,6 @@ configurations.all {
             requested.name != "jackson-annotations") {
             useVersion("2.21.5")
         }
-        if (requested.group == "com.fasterxml.jackson.core") {
-            useVersion("2.21.5")
-        }
     }
 }
 
