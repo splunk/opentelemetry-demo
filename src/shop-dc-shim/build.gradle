@@ -68,6 +68,14 @@ configurations.all {
                 details.useVersion '1.86'
             }
         }
+        if (details.requested.group == 'org.bouncycastle') {
+            def name = details.requested.name
+            if (name.contains('jdk15on') || name.contains('jdk15to18')) {
+                details.useTarget "org.bouncycastle:${name.replace('jdk15on', 'jdk18on').replace('jdk15to18', 'jdk18on')}:1.86"
+            } else {
+                details.useVersion '1.86'
+            }
+        }
     }
 }
 
