@@ -81,3 +81,5 @@ test/fraud-standalone/fraud-standalone-values.yaml
 test/dc-shim-standalone/dc-shim-standalone-values.yaml
 
 planning-lambda/Planning_Init_Lambda/.aws-sam/build.toml
+tmp
+tmp/*
