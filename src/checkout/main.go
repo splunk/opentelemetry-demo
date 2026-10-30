@@ -776,7 +776,10 @@ func (cs *checkout) chargeCard(ctx context.Context, amount *pb.Money, paymentInf
 		Amount:     amount,
 		CreditCard: paymentInfo})
 	if err != nil {
-		return "", fmt.Errorf("Internal Server Error")
+		// Payment already returned gRPC INTERNAL ("Internal Server Error").
+		// Do not wrap the RPC error — that used to leak "code = Code(401)"
+		// into PlaceOrder / frontend. Re-state the generic message only.
+		return "", status.Error(codes.Internal, "Internal Server Error")
 	}
 	return paymentResp.GetTransactionId(), nil
 }

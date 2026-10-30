@@ -22,16 +22,15 @@ const handler = async ({ method, body, query }: NextApiRequest, res: NextApiResp
       try {
         placeOrderResponse = await CheckoutGateway.placeOrder(orderData, paymentPath);
       } catch (error: any) {
-        // Handle gRPC errors and return appropriate HTTP status
-        const errorMessage = error?.message || 'Checkout failed';
-
         // FAILED_PRECONDITION (code 9) - client error like empty cart
         if (error?.code === 9) {
-          return res.status(400).json({ error: errorMessage } as any);
+          return res.status(400).json({ error: error?.message || 'Checkout failed' } as any);
         }
 
-        // Internal or other errors
-        return res.status(500).json({ error: errorMessage } as any);
+        // Payment/checkout failures are gRPC INTERNAL (13). Do not pass
+        // "13 INTERNAL: Internal Server Error" through to the HTTP body —
+        // the browser/API hop is HTTP 500 Internal Server Error.
+        return res.status(500).json({ error: 'Internal Server Error' } as any);
       }
 
       const { order: { items = [], ...order } = {} } = placeOrderResponse;
