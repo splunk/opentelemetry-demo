@@ -338,7 +338,20 @@ agent:
           - {action: delete, key: host.arch}
           - {action: delete, key: container.image.tag}
           - {action: delete, key: deployment.environment}
+      # Drop flagd client noise so APM does not infer a gRPC "flagd" service.
+      #
+      # Classic OTel RPC semconv sets rpc.method=ResolveBoolean. .NET
+      # GrpcNetClient (cart) and newer Go otelgrpc stash the full
+      # flagd.evaluation.v2.Service/ResolveBoolean path in rpc.method and
+      # the span name, with no rpc.service. Envoy frontend-proxy uses the
+      # public URL /flagservice/flagd.evaluation.v1.Service/EventStream, not
+      # http://flagd:8013/.... Exact equality on the bare method / in-cluster
+      # URL therefore misses both; Splunk infers a service from the leftover
+      # CLIENT span because flagd emits no SERVER span.
+      #
+      # error_mode: ignore so IsMatch against an absent attribute is a no-op.
       filter/drop_flagd:
+        error_mode: ignore
         traces:
           span:
           - attributes["rpc.method"] == "EventStream"
@@ -346,9 +359,14 @@ agent:
           - attributes["rpc.method"] == "ResolveBoolean"
           - attributes["rpc.method"] == "ResolveFloat"
           - attributes["rpc.method"] == "ResolveInt"
+          - IsMatch(name, "flagd\\.evaluation\\.v[12]\\.Service")
+          - IsMatch(attributes["rpc.method"], "flagd\\.evaluation\\.v[12]\\.Service")
+          - IsMatch(attributes["rpc.service"], "flagd\\.evaluation\\.v[12]\\.Service")
           - attributes["http.url"] == "http://flagd:8016/ofrep/v1/evaluate/flags/loadGeneratorFloodHomepage"
           - attributes["url.full"] == "http://flagd:8013/flagd.evaluation.v1.Service/ResolveBoolean"
           - attributes["url.full"] == "http://flagd:8013/flagd.evaluation.v2.Service/ResolveBoolean"
+          - IsMatch(attributes["url.full"], "flagd\\.evaluation\\.v[12]\\.Service")
+          - IsMatch(attributes["http.url"], "flagd\\.evaluation\\.v[12]\\.Service")
           - attributes["otel.scope.name"] == "flagd.evaluation.v1"
           - attributes["otel.scope.name"] == "flagd.evaluation.v2"
           - attributes["url.full"] == "http://flagd:8013/flagd.evaluation.v1.Service/EventStream"
