@@ -6,11 +6,10 @@ labels: bug
 
 # Bug Report
 
-Which version of the demo you are using? (please provide either a specific
-[commit
-hash](https://github.com/open-telemetry/opentelemetry-demo/commits/main)
-or a specific
-[release](https://github.com/open-telemetry/opentelemetry-demo/releases)).
+Which version of the Splunk Astronomy Shop demo are you using? Provide a
+[commit](https://github.com/splunk/opentelemetry-demo/commits/main)
+or a
+[release](https://github.com/splunk/opentelemetry-demo/releases).
 
 ## Symptom
 
@@ -26,7 +25,7 @@ Please describe the actual behavior experienced.
 
 ## Reproduce
 
-Could you provide the minimum required steps to resolve the issue you're seeing?
+Could you provide the minimum required steps to reproduce the issue?
 
 We will close this issue if:
 
@@ -36,5 +35,3 @@ We will close this issue if:
 ## Additional Context
 
 Please feel free to add any other context about the problem here.
-
-<sub>**Tip**: [React](https://github.blog/news-insights/product-news/add-reactions-to-pull-requests-issues-and-comments/) with 👍 to help prioritize this issue. Please use comments to provide useful context, avoiding `+1` or `me too`, to help us triage it. Learn more [here](https://opentelemetry.io/community/end-user/issue-participation/).</sub>
