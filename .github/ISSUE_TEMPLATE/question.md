@@ -1,11 +1,13 @@
 ---
 name: Question
-about: Create a question to help us improve our knowledge base and documentation
+about: Ask a question about this demo
 labels: question
 ---
 
 # Question
 
-Use [Github Discussions](https://github.com/open-telemetry/opentelemetry-demo/discussions/).
+Use a [GitHub issue](https://github.com/splunk/opentelemetry-demo/issues/new)
+on this repo. Discussions are not enabled.
 
-<sub>**Tip**: [React](https://github.blog/news-insights/product-news/add-reactions-to-pull-requests-issues-and-comments/) with 👍 to help prioritize this issue. Please use comments to provide useful context, avoiding `+1` or `me too`, to help us triage it. Learn more [here](https://opentelemetry.io/community/end-user/issue-participation/).</sub>
+Please include the demo version ([commit](https://github.com/splunk/opentelemetry-demo/commits/main)
+or [release](https://github.com/splunk/opentelemetry-demo/releases)) when relevant.
