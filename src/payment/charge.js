@@ -434,7 +434,13 @@ module.exports.charge = async request => {
       } catch (err) {
         lastErr = err;
         clientSpan.addEvent('attempt.failure', { attempt, code: String(err.code || 401) });
-        clientSpan.setAttributes({ 'http.status_code': String(err.code || 401) });
+        // Per-attempt gateway status stays 401 on the Buttercup CLIENT span only.
+        // Do not copy it onto charge / the gRPC Charge span — after retries the
+        // error we throw is Internal Server Error (gRPC 13), not HTTP 401/500.
+        clientSpan.setAttributes({
+          'http.status_code': String(err.code || 401),
+          'http.response.status_code': String(err.code || 401),
+        });
 
 
         // Flag the root span for every 401 attempt (not just the final failure)
@@ -494,10 +500,11 @@ module.exports.charge = async request => {
       return result;
     }
 
-    // All attempts failed. Callers (checkout/frontend) must see a generic
-    // 500 Internal Server Error — the 401 + API token is a demo breadcrumb
-    // that belongs only in payment logs, not in grpc.error_message /
-    // otel.status_description / exception.message on this or upstream spans.
+    // All attempts failed. This is a gRPC Internal Server Error (code 13),
+    // not an HTTP 500. Stamping http.status_code=500 here made APM show 500
+    // on the internal `charge` span and 13 on grpc.oteldemo.PaymentService/Charge.
+    // Callers must see "Internal Server Error"; the 401 + API token stays in
+    // payment logs (per-attempt + this final log) only.
     const gatewayAuthFailed = lastErr && lastErr.code === 401;
 
     setSpanAttributes({
@@ -506,14 +513,14 @@ module.exports.charge = async request => {
       'app.loyalty.level': 'gold',
       'retry.count': attempt - 1,
       'retry.success': false,
-      'http.status_code': 500,
-      'http.response.status_code': '500',
     });
 
-    span.setStatus({
+    const internalStatus = {
       code: SpanStatusCode.ERROR,
       message: 'Internal Server Error',
-    });
+    };
+    span.setStatus(internalStatus);
+    serverSpan?.setStatus(internalStatus);
 
     // keep baggage handling as you have it
     const baggage = propagation.getBaggage(context.active());
