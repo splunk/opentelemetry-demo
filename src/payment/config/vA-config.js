@@ -6,7 +6,7 @@
 module.exports = {
   name: 'payment',
   version: 'vA',
-  displayVersion: '1.7.0-a',
+  displayVersion: 'v350.9',
 
   // API Configuration
   defaultTokenPrefix: 'prod',

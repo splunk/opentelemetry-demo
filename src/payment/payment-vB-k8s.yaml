@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Payment Service Version B - Optimized/Next-gen Version
-# This manifest deploys payment service v1.7.0-b with version-specific configuration
+# This manifest deploys payment service v350.10 (canary) with version-specific configuration
 
 ---
 apiVersion: v1
@@ -24,7 +24,7 @@ metadata:
     opentelemetry.io/name: payment-vb
     app.kubernetes.io/component: payment
     app.kubernetes.io/name: payment-vb
-    app.kubernetes.io/version: "1.7.0-b"
+    app.kubernetes.io/version: "v350.10"
 spec:
   replicas: 2
   selector:
