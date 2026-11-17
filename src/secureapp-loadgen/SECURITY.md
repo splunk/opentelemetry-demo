@@ -18,11 +18,11 @@ Scanners (Fossa, Dependabot, Snyk, Trivy, Grype, etc.) will report CVEs in the f
 | SQLi target surface | Jetty 9.4.53 (`/api/v1/users/search`) | Server host for SQLi payload delivery |
 | SSRF target surface | Jetty 9.4.53 (`/api/v1/links/preview`) | Server host for cloud-metadata SSRF payload delivery |
 
-See `loadgen.sh` `ATTACK_ENTRIES` for the full endpoint → attack-class mapping.
+See `unified-v2/k8s/loadgen/loadgen-entries.sh` for the full endpoint → attack-class mapping.
 
 ## Scanner suppression policy
 
-For each CVE reported against this manifest (`src/secureapp-loadgen/pom.xml`):
+For each CVE reported against this manifest (`unified-v2/apps/java-secureapp-loadgen/pom.xml`):
 
 - **Do not open a fix PR.**
 - **Do not run `mvn versions:use-latest-versions` or equivalent.**
@@ -36,4 +36,4 @@ If a CVE lands in a dependency that is **not** part of the vulnerable-attack sur
 
 ## Contact
 
-Questions about whether a specific CVE is intentional here: check `loadgen.sh` first, then ask the SecureApp demo owner before upgrading.
+Questions about whether a specific CVE is intentional here: check `unified-v2/k8s/loadgen/loadgen-entries.sh` first, then ask the SecureApp demo owner before upgrading.
