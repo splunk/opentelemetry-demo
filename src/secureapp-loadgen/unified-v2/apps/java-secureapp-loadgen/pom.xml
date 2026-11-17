@@ -159,11 +159,25 @@
              stack trace hooked by the SecureApp agent
              (ObjectInputStream.resolveClass -> KerberosSerializationUtils
              .deserialize). Bump from 10.0.2 -> 11.0.0 to clear the FOSSA
-             finding while preserving the attack detection surface. -->
+             finding while preserving the attack detection surface.
+             VULN-107350 / CVE-2020-28052: 11.0.0 also pulls
+             bcprov-jdk15on:1.65 (OpenBSDBCrypt.checkPassword). That class
+             is unused by the gadget; the jdk15on train has NO_SAFE_VERSION.
+             Exclude both BC artifacts. -->
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-common</artifactId>
             <version>11.0.0</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.bouncycastle</groupId>
+                    <artifactId>bcprov-jdk15on</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.bouncycastle</groupId>
+                    <artifactId>bcpkix-jdk15on</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
     </dependencies>
 
