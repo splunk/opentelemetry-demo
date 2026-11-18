@@ -310,6 +310,62 @@ jobs:
 
           echo "✅ Copied to \`target/demo-in-a-box/v4/\`" >> $GITHUB_STEP_SUMMARY
 
+      # Keep only the two newest splunk-astronomy-demo-<version> folders
+      # (plus the unversioned -latest / latest-diab copies). Next promote
+      # of 3.0.0 drops 2.0.8; 2.0.9 and 3.0.0 remain.
+      - name: Keep only two versioned deployments
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          keep_n_versioned_dirs() {
+            local parent="$1"
+            local keep="${2:-2}"
+            local prefix="splunk-astronomy-demo-"
+            local dir name
+            local -a vers=()
+
+            [ -d "$parent" ] || return 0
+
+            shopt -s nullglob
+            for dir in "${parent}/${prefix}"*; do
+              [ -d "$dir" ] || continue
+              name=$(basename "$dir")
+              [[ "$name" == "${prefix}latest" ]] && continue
+              vers+=("${name#"$prefix"}")
+            done
+            shopt -u nullglob
+
+            local count=${#vers[@]}
+            if (( count <= keep )); then
+              echo "ℹ️ \`${parent#target/}\`: ${count} versioned dir(s), nothing to prune" >> "$GITHUB_STEP_SUMMARY"
+              return 0
+            fi
+
+            local -a sorted=()
+            while IFS= read -r name; do
+              sorted+=("$name")
+            done < <(printf '%s\n' "${vers[@]}" | sort -V)
+
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Pruning \`${parent#target/}\` to ${keep} newest versions:" >> "$GITHUB_STEP_SUMMARY"
+            local i remove_count=$(( count - keep ))
+            for (( i=0; i<remove_count; i++ )); do
+              rm -rf "${parent}/${prefix}${sorted[$i]}"
+              echo "- 🗑️ \`${prefix}${sorted[$i]}\`" >> "$GITHUB_STEP_SUMMARY"
+            done
+            echo "- ✅ kept \`${prefix}${sorted[count-2]}\` and \`${prefix}${sorted[count-1]}\`" >> "$GITHUB_STEP_SUMMARY"
+          }
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Version Retention (keep 2)" >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$SCOPE" == "all" || "$SCOPE" == "prod" ]]; then
+            keep_n_versioned_dirs target/splunk-astronomy-shop 2
+          fi
+          if [[ "$SCOPE" == "all" || "$SCOPE" == "diab" ]]; then
+            keep_n_versioned_dirs target/demo-in-a-box/v3/deployments 2
+            keep_n_versioned_dirs target/demo-in-a-box/v4/demo-manifests 2
+          fi
+
       # -----------------------------
       # VERSION HISTORY + PROMOTED-VERSION
       # -----------------------------
