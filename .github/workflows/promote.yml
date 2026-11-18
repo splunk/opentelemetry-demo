@@ -274,6 +274,9 @@ jobs:
           rm -rf "$V3_LATEST_DIR"
           cp -r "$V3_DEPLOY_DIR" "$V3_LATEST_DIR"
 
+          # v3 use-cases.yaml points at this filename, not the versioned folder.
+          cp "$MANIFEST_DIAB" target/demo-in-a-box/v3/deployments/splunk-astronomy-shop-latest-diab.yaml
+
           echo "✅ Copied to \`target/demo-in-a-box/v3/\`" >> $GITHUB_STEP_SUMMARY
 
           # --- V4 targets ---
@@ -296,6 +299,14 @@ jobs:
           # Replace latest
           rm -rf "$V4_LATEST_DIR"
           cp -r "$V4_DEPLOY_DIR" "$V4_LATEST_DIR"
+
+          # v4 demos/astronomy-shop.yaml deploys this directory, not
+          # splunk-astronomy-demo-latest. Keep the stable filename so
+          # kubectl apply -f demo-manifests/splunk-astronomy-shop-latest-diab
+          # picks up the promoted diab manifest.
+          V4_LIVE_DIAB_DIR="target/demo-in-a-box/v4/demo-manifests/splunk-astronomy-shop-latest-diab"
+          mkdir -p "$V4_LIVE_DIAB_DIR"
+          cp "$MANIFEST_DIAB" "$V4_LIVE_DIAB_DIR/splunk-astronomy-shop-latest-diab.yaml"
 
           echo "✅ Copied to \`target/demo-in-a-box/v4/\`" >> $GITHUB_STEP_SUMMARY
 
