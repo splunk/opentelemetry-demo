@@ -350,6 +350,7 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 	span.SetAttributes(
 		attribute.String("app.user.id", req.UserId),
 		attribute.String("app.user.currency", req.UserCurrency),
+		attribute.String("workflow.name", "PlaceOrder"),
 	)
 	logger.LogAttrs(
 		ctx,

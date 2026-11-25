@@ -7,6 +7,7 @@ import ApiGateway from '../gateways/Api.gateway';
 import { CartItem, OrderResult, PlaceOrderRequest } from '../protos/demo';
 import { IProductCart } from '../types/Cart';
 import { useCurrency } from './Currency.provider';
+import { withWorkflowSpan } from '../utils/telemetry/workflowSpan';
 
 interface IContext {
   cart: IProductCart;
@@ -61,50 +62,25 @@ const CartProvider = ({ children }: IProps) => {
 
   const addItem = useCallback(
     async (item: CartItem) => {
-      // Create AddToCart workflow span for Splunk RUM
-      let span: any = null;
-      if (typeof window !== 'undefined' && (window as any).tracer) {
-        span = (window as any).tracer.startSpan('AddToCart', {
-          attributes: {
-            'workflow.name': 'AddToCart',
-            'product.id': item.productId,
-            'product.quantity': item.quantity,
-          },
-        });
-      }
-
-      try {
-        const result = await addCartMutation.mutateAsync({ ...item, currencyCode: selectedCurrency });
-        return result;
-      } finally {
-        if (span) {
-          span.end();
-        }
-      }
+      return withWorkflowSpan(
+        'AddToCart',
+        {
+          'product.id': item.productId,
+          'product.quantity': item.quantity,
+        },
+        () => addCartMutation.mutateAsync({ ...item, currencyCode: selectedCurrency })
+      );
     },
     [addCartMutation, selectedCurrency]
   );
   const emptyCart = useCallback(() => emptyCartMutation.mutateAsync(), [emptyCartMutation]);
   const placeOrder = useCallback(
     async (order: PlaceOrderRequest) => {
-      // Create PlaceOrder workflow span for Splunk RUM
-      let span: any = null;
-      if (typeof window !== 'undefined' && (window as any).tracer) {
-        span = (window as any).tracer.startSpan('PlaceOrder', {
-          attributes: {
-            'workflow.name': 'PlaceOrder',
-          },
-        });
-      }
-
-      try {
-        const result = await placeOrderMutation.mutateAsync({ ...order, currencyCode: selectedCurrency });
-        return result;
-      } finally {
-        if (span) {
-          span.end();
-        }
-      }
+      return withWorkflowSpan(
+        'PlaceOrder',
+        {},
+        () => placeOrderMutation.mutateAsync({ ...order, currencyCode: selectedCurrency })
+      );
     },
     [placeOrderMutation, selectedCurrency]
   );

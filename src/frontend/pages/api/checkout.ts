@@ -7,7 +7,7 @@ import CheckoutGateway from '../../gateways/rpc/Checkout.gateway';
 import { Empty, PlaceOrderRequest } from '../../protos/demo';
 import { IProductCheckoutItem, IProductCheckout } from '../../types/Cart';
 import ProductCatalogService from '../../services/ProductCatalog.service';
-import { trace } from '@opentelemetry/api';
+import { context, trace } from '@opentelemetry/api';
 
 type TResponse = IProductCheckout | Empty;
 
@@ -17,6 +17,7 @@ const handler = async ({ method, body, query }: NextApiRequest, res: NextApiResp
       const { currencyCode = '' } = query;
       const { paymentPath, ...orderFields } = body;
       const orderData = orderFields as PlaceOrderRequest;
+      trace.getSpan(context.active())?.setAttribute('workflow.name', 'PlaceOrder');
 
       let placeOrderResponse;
       try {
@@ -55,6 +56,7 @@ const handler = async ({ method, body, query }: NextApiRequest, res: NextApiResp
       const tracer = trace.getTracer('frontend-api');
       const span = tracer.startSpan('order.confirmed', {
         attributes: {
+          'workflow.name': 'PlaceOrder',
           'order.id': orderId,
           'order.items_count': productList.length,
           'order.total_items': productList.reduce((sum, item) => sum + item.item.quantity, 0),
