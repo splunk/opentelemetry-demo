@@ -191,6 +191,14 @@ stitch_service() {
 # ============================================================
 apply_image_versions() {
     local FILE="$1"
+    # Production: keep the tags already committed in source k8s manifests.
+    # prod-build-images writes the exact tags that were pushed (including
+    # hotfixes that share another service's tag, e.g. checkout @
+    # 2.0.9-hotfix-frontend-1). Rewriting from .hotfix.yaml would clobber
+    # those. Test/dev builds pin tags via .service-versions.yaml instead.
+    if [ ! -f ".service-versions.yaml" ]; then
+        return 0
+    fi
     local IMG NAME V
     for IMG in $(grep -oE "${REGISTRY_URL}/otel-[A-Za-z0-9._-]+:[0-9][0-9.]*[^[:space:]]*" "$FILE" \
                  | sed -E 's|:[0-9].*$||' | sort -u); do
