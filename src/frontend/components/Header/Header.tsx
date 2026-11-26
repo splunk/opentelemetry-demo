@@ -115,6 +115,7 @@ const Header = () => {
             <S.BrandImg />
           </S.NavBarBrand>
           <S.Controls>
+            <S.ChatLink href="/chatbot/">Chat</S.ChatLink>
             <CurrencySwitcher />
             <CartIcon />
           </S.Controls>

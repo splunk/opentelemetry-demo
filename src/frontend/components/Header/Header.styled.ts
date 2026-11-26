@@ -53,3 +53,12 @@ export const Controls = styled.div`
   display: flex;
   height: 60px;
 `;
+
+export const ChatLink = styled.a`
+  display: flex;
+  align-items: center;
+  margin-right: 16px;
+  color: #853b5c;
+  font-weight: 600;
+  text-decoration: none;
+`;

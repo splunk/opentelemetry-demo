@@ -126,6 +126,18 @@ services:
     build: true
     manifest: true
 
+  - name: agent
+    build: true
+    manifest: true
+
+  - name: mcp
+    build: true
+    manifest: true
+
+  - name: chatbot
+    build: true
+    manifest: true
+
 
   - name: demo-namespace
     build: false

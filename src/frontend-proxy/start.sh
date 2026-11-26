@@ -15,5 +15,9 @@ export FEATURE_PASS="${FEATURE_PASS:-}"
 export SECUREAPP_HOST="${SECUREAPP_HOST:-secureapp-loadgen}"
 export SECUREAPP_PORT="${SECUREAPP_PORT:-8080}"
 
+# Gradio chatbot (OTel demo agent UI)
+export CHATBOT_HOST="${CHATBOT_HOST:-chatbot}"
+export CHATBOT_PORT="${CHATBOT_PORT:-7860}"
+
 # Run envsubst to generate config from template, then start envoy
 envsubst < envoy.tmpl.yaml > envoy.yaml && envoy -c envoy.yaml

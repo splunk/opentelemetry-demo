@@ -1,0 +1,118 @@
+# Kubernetes manifest for chatbot (Gradio UI at /chatbot via frontend-proxy)
+# OpAMP is omitted: OPAMP_SERVER_ENDPOINT is unset so the client stays off.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chatbot
+  labels:
+    opentelemetry.io/name: chatbot
+    app.kubernetes.io/component: chatbot
+    app.kubernetes.io/name: chatbot
+    app.kubernetes.io/version: 2.1.3
+    app.kubernetes.io/part-of: splunk-opentelemetry-demo
+spec:
+  type: ClusterIP
+  ports:
+  - port: 7860
+    name: tcp-service
+    targetPort: 7860
+  selector:
+    opentelemetry.io/name: chatbot
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatbot
+  labels:
+    opentelemetry.io/name: chatbot
+    app.kubernetes.io/component: chatbot
+    app.kubernetes.io/name: chatbot
+    app.kubernetes.io/version: 2.1.3
+    app.kubernetes.io/part-of: splunk-opentelemetry-demo
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      opentelemetry.io/name: chatbot
+  template:
+    metadata:
+      labels:
+        opentelemetry.io/name: chatbot
+        app.kubernetes.io/component: chatbot
+        app.kubernetes.io/name: chatbot
+    spec:
+      serviceAccountName: splunk-opentelemetry-demo
+      containers:
+      - name: chatbot
+        image: ghcr.io/splunk/opentelemetry-demo/otel-chatbot:2.0.9
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 7860
+          name: service
+        env:
+        - name: OTEL_SERVICE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.labels['app.kubernetes.io/component']
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: OTEL_COLLECTOR_NAME
+          value: $(NODE_IP)
+        - name: OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
+          value: cumulative
+        - name: CHATBOT_ENDPOINT
+          value: 0.0.0.0
+        - name: CHATBOT_PORT
+          value: '7860'
+        - name: CHATBOT_ROOT_PATH
+          value: /chatbot
+        - name: AGENT_ENDPOINT
+          value: agent
+        - name: AGENT_PORT
+          value: '8010'
+        - name: AGENT_CHAT_INTERFACE_TIMEOUT
+          value: '300'
+        - name: OTEL_PYTHON_LOG_CORRELATION
+          value: 'true'
+        - name: OTEL_PYTHON_SDK_INTERNAL_METRICS_ENABLED
+          value: 'true'
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: http://$(OTEL_COLLECTOR_NAME):4318
+        - name: OTEL_EXPORTER_OTLP_INSECURE
+          value: 'true'
+        - name: SPLUNK_AO_ENABLED
+          value: 'true'
+        - name: SPLUNK_AO_REALM
+          valueFrom:
+            secretKeyRef:
+              name: workshop-secret
+              key: realm
+              optional: true
+        - name: SPLUNK_AO_O11Y_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: workshop-secret
+              key: access_token
+              optional: true
+        - name: SPLUNK_AO_PROJECT
+          value: opentelemetry-demo
+        - name: SPLUNK_AO_AGENT_STREAM
+          value: opentelemetry-demo
+        - name: WORKSHOP_ENVIRONMENT
+          valueFrom:
+            secretKeyRef:
+              name: workshop-secret
+              key: instance
+              optional: true
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version=2.1.3,service.kafka=no,deployment.environment=$(WORKSHOP_ENVIRONMENT),deployment.environment.name=$(WORKSHOP_ENVIRONMENT)
+        resources:
+          limits:
+            memory: 500Mi
+        volumeMounts: null
+      volumes: null

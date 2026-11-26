@@ -1,0 +1,145 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# Optional overlay: Agent + MCP + Chatbot (OTel demo GenAI stack).
+# Does not change product-reviews or the mock llm service.
+#
+#   docker compose -f docker-compose.yml -f compose.agent.yaml up
+
+services:
+  agent:
+    image: ${IMAGE_NAME}:${DEMO_VERSION}-agent
+    container_name: agent
+    build:
+      context: ./
+      dockerfile: src/agent/Dockerfile
+    deploy:
+      resources:
+        limits:
+          memory: 500M
+    restart: unless-stopped
+    ports:
+      - "${AGENT_PORT:-8010}"
+    environment:
+      - GRAPH_RECURSION_LIMIT=${GRAPH_RECURSION_LIMIT:-25}
+      - MCP_ENDPOINT=mcp
+      - MCP_PORT=${MCP_PORT:-8011}
+      - MCP_ENABLED=${MCP_ENABLED:-True}
+      - AGENT_ENDPOINT=agent
+      - AGENT_PORT=${AGENT_PORT:-8010}
+      # Agent cassette model — not the product-reviews mock (astronomy-llm)
+      - LLM_BASE_URL=https://local-llm.com
+      - LLM_MODEL=claude-opus-4-7
+      - LLM_TLS_VERIFY=True
+      - API_KEY=${AGENT_API_KEY:-sk-dummy}
+      - OPENAI_API_KEY=${AGENT_API_KEY:-sk-dummy}
+      - USE_VCR=True
+      - VCR_MATCH_THRESHOLD=0.85
+      - APPLICATION_ENDPOINT=${FRONTEND_HOST}:${FRONTEND_PORT}
+      - OTEL_EXPORTER_OTLP_INSECURE=true
+      - OTEL_RESOURCE_ATTRIBUTES=${OTEL_RESOURCE_ATTRIBUTES},service.criticality=low
+      - OTEL_SERVICE_NAME=agent
+      - FLAGD_HOST
+      - FLAGD_PORT
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://${OTEL_COLLECTOR_HOST}:${OTEL_COLLECTOR_PORT_GRPC}
+      - TRACELOOP_BASE_URL=http://${OTEL_COLLECTOR_HOST}:${OTEL_COLLECTOR_PORT_HTTP}
+      - OTEL_PYTHON_SDK_INTERNAL_METRICS_ENABLED=true
+      - SPLUNK_AO_ENABLED=${SPLUNK_AO_ENABLED:-false}
+      - SPLUNK_AO_REALM=${SPLUNK_AO_REALM:-}
+      - SPLUNK_AO_O11Y_TOKEN=${SPLUNK_AO_O11Y_TOKEN:-}
+      - SPLUNK_AO_PROJECT=${SPLUNK_AO_PROJECT:-opentelemetry-demo}
+      - SPLUNK_AO_AGENT_STREAM=${SPLUNK_AO_AGENT_STREAM:-opentelemetry-demo}
+    depends_on:
+      product-catalog:
+        condition: service_started
+      mcp:
+        condition: service_started
+      flagd:
+        condition: service_started
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  mcp:
+    image: ${IMAGE_NAME}:${DEMO_VERSION}-mcp
+    container_name: mcp
+    build:
+      context: ./
+      dockerfile: src/mcp/Dockerfile
+    deploy:
+      resources:
+        limits:
+          memory: 500M
+    restart: unless-stopped
+    ports:
+      - "${MCP_PORT:-8011}"
+    environment:
+      - MCP_ENDPOINT=mcp
+      - MCP_PORT=${MCP_PORT:-8011}
+      - OTEL_EXPORTER_OTLP_INSECURE=true
+      - APPLICATION_ENDPOINT=${FRONTEND_HOST}:${FRONTEND_PORT}
+      - OTEL_RESOURCE_ATTRIBUTES=${OTEL_RESOURCE_ATTRIBUTES},service.criticality=low
+      - OTEL_SERVICE_NAME=mcp
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://${OTEL_COLLECTOR_HOST}:${OTEL_COLLECTOR_PORT_GRPC}
+      - TRACELOOP_BASE_URL=http://${OTEL_COLLECTOR_HOST}:${OTEL_COLLECTOR_PORT_HTTP}
+      - OTEL_PYTHON_SDK_INTERNAL_METRICS_ENABLED=true
+      - SPLUNK_AO_ENABLED=${SPLUNK_AO_ENABLED:-false}
+      - SPLUNK_AO_REALM=${SPLUNK_AO_REALM:-}
+      - SPLUNK_AO_O11Y_TOKEN=${SPLUNK_AO_O11Y_TOKEN:-}
+      - SPLUNK_AO_PROJECT=${SPLUNK_AO_PROJECT:-opentelemetry-demo}
+      - SPLUNK_AO_AGENT_STREAM=${SPLUNK_AO_AGENT_STREAM:-opentelemetry-demo}
+    depends_on:
+      frontend:
+        condition: service_started
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  chatbot:
+    image: ${IMAGE_NAME}:${DEMO_VERSION}-chatbot
+    container_name: chatbot
+    build:
+      context: ./
+      dockerfile: src/chatbot/Dockerfile
+    deploy:
+      resources:
+        limits:
+          memory: 500M
+    restart: unless-stopped
+    ports:
+      - "${CHATBOT_PORT:-7860}"
+    environment:
+      - AGENT_PORT=${AGENT_PORT:-8010}
+      - AGENT_ENDPOINT=agent
+      - CHATBOT_PORT=${CHATBOT_PORT:-7860}
+      - CHATBOT_ROOT_PATH=/chatbot
+      - OTEL_RESOURCE_ATTRIBUTES=${OTEL_RESOURCE_ATTRIBUTES},service.criticality=low
+      - OTEL_SERVICE_NAME=chatbot
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://${OTEL_COLLECTOR_HOST}:${OTEL_COLLECTOR_PORT_HTTP}
+      - OTEL_EXPORTER_OTLP_INSECURE=true
+      - OTEL_PYTHON_SDK_INTERNAL_METRICS_ENABLED=true
+      - SPLUNK_AO_ENABLED=${SPLUNK_AO_ENABLED:-false}
+      - SPLUNK_AO_REALM=${SPLUNK_AO_REALM:-}
+      - SPLUNK_AO_O11Y_TOKEN=${SPLUNK_AO_O11Y_TOKEN:-}
+      - SPLUNK_AO_PROJECT=${SPLUNK_AO_PROJECT:-opentelemetry-demo}
+      - SPLUNK_AO_AGENT_STREAM=${SPLUNK_AO_AGENT_STREAM:-opentelemetry-demo}
+    depends_on:
+      agent:
+        condition: service_started
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  frontend-proxy:
+    environment:
+      - CHATBOT_HOST=chatbot
+      - CHATBOT_PORT=${CHATBOT_PORT:-7860}
+    depends_on:
+      chatbot:
+        condition: service_started

@@ -104,6 +104,10 @@ spec:
           value: secureapp-loadgen
         - name: SECUREAPP_PORT
           value: '8080'
+        - name: CHATBOT_HOST
+          value: chatbot
+        - name: CHATBOT_PORT
+          value: '7860'
         - name: FEATURE_AUTH_ENABLED
           valueFrom:
             secretKeyRef:

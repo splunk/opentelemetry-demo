@@ -132,6 +132,15 @@ static_resources:
                           redirect: { path_redirect: "/shipping/" }
                         - match: { prefix: "/shipping/" }
                           route: { cluster: secureapp-loadgen, prefix_rewrite: "/api/v1/shipping/info" }
+                        - match: { path: "/chatbot" }
+                          redirect: { path_redirect: "/chatbot/" }
+                        - match: { prefix: "/chatbot/" }
+                          route:
+                            cluster: chatbot
+                            prefix_rewrite: "/"
+                            timeout: 0s
+                            upgrade_configs:
+                              - upgrade_type: websocket
                         - match: { prefix: "/" }
                           route: { cluster: frontend }
                 http_filters:
@@ -309,6 +318,18 @@ static_resources:
                     socket_address:
                       address: ${SECUREAPP_HOST}
                       port_value: ${SECUREAPP_PORT}
+    - name: chatbot
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: chatbot
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: ${CHATBOT_HOST}
+                      port_value: ${CHATBOT_PORT}
     # - name: grafana
     #   type: STRICT_DNS
     #   lb_policy: ROUND_ROBIN
