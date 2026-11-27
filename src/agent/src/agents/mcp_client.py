@@ -13,15 +13,20 @@ restore the agent span as parent of execute_tool spans.
 import logging
 from contextlib import AsyncExitStack
 
-from langchain.tools import StructuredTool
+from langchain_core.tools import StructuredTool
 from mcp import ClientSession
-from mcp.client.streamable_http import streamablehttp_client
-from mcp.types import PaginatedRequestParams, RequestParams
+from mcp.client.streamable_http import streamable_http_client
+from mcp.types import PaginatedRequestParams
 from opentelemetry import propagate
 
 
 def _trace_metadata(meta=None):
-    carrier = dict(meta or {})
+    if meta is None:
+        carrier = {}
+    elif isinstance(meta, dict):
+        carrier = dict(meta)
+    else:
+        carrier = dict(meta.model_dump(exclude_none=True))
     propagate.inject(carrier)
     return carrier
 
@@ -35,6 +40,7 @@ class TracedClientSession(ClientSession):
         progress_callback=None,
         *,
         meta=None,
+        **kwargs,
     ):
         return await super().call_tool(
             name,
@@ -42,21 +48,14 @@ class TracedClientSession(ClientSession):
             read_timeout_seconds,
             progress_callback,
             meta=_trace_metadata(meta),
+            **kwargs,
         )
 
-    async def list_tools(self, cursor=None, *, params=None):
-        if cursor is not None and params is not None:
-            raise ValueError("Cannot specify both cursor and params")
+    async def list_tools(self, *, params=None):
         params = (
-            params.model_copy()
-            if params is not None
-            else PaginatedRequestParams(cursor=cursor)
+            params.model_copy() if params is not None else PaginatedRequestParams()
         )
-        params.meta = RequestParams.Meta(
-            **_trace_metadata(
-                params.meta.model_dump(exclude_none=True) if params.meta else None
-            )
-        )
+        params.meta = _trace_metadata(params.meta)
         return await super().list_tools(params=params)
 
 
@@ -66,8 +65,8 @@ class MCPClient:
         self.session = None
 
     async def connect_to_mcp_server(self, url):
-        stream_context = streamablehttp_client(url=url)
-        read, write, _ = await self.exit_stack.enter_async_context(stream_context)
+        stream_context = streamable_http_client(url=url)
+        read, write = await self.exit_stack.enter_async_context(stream_context)
         session_context = TracedClientSession(read, write)
         self.session = await self.exit_stack.enter_async_context(session_context)
         await self.session.initialize()
